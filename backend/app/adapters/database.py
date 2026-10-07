@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from app.domain.calendar import Event, Member
+from app.domain.calendar import Category, Event, Member
 
 
 class Base(DeclarativeBase):
@@ -32,6 +32,10 @@ class EventRow(Base):
     __tablename__ = "events"
     __table_args__ = (
         CheckConstraint("ends_at > starts_at", name="event_positive_duration"),
+        CheckConstraint(
+            "category IN ('school', 'activities', 'medical', 'friends', 'other')",
+            name="event_category",
+        ),
         Index("event_member_dates", "member_id", "starts_at", "ends_at"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
@@ -40,6 +44,7 @@ class EventRow(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    category: Mapped[str] = mapped_column(String(32), server_default="other")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -48,7 +53,9 @@ def make_engine(url: str):
 
 
 def to_event(row: EventRow) -> Event:
-    return Event(row.id, row.member_id, row.title, row.starts_at, row.ends_at)
+    return Event(
+        row.id, row.member_id, row.title, row.starts_at, row.ends_at, Category(row.category)
+    )
 
 
 class SqlCalendarRepository:
@@ -89,6 +96,7 @@ class SqlCalendarRepository:
             row = EventRow(id=event.id, member_id=event.member_id, created_at=now)
             self.session.add(row)
         row.title, row.starts_at, row.ends_at = event.title, event.starts_at, event.ends_at
+        row.category = event.category.value
         row.updated_at = now
         self.session.flush()
         return event

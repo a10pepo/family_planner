@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -19,23 +18,17 @@ import { DateTime } from "luxon";
 import { Api, type CalendarEvent, type Member } from "./api";
 import type { AppConfig } from "./auth";
 import { fromLocalInput, localInput } from "./dates";
+import { Avatar, Icon } from "./visuals";
+import { categories, type Category } from "./categories";
 
 const colors = [
-  "#367d68",
-  "#4775be",
-  "#b55d77",
-  "#a87525",
-  "#8068b6",
-  "#498c9e",
+  "#dcebe2",
+  "#dce6f3",
+  "#f4e7cf",
+  "#eadff0",
+  "#f5dfe3",
+  "#dceeee",
 ];
-const initials = (name: string) =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar el cambio.";
 
@@ -171,6 +164,7 @@ function MemberForm({
 
 interface Editor {
   event?: CalendarEvent;
+  memberId?: string;
   start: string;
   end: string;
 }
@@ -193,8 +187,15 @@ function EventForm({
   saved: () => void;
 }) {
   const [title, setTitle] = useState(editor.event?.title ?? "");
+  const [category, setCategory] = useState<Category>(
+    editor.event?.category ?? "other",
+  );
   const [memberId, setMemberId] = useState(
-    editor.event?.member_id ?? selected ?? members[0]?.id ?? "",
+    editor.event?.member_id ??
+      editor.memberId ??
+      selected ??
+      members[0]?.id ??
+      "",
   );
   const [start, setStart] = useState(localInput(editor.start, zone));
   const [end, setEnd] = useState(localInput(editor.end, zone));
@@ -210,7 +211,7 @@ function EventForm({
         ends_at = fromLocalInput(end, zone);
       if (Date.parse(ends_at) <= Date.parse(starts_at))
         throw new Error("El final debe ser posterior al inicio.");
-      const data = { title: title.trim(), starts_at, ends_at };
+      const data = { title: title.trim(), starts_at, ends_at, category };
       if (editor.event) await api.updateEvent(editor.event.id, data);
       else await api.addEvent({ ...data, member_id: memberId });
       saved();
@@ -254,6 +255,7 @@ function EventForm({
         <label>
           Integrante
           <select
+            aria-label="Integrante"
             value={memberId}
             disabled={busy || !!editor.event}
             onChange={(event) => setMemberId(event.target.value)}
@@ -262,6 +264,21 @@ function EventForm({
             {members.map((member) => (
               <option key={member.id} value={member.id}>
                 {member.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Categoría
+          <select
+            aria-label="Categoría"
+            value={category}
+            disabled={busy}
+            onChange={(event) => setCategory(event.target.value as Category)}
+          >
+            {Object.entries(categories).map(([value, details]) => (
+              <option key={value} value={value}>
+                {details.label}
               </option>
             ))}
           </select>
@@ -353,19 +370,21 @@ export default function App({
   const [authenticated, setAuthenticated] = useState(!!auth.authenticated);
   const api = useMemo(() => new Api(auth), [auth]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [range, setRange] = useState<{ start: string; end: string } | null>(
-    null,
+  const [day, setDay] = useState(() =>
+    DateTime.now().setZone(config.timezone).toISODate()!,
   );
-  const [heading, setHeading] = useState("");
+  const date = useMemo(
+    () => DateTime.fromISO(day, { zone: config.timezone }),
+    [day, config.timezone],
+  );
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [moving, setMoving] = useState(false);
   const [memberForm, setMemberForm] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const calendar = useRef<FullCalendar>(null);
+  const viewport = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     auth.onAuthLogout = () => setAuthenticated(false);
@@ -397,10 +416,14 @@ export default function App({
   }, [api, authenticated, refresh]);
 
   useEffect(() => {
-    if (!authenticated || !range) return;
+    if (!authenticated) return;
     let active = true;
     api
-      .events(range.start, range.end, selected)
+      .events(
+        date.startOf("day").toISO()!,
+        date.plus({ days: 1 }).startOf("day").toISO()!,
+        null,
+      )
       .then((data) => {
         if (active) {
           setEvents(data);
@@ -413,21 +436,20 @@ export default function App({
     return () => {
       active = false;
     };
-  }, [api, authenticated, range, selected, refresh]);
+  }, [api, authenticated, date, refresh]);
 
-  const addEvent = useCallback(
-    (start?: string, end?: string) => {
-      const date = DateTime.now()
-        .setZone(config.timezone)
-        .plus({ hours: 1 })
-        .startOf("hour");
-      setEditor({
-        start: start ?? date.toISO()!,
-        end: end ?? date.plus({ hours: 1 }).toISO()!,
-      });
-    },
-    [config.timezone],
-  );
+  useEffect(() => {
+    if (viewport.current) viewport.current.scrollTop = 7 * 56;
+  }, [loading, authenticated, day]);
+
+  function addEvent(memberId: string, start?: string, end?: string) {
+    const defaultStart = date.set({ hour: 9 });
+    setEditor({
+      memberId,
+      start: start ?? defaultStart.toISO()!,
+      end: end ?? defaultStart.plus({ hours: 1 }).toISO()!,
+    });
+  }
 
   async function move(info: EventDropArg | EventResizeDoneArg) {
     if (!info.event.start || !info.event.end) {
@@ -439,6 +461,7 @@ export default function App({
     try {
       await api.updateEvent(info.event.id, {
         title: info.event.title,
+        category: info.event.extendedProps.category as Category,
         starts_at: info.event.start.toISOString(),
         ends_at: info.event.end.toISOString(),
       });
@@ -454,7 +477,9 @@ export default function App({
   if (!authenticated)
     return (
       <main className="welcome">
-        <div className="brand-mark">◷</div>
+        <div className="brand-mark">
+          <Icon name="calendar" />
+        </div>
         <p className="eyebrow">FAMILY PLANNER</p>
         <h1>
           Un lugar para
@@ -473,257 +498,277 @@ export default function App({
       </main>
     );
 
-  const memberById = new Map(members.map((member) => [member.id, member]));
+  const gridStyle = {
+    gridTemplateColumns: `56px repeat(${Math.max(members.length, 1)}, minmax(180px, 1fr))`,
+  };
   return (
     <div className="app-layout">
-      <aside className="sidebar">
-        <a href="/" className="brand">
-          <span className="brand-mark">◷</span>
-          <span>
-            family
-            <br />
-            <strong>planner</strong>
-          </span>
+      <aside className="sidebar" aria-label="Menú principal">
+        <a
+          href="/"
+          className="brand-mark"
+          aria-label="Family Planner"
+          title="Family Planner"
+        >
+          <Icon name="calendar" />
         </a>
-        <div className="sidebar-main">
-          <p className="eyebrow">NUESTRO ESPACIO</p>
-          <div className="nav-active">
-            <span aria-hidden="true">▦</span> Calendario
-          </div>
+        <nav className="sidebar-main">
           <button
-            className="add-event"
-            disabled={!members.length || loading}
-            onClick={() => addEvent()}
-          >
-            ＋ Añadir evento
-          </button>
-          <button className="sidebar-link" onClick={() => setMemberForm(true)}>
-            ＋ Añadir integrante
-          </button>
-        </div>
-        <div className="sidebar-bottom">
-          <p>
-            Pequeños planes.
-            <br />
-            <strong>Grandes momentos.</strong>
-          </p>
-          <button
-            className="sidebar-link"
+            className="rail-button active"
+            aria-label="Calendario"
+            aria-current="page"
+            title="Calendario"
             onClick={() =>
-              auth.logout({ redirectUri: `${window.location.origin}/` })
+              setDay(DateTime.now().setZone(config.timezone).toISODate()!)
             }
           >
-            Cerrar sesión
+            <Icon name="calendar" />
           </button>
-        </div>
+          <button
+            className="rail-button"
+            aria-label="Añadir integrante"
+            title="Añadir integrante"
+            onClick={() => setMemberForm(true)}
+          >
+            <Icon name="people" />
+          </button>
+        </nav>
+        <button
+          className="rail-button sidebar-bottom"
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión"
+          onClick={() =>
+            auth.logout({ redirectUri: `${window.location.origin}/` })
+          }
+        >
+          <Icon name="logout" />
+        </button>
       </aside>
       <main className="workspace">
-        <header className="page-heading">
-          <div>
-            <p className="eyebrow">TODO EN SU SITIO</p>
-            <h1>
-              Nuestro calendario<span className="heading-dot">.</span>
-            </h1>
-            <p className="muted">Cada uno con sus planes. Todos conectados.</p>
-          </div>
-          <div className="household-badge">
-            <span aria-hidden="true">⌂</span> En familia
-          </div>
-        </header>
-        <section className="family-bar" aria-label="Integrantes de la familia">
-          <div className="family-label">
-            <span className="eyebrow">LA FAMILIA</span>
-            <span className="small muted">Elige de quién ver los planes</span>
-          </div>
-          <div className="member-list">
-            <button
-              className={`member-button ${selected === null ? "selected" : ""}`}
-              aria-pressed={selected === null}
-              onClick={() => setSelected(null)}
-            >
-              <span className="avatar all-avatar">⌂</span>
-              <span>Todos</span>
-            </button>
-            {members.map((member) => (
-              <button
-                key={member.id}
-                className={`member-button ${selected === member.id ? "selected" : ""}`}
-                aria-pressed={selected === member.id}
-                onClick={() =>
-                  setSelected(selected === member.id ? null : member.id)
-                }
-              >
-                <span
-                  className="avatar"
-                  style={{
-                    background: `${member.color}17`,
-                    color: member.color,
-                    borderColor: member.color,
-                  }}
-                >
-                  {initials(member.name)}
-                </span>
-                <span>{member.name}</span>
-              </button>
-            ))}
-            <button
-              className="member-button add-member"
-              onClick={() => setMemberForm(true)}
-            >
-              <span className="avatar">＋</span>
-              <span>Añadir</span>
-            </button>
-          </div>
-        </section>
-        {error && (
-          <div className="error-banner" role="alert">
-            <span>{error}</span>
-            <button
-              className="secondary"
-              onClick={() => setRefresh((value) => value + 1)}
-            >
-              Reintentar
-            </button>
-          </div>
-        )}
-        {!loading && !members.length && (
-          <div className="empty-note">
-            <strong>El primer paso: añadir a vuestra familia.</strong>
-            <span>Después podréis empezar a llenar el calendario.</span>
-            <button className="secondary" onClick={() => setMemberForm(true)}>
-              Añadir el primer integrante
-            </button>
-          </div>
-        )}
-        <section className="calendar-panel" aria-label="Calendario semanal">
-          <div className="calendar-toolbar">
+        <section
+          className="calendar-panel"
+          aria-label="Calendario diario por familiar"
+        >
+          <header className="calendar-toolbar">
             <div className="calendar-period">
-              <h2>{heading}</h2>
-              <span className="small muted">
-                {moving
-                  ? "Guardando movimiento…"
-                  : "Una semana, muchos momentos"}
+              <span className="month-label">
+                {date.setLocale("es").toFormat("LLLL yyyy")}
               </span>
+              <h1>{date.setLocale("es").toFormat("cccc, d 'de' LLLL")}</h1>
             </div>
             <div className="calendar-controls">
               <button
                 className="secondary"
-                onClick={() => calendar.current?.getApi().today()}
+                onClick={() =>
+                  setDay(DateTime.now().setZone(config.timezone).toISODate()!)
+                }
               >
                 Hoy
               </button>
               <div className="arrows">
                 <button
                   className="icon-button"
-                  aria-label="Semana anterior"
-                  onClick={() => calendar.current?.getApi().prev()}
+                  aria-label="Día anterior"
+                  onClick={() => setDay(date.minus({ days: 1 }).toISODate()!)}
                 >
                   ‹
                 </button>
                 <button
                   className="icon-button"
-                  aria-label="Semana siguiente"
-                  onClick={() => calendar.current?.getApi().next()}
+                  aria-label="Día siguiente"
+                  onClick={() => setDay(date.plus({ days: 1 }).toISODate()!)}
                 >
                   ›
                 </button>
               </div>
-              <span className="view-badge">Semana</span>
+              <span className="view-badge">
+                <Icon name="calendar" /> Día
+              </span>
+            </div>
+          </header>
+          {error && (
+            <div className="error-banner" role="alert">
+              <span>{error}</span>
               <button
-                className="mobile-add"
-                disabled={!members.length}
-                onClick={() => addEvent()}
+                className="secondary"
+                onClick={() => setRefresh((value) => value + 1)}
               >
-                ＋ Evento
+                Reintentar
               </button>
             </div>
-          </div>
-          <div className="calendar-scroll">
-            <FullCalendar
-              ref={calendar}
-              plugins={[timeGrid, interaction, luxonPlugin]}
-              locale={es}
-              timeZone={config.timezone}
-              initialView="timeGridWeek"
-              firstDay={1}
-              headerToolbar={false}
-              allDaySlot={false}
-              nowIndicator
-              height={700}
-              slotMinTime="00:00:00"
-              slotMaxTime="24:00:00"
-              scrollTime="07:00:00"
-              slotDuration="00:30:00"
-              slotLabelInterval="01:00:00"
-              editable={!moving && !editor}
-              selectable={!!members.length}
-              selectMirror
-              longPressDelay={350}
-              eventMinHeight={44}
-              eventTimeFormat={{
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              }}
-              dayHeaderFormat={{ weekday: "short", day: "numeric" }}
-              datesSet={(info) => {
-                setHeading(info.view.title);
-                setRange((previous) =>
-                  previous?.start === info.startStr &&
-                  previous.end === info.endStr
-                    ? previous
-                    : { start: info.startStr, end: info.endStr },
-                );
-              }}
-              events={events.map((event) => ({
-                id: event.id,
-                title: event.title,
-                start: event.starts_at,
-                end: event.ends_at,
-                backgroundColor: memberById.get(event.member_id)?.color,
-                borderColor: memberById.get(event.member_id)?.color,
-                extendedProps: {
-                  member: memberById.get(event.member_id)?.name,
-                },
-              }))}
-              select={(info) => {
-                addEvent(info.startStr, info.endStr);
-                calendar.current?.getApi().unselect();
-              }}
-              eventDrop={move}
-              eventResize={move}
-              eventClick={(info) => {
-                const event = events.find(
-                  (event) => event.id === info.event.id,
-                );
-                if (event)
-                  setEditor({
-                    event,
-                    start: event.starts_at,
-                    end: event.ends_at,
-                  });
-              }}
-              eventContent={(info) => (
-                <div className="event-content">
-                  <span className="event-time">{info.timeText}</span>
-                  <strong>{info.event.title}</strong>
-                  <span className="event-member">
-                    {info.event.extendedProps.member}
-                  </span>
+          )}
+          {loading && (
+            <p className="empty-note" role="status">
+              Cargando calendario…
+            </p>
+          )}
+          {!loading && !members.length && (
+            <div className="empty-note">
+              <span>Añade un integrante para empezar a planificar.</span>
+              <button className="secondary" onClick={() => setMemberForm(true)}>
+                Añadir integrante
+              </button>
+            </div>
+          )}
+          {!!members.length && (
+            <div className="day-viewport" ref={viewport}>
+              <div
+                className="day-surface"
+                style={{ minWidth: 56 + members.length * 180 }}
+              >
+                <div className="family-headings" style={gridStyle}>
+                  <div className="time-heading" aria-hidden="true">
+                    <span>24 h</span>
+                  </div>
+                  {members.map((member) => {
+                    const [name, nickname] = member.name.split(/\s*[()]\s*/);
+                    return (
+                      <div className="person-heading" key={member.id}>
+                        <Avatar name={member.name} color={member.color} />
+                        <span className="person-name">{name}</span>
+                        {nickname && (
+                          <span className="person-nickname">{nickname}</span>
+                        )}
+                        <button
+                          className="column-add"
+                          aria-label={`Añadir evento para ${name}`}
+                          title={`Añadir evento para ${name}`}
+                          onClick={() => addEvent(member.id)}
+                        >
+                          ＋
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            />
+                <div className="day-columns" style={gridStyle}>
+                  <div className="time-scale" aria-hidden="true">
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <div className="hour-label" key={hour}>
+                        <span>{`${String(hour).padStart(2, "0")}:00`}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {members.map((member) => (
+                    <div
+                      className="member-calendar"
+                      key={`${member.id}-${day}`}
+                      aria-label={`Calendario de ${member.name}`}
+                      data-member={member.name}
+                    >
+                      <FullCalendar
+                        plugins={[timeGrid, interaction, luxonPlugin]}
+                        locale={es}
+                        timeZone={config.timezone}
+                        initialDate={day}
+                        initialView="timeGridDay"
+                        headerToolbar={false}
+                        dayHeaders={false}
+                        allDaySlot={false}
+                        nowIndicator
+                        height="auto"
+                        slotMinTime="00:00:00"
+                        slotMaxTime="24:00:00"
+                        slotDuration="00:30:00"
+                        slotLabelContent={() => ""}
+                        editable={!moving && !editor}
+                        selectable
+                        selectMirror
+                        longPressDelay={350}
+                        eventMinHeight={44}
+                        eventTimeFormat={{
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        }}
+                        events={events
+                          .filter((event) => event.member_id === member.id)
+                          .map((event) => ({
+                            id: event.id,
+                            title: event.title,
+                            start: event.starts_at,
+                            end: event.ends_at,
+                            backgroundColor: categories[event.category].color,
+                            textColor: categories[event.category].ink,
+                            extendedProps: { category: event.category },
+                            borderColor: categories[event.category].color,
+                          }))}
+                        dateClick={(info) =>
+                          addEvent(
+                            member.id,
+                            info.dateStr,
+                            DateTime.fromISO(info.dateStr)
+                              .plus({ hours: 1 })
+                              .toISO()!,
+                          )
+                        }
+                        select={(info) => {
+                          addEvent(member.id, info.startStr, info.endStr);
+                          info.view.calendar.unselect();
+                        }}
+                        eventDrop={move}
+                        eventResize={move}
+                        eventClick={(info) => {
+                          const event = events.find(
+                            (event) => event.id === info.event.id,
+                          );
+                          if (event)
+                            setEditor({
+                              event,
+                              start: event.starts_at,
+                              end: event.ends_at,
+                            });
+                        }}
+                        eventContent={(info) => (
+                          <div className="event-content">
+                            <span className="event-time">{info.timeText}</span>
+                            <strong>{info.event.title}</strong>
+                            <span className="event-category">
+                              <Icon
+                                name={
+                                  categories[
+                                    (info.event.extendedProps.category ??
+                                      "other") as Category
+                                  ].icon
+                                }
+                              />
+                              {
+                                categories[
+                                  (info.event.extendedProps.category ??
+                                    "other") as Category
+                                ].label
+                              }
+                            </span>
+                          </div>
+                        )}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="category-legend" aria-label="Categorías de eventos">
+            {Object.entries(categories).map(([value, details]) => (
+              <span className="category-key" key={value}>
+                <span
+                  className="category-swatch"
+                  style={{ background: details.color, color: details.ink }}
+                >
+                  <Icon name={details.icon} />
+                </span>
+                {details.label}
+              </span>
+            ))}
           </div>
           <footer className="calendar-footer">
-            <span>
-              <span className="status-dot" />{" "}
-              {loading
-                ? "Cargando familia…"
-                : `${members.length} ${members.length === 1 ? "integrante" : "integrantes"} · ${events.length} ${events.length === 1 ? "evento" : "eventos"} esta semana`}
+            <span role="status">
+              <span className="status-dot" />
+              {moving
+                ? "Guardando movimiento…"
+                : `${events.length} ${events.length === 1 ? "plan" : "planes"} para hoy`}
             </span>
-            <span>
-              Mantén pulsado un evento para moverlo · {config.timezone}
-            </span>
+            <span>Toca una hora para añadir un plan · {config.timezone}</span>
           </footer>
         </section>
       </main>
@@ -738,7 +783,6 @@ export default function App({
           close={() => setMemberForm(false)}
           saved={(member) => {
             setMembers((previous) => [...previous, member]);
-            setSelected(member.id);
             setMemberForm(false);
           }}
         />
@@ -747,7 +791,7 @@ export default function App({
         <EventForm
           api={api}
           members={members}
-          selected={selected}
+          selected={null}
           zone={config.timezone}
           editor={editor}
           close={() => setEditor(null)}

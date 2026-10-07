@@ -7,7 +7,7 @@
 - Lee [application.md](application.md) antes de cambiar comportamiento de producto y [docs/architecture.md](docs/architecture.md) antes de implementar código.
 - Consulta [docs/decisions.md](docs/decisions.md) para distinguir acuerdos de decisiones pendientes. No conviertas una propuesta en una decisión aprobada.
 - Las instrucciones explícitas de Pedro tienen prioridad sobre estos documentos. Si cambia una decisión, actualiza sus referencias en el mismo trabajo.
-- Estado actual: MVP local React/TypeScript + FastAPI + PostgreSQL + Keycloak OAuth, ejecutable con Docker Compose. Issue de implementación: [#3](https://github.com/a10pepo/family_planner/issues/3). No inventes resultados de validación.
+- Estado actual: MVP local React/TypeScript + FastAPI + PostgreSQL + Keycloak OAuth, ejecutable con Docker Compose. Issues de implementación: [#3](https://github.com/a10pepo/family_planner/issues/3) y [#5](https://github.com/a10pepo/family_planner/issues/5). No inventes resultados de validación.
 
 ## Producto y alcance
 
@@ -56,10 +56,13 @@ Los cambios rutinarios dentro del alcance y los límites acordados no necesitan 
 
 Para el MVP local Pedro ha autorizado implementar la propuesta con OAuth y usuario/contraseña. Se usa Authorization Code + PKCE, con cuenta compartida en Keycloak, y tablas de integrantes y eventos. No se implementan las sesiones opacas de la propuesta anterior. La preparación de seguridad para acceso público queda fuera de este issue; no pedir otra aprobación para los controles básicos del OAuth local ya autorizado.
 
+La vista vigente es diaria, con una columna y cara ilustrada por integrante; el menú lateral contiene solo iconos. Las categorías de evento tienen color pastel e icono, y se guardan en `events.category` tras aprobación expresa de Pedro (issue #5). Los eventos anteriores reciben `other`; una edición sin categoría conserva la existente. La demo explícita tiene los cuatro nombres solicitados por Pedro, caras genéricas y actividades ficticias; el arranque normal no incorpora estos datos. No modificar o recrear datos familiares para preparar una demo.
+
 ## Comandos y estructura actual
 
 - `frontend/src/`: interfaz y cliente OAuth/API. `backend/app/api.py`: adaptador HTTP y DTO. `backend/app/domain/`: negocio puro y puerto de repositorio. `backend/app/adapters/`: PostgreSQL y validación OAuth.
 - `backend/migrations/`: migraciones Alembic. Keycloak gestiona su propio almacén de identidad; nunca accede a la base de datos del calendario.
+- Demo: `python3 scripts/setup.py --demo`, solo en una instalación sin configuración; se conserva entre reinicios.
 - Arranque: preparar configuración con `python3 scripts/setup.py` o su equivalente Docker del README; después `docker compose up --build -d`.
 - Backend: `docker compose --profile test up -d --wait db-test` y `docker compose run --rm backend pytest -q`.
 - Código: `ruff check --config backend/pyproject.toml backend scripts`; `ruff format --config backend/pyproject.toml --check backend scripts`.

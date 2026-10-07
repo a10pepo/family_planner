@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.database import SqlCalendarRepository, make_engine
 from app.adapters.oauth import OAuthVerifier
-from app.domain.calendar import Calendar, InvalidInput, MissingEntity
+from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
 
 
 class MemberInput(BaseModel):
@@ -32,10 +32,12 @@ class EventUpdate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     starts_at: AwareDatetime
     ends_at: AwareDatetime
+    category: Category | None = None
 
 
 class EventInput(EventUpdate):
     member_id: UUID
+    category: Category = Category.OTHER
 
 
 class EventOutput(EventInput):
@@ -145,7 +147,9 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
     )
     def add_event(data: EventInput, service: use_calendar):
         return asdict(
-            service.create_event(data.member_id, data.title, data.starts_at, data.ends_at)
+            service.create_event(
+                data.member_id, data.title, data.starts_at, data.ends_at, data.category
+            )
         )
 
     @app.put(
@@ -155,7 +159,9 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
         tags=["events"],
     )
     def update_event(event_id: UUID, data: EventUpdate, service: use_calendar):
-        return asdict(service.update_event(event_id, data.title, data.starts_at, data.ends_at))
+        return asdict(
+            service.update_event(event_id, data.title, data.starts_at, data.ends_at, data.category)
+        )
 
     @app.delete("/api/v1/events/{event_id}", status_code=204, dependencies=guarded, tags=["events"])
     def delete_event(event_id: UUID, service: use_calendar):

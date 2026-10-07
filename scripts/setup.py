@@ -97,6 +97,7 @@ def prepare(test: bool = False) -> None:
         "KC_ADMIN_PASSWORD": secrets.token_urlsafe(32),
         "APP_ORIGIN": origin,
         "FAMILY_TIMEZONE": "Europe/Madrid",
+        "DEMO_MODE": "1" if test else "0",
     }
     env_path.write_text("\n".join(f"{key}={value}" for key, value in values.items()) + "\n")
     os.chmod(env_path, 0o600)
@@ -109,4 +110,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--test", action="store_true", help="Crear una cuenta ficticia para pruebas."
     )
-    prepare(parser.parse_args().test)
+    parser.add_argument(
+        "--demo", action="store_true", help="Crear la demo local con cuatro perfiles ilustrados."
+    )
+    args = parser.parse_args()
+    prepare(args.test or args.demo)

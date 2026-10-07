@@ -60,3 +60,21 @@ def test_invalid_interval_and_missing_member():
         validate_interval(datetime(2026, 1, 1), now)
     with pytest.raises(MissingEntity):
         Calendar(MemoryRepository()).create_event(uuid4(), "Evento", now, now)
+
+
+def test_category_survives_movement_and_can_be_changed():
+    calendar = Calendar(MemoryRepository())
+    member = calendar.add_member("Demo", "#dcebe2")
+    start = datetime.fromisoformat("2026-10-07T09:00:00Z")
+    end = datetime.fromisoformat("2026-10-07T10:00:00Z")
+    event = calendar.create_event(member.id, "Actividad", start, end, "school")
+    assert event.category == "school"
+    moved = calendar.update_event(event.id, "Actividad movida", start, end)
+    assert moved.category == "school"
+    changed = calendar.update_event(event.id, "Actividad", start, end, "friends")
+    assert changed.category == "friends"
+    with pytest.raises(InvalidInput):
+        calendar.update_event(event.id, "Actividad", start, end, "unknown")
+    assert calendar.repository.event(event.id).category == "friends"
+    with pytest.raises(InvalidInput):
+        calendar.create_event(member.id, "Actividad", start, end, "unknown")

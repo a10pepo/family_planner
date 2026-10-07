@@ -1,92 +1,112 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { DateTime } from "luxon";
 
-test("OAuth login and persistent family calendar lifecycle", async ({
-  page,
-}) => {
+async function login(page: Page, checkIncorrectPassword = false) {
   await page.goto("/");
   await page.getByRole("button", { name: /Entrar al calendario/ }).click();
-  await expect(page.locator("#username")).toBeVisible();
   await page.locator("#username").fill("test-family");
-  await page.locator("#password").fill("incorrect-password");
-  await page.locator("#kc-login").click();
-  await expect(
-    page.getByText("Usuario o contraseña incorrectos.", { exact: true }),
-  ).toBeVisible();
+  if (checkIncorrectPassword) {
+    await page.locator("#password").fill("incorrect-password");
+    await page.locator("#kc-login").click();
+    await expect(
+      page.getByText("Usuario o contraseña incorrectos.", { exact: true }),
+    ).toBeVisible();
+  }
   await page.locator("#password").fill("Fictional-test-password-42");
   await page.locator("#kc-login").click();
   await expect(
-    page.getByRole("heading", { name: "Nuestro calendario." }),
+    page.getByRole("region", { name: "Calendario diario por familiar" }),
   ).toBeVisible();
+  await expect(page.locator(".person-heading")).toHaveCount(4);
+}
+
+test("daily demo has four faces and persistent categorized events", async ({
+  page,
+}) => {
+  const browserErrors: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  await login(page, true);
+  const names = ["Laura", "Pedro", "Jaime", "Lucía"];
+  await expect(page.locator(".person-name")).toHaveText(names);
+  await expect(page.locator(".person-nickname")).toHaveText([
+    "Mamá",
+    "Papá",
+    "Tete",
+    "Teta",
+  ]);
+  for (const name of names)
+    await expect(
+      page.getByRole("img", { name: `Cara ilustrada de ${name}` }),
+    ).toBeVisible();
+  await expect(
+    page.getByText("Nuestro calendario", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText("LA FAMILIA", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".sidebar")).toHaveCSS("width", "76px");
+  await expect(
+    page.locator(".sidebar").getByRole("button", { name: /evento/i }),
+  ).toHaveCount(0);
+  await expect(page.locator(".view-badge")).toHaveText("Día");
   if (process.env.EXPECT_PERSISTENCE === "1") {
     await expect(
-      page
-        .locator(".member-button")
-        .filter({ hasText: /Alex \d+/ })
-        .first(),
+      page.locator(".member-calendar[data-member='Jaime (Tete)'] .fc-event", {
+        hasText: "Fútbol",
+      }),
     ).toBeVisible();
   }
   expect(await page.evaluate(() => Object.keys(localStorage))).not.toContain(
     "token",
   );
 
-  const member = `Alex ${Date.now()}`;
-  await page.getByRole("button", { name: "＋ Añadir integrante" }).click();
-  await page.getByLabel("Nombre", { exact: true }).fill(member);
-  await page.getByRole("button", { name: "Guardar integrante" }).click();
+  const column = page.locator(".member-calendar[data-member='Laura (Mamá)']");
+  await column.locator('.fc-timegrid-slot-lane[data-time="13:00:00"]').click();
   await expect(
-    page.getByRole("button", { name: new RegExp(member) }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "＋ Añadir evento" }).click();
-  await page.getByLabel("Título", { exact: true }).fill("Clase de prueba");
+    page.getByRole("heading", { name: "Nuevo evento" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("combobox", { name: "Integrante", exact: true })
+      .locator("option:checked"),
+  ).toHaveText("Laura (Mamá)");
+  const title = `Plan de prueba ${Date.now()}`;
+  await page.getByLabel("Título", { exact: true }).fill(title);
+  await page
+    .getByRole("combobox", { name: "Categoría", exact: true })
+    .selectOption("school");
+  await page.getByRole("button", { name: "Guardar evento" }).click();
+  const event = column.locator(".fc-event", { hasText: title });
+  await expect(event).toBeVisible();
+  await expect(event).toHaveCSS("background-color", "rgb(220, 232, 250)");
+  await expect(event.locator(".event-category")).toHaveText("Colegio");
+  await expect(event.locator(".event-category svg")).toHaveCount(1);
+  await expect(
+    page.locator(".member-calendar[data-member='Pedro (Papá)'] .fc-event", {
+      hasText: title,
+    }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(event).toBeVisible();
+  await event.click();
+  await expect(
+    page.getByRole("combobox", { name: "Categoría", exact: true }),
+  ).toHaveValue("school");
   const start = DateTime.now()
     .setZone("Europe/Madrid")
-    .startOf("week")
-    .plus({ days: 2, hours: 9 });
+    .startOf("day")
+    .plus({ hours: 12 });
   await page
     .getByLabel("Inicio", { exact: true })
     .fill(start.toFormat("yyyy-MM-dd'T'HH:mm"));
   await page
     .getByLabel("Fin", { exact: true })
     .fill(start.plus({ hours: 1 }).toFormat("yyyy-MM-dd'T'HH:mm"));
-  await page.getByRole("button", { name: "Guardar evento" }).click();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toBeVisible();
-  const other = `Sam ${Date.now()}`;
-  await page.getByRole("button", { name: "＋ Añadir integrante" }).click();
-  await page.getByLabel("Nombre", { exact: true }).fill(other);
-  await page.getByRole("button", { name: "Guardar integrante" }).click();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toHaveCount(0);
-  await page.getByRole("button", { name: new RegExp(member) }).click();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toBeVisible();
-  await page.reload();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toBeVisible();
-
-  await page.locator(".fc-event", { hasText: "Clase de prueba" }).click();
   await page
-    .getByLabel("Inicio", { exact: true })
-    .fill(start.plus({ days: 1 }).toFormat("yyyy-MM-dd'T'HH:mm"));
-  await page
-    .getByLabel("Fin", { exact: true })
-    .fill(start.plus({ days: 1, hours: 2 }).toFormat("yyyy-MM-dd'T'HH:mm"));
+    .getByRole("combobox", { name: "Categoría", exact: true })
+    .selectOption("friends");
   await page.getByRole("button", { name: "Guardar evento" }).click();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toContainText("11:00");
-  await page.reload();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toContainText("11:00");
+  await expect(event).toHaveCSS("background-color", "rgb(231, 222, 244)");
+  await expect(event.locator(".event-category")).toHaveText("Amigos");
 
-  // Mouse drag moves the real calendar event and persists through the API.
-  const event = page.locator(".fc-event", { hasText: "Clase de prueba" });
   const box = await event.boundingBox();
   if (!box) throw new Error("Event has no drag target");
   const save = page.waitForResponse(
@@ -95,46 +115,61 @@ test("OAuth login and persistent family calendar lifecycle", async ({
       response.url().includes("/api/v1/events/") &&
       response.ok(),
   );
-  await page.mouse.move(box.x + 12, box.y + 18);
+  await page.mouse.move(box.x + 15, box.y + 18);
   await page.mouse.down();
-  await page.mouse.move(box.x + 12, box.y + 118, { steps: 20 });
+  await page.mouse.move(box.x + 15, box.y + 100, { steps: 20 });
   await page.mouse.up();
   const moved = await (await save).json();
   expect(DateTime.fromISO(moved.starts_at).toMillis()).not.toBe(
-    start.plus({ days: 1 }).toMillis(),
+    start.toMillis(),
   );
+  expect(moved.category).toBe("friends");
   await page.reload();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toContainText(
+  await expect(event).toContainText(
     DateTime.fromISO(moved.starts_at)
       .setZone("Europe/Madrid")
       .toFormat("HH:mm"),
   );
+  await expect(event.locator(".event-category")).toHaveText("Amigos");
+
+  await page.getByRole("button", { name: "Día siguiente" }).click();
+  await expect(event).toHaveCount(0);
+  await page.getByRole("button", { name: "Día anterior" }).click();
+  await expect(event).toBeVisible();
   await page.screenshot({
     path: "test-results/calendar-desktop.png",
     fullPage: true,
   });
-
-  await page.locator(".fc-event", { hasText: "Clase de prueba" }).click();
+  await event.click();
   await page
     .getByRole("button", { name: "Eliminar evento", exact: true })
     .click();
   await page.getByRole("button", { name: "Confirmar eliminación" }).click();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toHaveCount(0);
+  await expect(event).toHaveCount(0);
   await page.reload();
-  await expect(
-    page.locator(".fc-event", { hasText: "Clase de prueba" }),
-  ).toHaveCount(0);
-
+  await expect(event).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("button", { name: "＋ Evento" })).toBeVisible();
+  await expect(page.locator(".person-heading")).toHaveCount(4);
+  await expect(page.locator(".sidebar")).toHaveCSS("width", "60px");
+  await page.locator(".day-viewport").evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  await expect(
+    page.locator(".hour-label").filter({ hasText: /^09:00$/ }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Añadir evento para Lucía" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Añadir evento para Lucía" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Nuevo evento" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
   await page.screenshot({
     path: "test-results/calendar-mobile.png",
     fullPage: true,
   });
+  expect(browserErrors).toEqual([]);
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
   await expect(
     page.getByRole("button", { name: /Entrar al calendario/ }),

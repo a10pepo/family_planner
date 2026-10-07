@@ -96,8 +96,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * Category
+     * @enum {string}
+     */
+    Category: "school" | "activities" | "medical" | "friends" | "other";
     /** EventInput */
     EventInput: {
+      /** @default other */
+      category: components["schemas"]["Category"];
       /**
        * Ends At
        * Format: date-time
@@ -118,6 +125,8 @@ export interface components {
     };
     /** EventOutput */
     EventOutput: {
+      /** @default other */
+      category: components["schemas"]["Category"];
       /**
        * Ends At
        * Format: date-time
@@ -143,6 +152,7 @@ export interface components {
     };
     /** EventUpdate */
     EventUpdate: {
+      category?: components["schemas"]["Category"] | null;
       /**
        * Ends At
        * Format: date-time

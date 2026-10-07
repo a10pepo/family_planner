@@ -146,3 +146,91 @@ def test_openapi_contract_has_not_drifted():
     assert app.openapi() == json.loads(path.read_text())
     assert "OAuth2AuthorizationCodeBearer" in app.openapi()["components"]["securitySchemes"]
     app.state.engine.dispose()
+
+
+def test_categories_are_validated_and_preserved_by_legacy_updates(client):
+    member_id = client.post("/api/v1/members", json={"name": "Demo", "color": "#dcebe2"}).json()[
+        "id"
+    ]
+    data = {
+        "title": "Médico",
+        "starts_at": "2026-10-07T09:00:00Z",
+        "ends_at": "2026-10-07T10:00:00Z",
+    }
+    created = client.post(
+        "/api/v1/events", json=data | {"member_id": member_id, "category": "medical"}
+    )
+    assert created.status_code == 201 and created.json()["category"] == "medical"
+    event_id = created.json()["id"]
+    assert client.put(f"/api/v1/events/{event_id}", json=data).json()["category"] == "medical"
+    assert (
+        client.put(f"/api/v1/events/{event_id}", json=data | {"category": "friends"}).json()[
+            "category"
+        ]
+        == "friends"
+    )
+    assert (
+        client.put(f"/api/v1/events/{event_id}", json=data | {"category": "invalid"}).status_code
+        == 422
+    )
+    default = client.post("/api/v1/events", json=data | {"member_id": member_id})
+    assert default.json()["category"] == "other"
+
+
+def test_category_migration_preserves_existing_events(database):
+    _, engine = database
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM events"))
+        connection.execute(text("DELETE FROM members"))
+    command.downgrade(Config("alembic.ini"), "001_calendar")
+    member_id, event_id = uuid4(), uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO members (id, name, color, created_at) "
+                    "VALUES (:id, 'Legacy', '#abcdef', now())"
+                ),
+                {"id": member_id},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO events (id, member_id, title, starts_at, ends_at, "
+                    "created_at, updated_at) VALUES (:id, :member, 'Existing', now(), "
+                    "now() + interval '1 hour', now(), now())"
+                ),
+                {"id": event_id, "member": member_id},
+            )
+        command.upgrade(Config("alembic.ini"), "head")
+        with engine.connect() as connection:
+            row = connection.execute(
+                text("SELECT id, title, category FROM events WHERE id = :id"), {"id": event_id}
+            ).one()
+            assert row.id == event_id and row.title == "Existing" and row.category == "other"
+    finally:
+        command.upgrade(Config("alembic.ini"), "head")
+
+
+def test_demo_has_four_profiles_and_does_not_overwrite_existing_data(client, database):
+    from app.demo import DEMO_MEMBERS, seed_demo
+
+    _, engine = database
+    assert seed_demo(engine, "Europe/Madrid")
+    members = client.get("/api/v1/members").json()
+    assert [member["name"] for member in members] == [name for name, _ in DEMO_MEMBERS]
+    ids = [member["id"] for member in members]
+    assert not seed_demo(engine, "Europe/Madrid")
+    assert [member["id"] for member in client.get("/api/v1/members").json()] == ids
+    client.post("/api/v1/members", json={"name": "Personal", "color": "#abcdef"})
+    with pytest.raises(ValueError, match="ajenos a la demo"):
+        seed_demo(engine, "Europe/Madrid", replace_test_fixtures=True)
+    assert len(client.get("/api/v1/members").json()) == 5
+
+
+def test_demo_can_replace_only_known_test_fixtures(client, database):
+    from app.demo import seed_demo
+
+    _, engine = database
+    client.post("/api/v1/members", json={"name": "Alex 12345", "color": "#abcdef"})
+    assert seed_demo(engine, "Europe/Madrid", replace_test_fixtures=True)
+    assert len(client.get("/api/v1/members").json()) == 4

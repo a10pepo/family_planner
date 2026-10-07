@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Protocol
 from uuid import UUID, uuid4
 
@@ -10,6 +11,21 @@ class InvalidInput(ValueError):
 
 class MissingEntity(LookupError):
     pass
+
+
+class Category(StrEnum):
+    SCHOOL = "school"
+    ACTIVITIES = "activities"
+    MEDICAL = "medical"
+    FRIENDS = "friends"
+    OTHER = "other"
+
+
+def validate_category(value: str) -> Category:
+    try:
+        return Category(value)
+    except ValueError as exc:
+        raise InvalidInput("La categoría del evento no es válida.") from exc
 
 
 @dataclass(frozen=True)
@@ -26,6 +42,7 @@ class Event:
     title: str
     starts_at: datetime
     ends_at: datetime
+    category: Category = Category.OTHER
 
 
 class CalendarRepository(Protocol):
@@ -67,21 +84,44 @@ class Calendar:
             raise InvalidInput("El color debe ser hexadecimal, por ejemplo #2563eb.")
         return self.repository.add_member(Member(uuid4(), clean_text(name, 80), color.lower()))
 
-    def create_event(self, member_id: UUID, title: str, start: datetime, end: datetime) -> Event:
+    def create_event(
+        self,
+        member_id: UUID,
+        title: str,
+        start: datetime,
+        end: datetime,
+        category: str = Category.OTHER,
+    ) -> Event:
         if self.repository.member(member_id) is None:
             raise MissingEntity("No existe el integrante.")
         start, end = validate_interval(start, end)
         return self.repository.save_event(
-            Event(uuid4(), member_id, clean_text(title, 200), start, end)
+            Event(
+                uuid4(), member_id, clean_text(title, 200), start, end, validate_category(category)
+            )
         )
 
-    def update_event(self, event_id: UUID, title: str, start: datetime, end: datetime) -> Event:
+    def update_event(
+        self,
+        event_id: UUID,
+        title: str,
+        start: datetime,
+        end: datetime,
+        category: str | None = None,
+    ) -> Event:
         previous = self.repository.event(event_id)
         if previous is None:
             raise MissingEntity("No existe el evento.")
         start, end = validate_interval(start, end)
         return self.repository.save_event(
-            Event(event_id, previous.member_id, clean_text(title, 200), start, end)
+            Event(
+                event_id,
+                previous.member_id,
+                clean_text(title, 200),
+                start,
+                end,
+                previous.category if category is None else validate_category(category),
+            )
         )
 
     def delete_event(self, event_id: UUID) -> None:

@@ -1,9 +1,24 @@
 {
   "components": {
     "schemas": {
+      "Category": {
+        "enum": [
+          "school",
+          "activities",
+          "medical",
+          "friends",
+          "other"
+        ],
+        "title": "Category",
+        "type": "string"
+      },
       "EventInput": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "default": "other"
+          },
           "ends_at": {
             "format": "date-time",
             "title": "Ends At",
@@ -38,6 +53,10 @@
       "EventOutput": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "default": "other"
+          },
           "ends_at": {
             "format": "date-time",
             "title": "Ends At",
@@ -78,6 +97,16 @@
       "EventUpdate": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ends_at": {
             "format": "date-time",
             "title": "Ends At",
