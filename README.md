@@ -97,6 +97,7 @@ ruff check --config backend/pyproject.toml backend scripts
 ruff format --config backend/pyproject.toml --check backend scripts
 python scripts/check_architecture.py
 python scripts/export_openapi.py --check
+pytest -q scripts/tests
 npm --prefix frontend run api:check
 npm --prefix frontend run format:check
 npm --prefix frontend run lint

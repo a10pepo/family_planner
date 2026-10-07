@@ -68,6 +68,7 @@ Pedro aprobó expresamente la estructura del issue #6: fotos opcionales validada
 - Arranque: preparar configuración con `python3 scripts/setup.py` o su equivalente Docker del README; después `docker compose up --build -d`.
 - Backend: `docker compose --profile test up -d --wait db-test` y `docker compose run --rm backend pytest -q`.
 - Código: `ruff check --config backend/pyproject.toml backend scripts`; `ruff format --config backend/pyproject.toml --check backend scripts`.
+- Pruebas del arranque y utilidades: `pytest -q scripts/tests`.
 - Arquitectura y contrato: `python scripts/check_architecture.py`; `python scripts/export_openapi.py --check`; `npm --prefix frontend run api:check`.
 - Frontend: `npm --prefix frontend ci`; `npm --prefix frontend run format:check`; `npm --prefix frontend run lint`; `npm --prefix frontend test`; `npm --prefix frontend run build`.
 - Navegador: `npm --prefix frontend run test:e2e`, solo contra una instancia aislada con configuración ficticia `scripts/setup.py --test`; no ejecutar sobre datos familiares reales.
