@@ -1,0 +1,31 @@
+name: Nueva funcionalidad
+description: Proponer una funcionalidad o mejora del repositorio.
+title: "[Feature] "
+labels: [feature]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo
+      description: Qué necesidad resuelve y para quién.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Alcance
+      description: Comportamiento esperado y límites del trabajo.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      description: Resultados observables y cómo se comprobarán automáticamente cuando haya código.
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisiones y aprobaciones
+      description: Indicar cambios de estructura de datos, seguridad o costes de AWS. Registrar qué falta aprobar antes de implementar; crear el issue no equivale a aprobarlo.

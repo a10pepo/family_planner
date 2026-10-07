@@ -1,0 +1,29 @@
+name: Error o cambio de seguridad
+description: Registrar un error o un cambio de seguridad.
+title: "[Issue] "
+labels: [issue]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Comportamiento observado o control de seguridad que debe revisarse. No incluir secretos, datos familiares ni detalles de explotación sensibles en un issue público.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Contexto y reproducción
+      description: Pasos, entorno y evidencia suficiente para entender el problema sin exponer información sensible.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado y criterios de aceptación
+      description: Explicar qué debe cambiar y cómo se verificará la corrección.
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Riesgos y aprobaciones
+      description: Los cambios de seguridad, estructura de datos y costes de AWS requieren consulta a Pedro antes de implementarse.
