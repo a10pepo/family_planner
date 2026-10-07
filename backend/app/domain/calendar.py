@@ -44,9 +44,11 @@ class Event:
     starts_at: datetime
     ends_at: datetime
     category: Category = Category.OTHER
+    custom_icon_id: UUID | None = None
 
 
 class CalendarRepository(Protocol):
+    def icon(self, icon_id: UUID): ...
     def members(self) -> list[Member]: ...
     def member(self, member_id: UUID) -> Member | None: ...
     def add_member(self, member: Member) -> Member: ...
@@ -112,13 +114,22 @@ class Calendar:
         start: datetime,
         end: datetime,
         category: str = Category.OTHER,
+        custom_icon_id: UUID | None = None,
     ) -> Event:
         if self.repository.member(member_id) is None:
             raise MissingEntity("No existe el integrante.")
+        if custom_icon_id is not None and self.repository.icon(custom_icon_id) is None:
+            raise MissingEntity("No existe el icono.")
         start, end = validate_interval(start, end)
         return self.repository.save_event(
             Event(
-                uuid4(), member_id, clean_text(title, 200), start, end, validate_category(category)
+                uuid4(),
+                member_id,
+                clean_text(title, 200),
+                start,
+                end,
+                validate_category(category),
+                custom_icon_id,
             )
         )
 
@@ -129,10 +140,15 @@ class Calendar:
         start: datetime,
         end: datetime,
         category: str | None = None,
+        custom_icon_id: UUID | None = None,
+        replace_custom_icon: bool = False,
     ) -> Event:
         previous = self.repository.event(event_id)
         if previous is None:
             raise MissingEntity("No existe el evento.")
+        reference = custom_icon_id if replace_custom_icon else previous.custom_icon_id
+        if reference is not None and self.repository.icon(reference) is None:
+            raise MissingEntity("No existe el icono.")
         start, end = validate_interval(start, end)
         return self.repository.save_event(
             Event(
@@ -142,6 +158,7 @@ class Calendar:
                 start,
                 end,
                 previous.category if category is None else validate_category(category),
+                reference,
             )
         )
 

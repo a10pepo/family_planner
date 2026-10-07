@@ -29,13 +29,14 @@ Abre [http://localhost:8080](http://localhost:8080). La primera vez, Keycloak pu
 
 1. Añade los integrantes desde el icono de personas del menú lateral.
 2. Toca una hora en la columna de la persona, selecciona un intervalo o pulsa el «+» de esa columna para añadir un evento.
-3. Elige su categoría: Colegio, Extraescolares, Médicos, Amigos u Otros. Cada categoría tiene un color pastel y un icono propio.
+3. Elige su categoría: Colegio, Extraescolares, Médicos, Amigos u Otros. Cada categoría tiene un color pastel y un icono propio. Las tarjetas aprovechan el ancho de su columna, muestran el título más grande y solo el icono de categoría (su nombre sigue en la leyenda y en la descripción accesible).
 4. Arrastra un evento para moverlo; en pantalla táctil, mantén pulsado antes de arrastrar. También puedes pulsarlo y editar inicio, fin, título y categoría.
 5. Para eliminarlo, abre el evento y confirma su eliminación. Usa **Hoy** y las flechas para cambiar de día.
 6. Abre el **engranaje (Configuración)** para editar el nombre y elegir o quitar la foto de cada integrante. Puedes usar JPG, PNG o WebP de hasta 5 MB; la interfaz recorta al centro y la API guarda una imagen de 256 × 256 sin metadatos de origen. Sin foto se muestra una cara ilustrada.
 7. Bajo cada cara, pulsa el «+» de **avisos de todo el día** para añadir uniforme, chándal, excursión u otro aviso a esa persona y fecha. Pulsa su icono para editarlo o eliminarlo.
 8. Abre **Tareas** en el menú lateral para crear una rutina, elegir su icono y asignarla a uno o varios integrantes. Elige **Todos los días** desde una fecha o **Solo un día**. Los iconos aparecen debajo de cada persona; al tocarlos se marcan en verde con un check. Tócalos de nuevo para desmarcar. Cada persona y día tiene su propia marca.
-9. Desde Tareas puedes editar o archivar una rutina. Al archivarla deja de mostrarse, conservando sus marcas en la base de datos para versiones futuras. Cambiar la definición aplica a todas sus fechas; las marcas se conservan por identificador, integrante y fecha.
+9. En **Nueva tarea / Editar tarea**, en un aviso o en un evento, pulsa **Subir icono** y elige un JPG, PNG o WebP de hasta 5 MB. Puedes darle un nombre o usar el del fichero. Se conserva la imagen completa y su transparencia; la API guarda un PNG de 128 × 128. El icono queda disponible inmediatamente en los tres tipos de formularios, incluso si cancelas la edición; selecciónalo y guarda el elemento para asignarlo. Elegir un icono incluido vuelve a usar la opción original. En los eventos el color sigue dependiendo de la categoría elegida.
+10. Desde Tareas puedes editar o archivar una rutina. Al archivarla deja de mostrarse, conservando sus marcas en la base de datos para versiones futuras. Cambiar la definición aplica a todas sus fechas; las marcas se conservan por identificador, integrante y fecha.
 
 Las cuatro caras ilustradas de la demo encabezan sus columnas; las instalaciones normales admiten un número variable de integrantes. Las horas se presentan en `Europe/Madrid`, configurable mediante `FAMILY_TIMEZONE` en `.env`. El formulario rechaza las horas inexistentes o ambiguas durante el cambio horario para evitar guardarlas con un desplazamiento incorrecto.
 
@@ -54,7 +55,7 @@ La demo usa `test-family` / `Fictional-test-password-42` y `DEMO_MODE=1`. Crea s
 
 El modo normal configura `DEMO_MODE=0` y empieza vacío. Activar la demo sobre una base con integrantes no los sustituye. Al actualizar una demo reconocida de cuatro integrantes sin tareas se añaden una vez las nuevas rutinas y avisos; sus nombres, fotos y eventos se conservan. Las tareas archivadas cuentan como existentes y no se recrean al reiniciar. Solo para renovar una instalación ficticia conocida, tras guardar una copia, puede ejecutarse `docker compose exec backend python -m app.demo --replace-test-fixtures`: exige el modo demo y rechaza perfiles que no sean los cuatro de la demo o los antiguos `Alex <número>` / `Sam <número>`. No utilizar este comando en una instalación familiar.
 
-La migración de categorías conserva los eventos existentes con categoría **Otros**. La migración `003_profiles_daily_tasks` añade fotos opcionales y tablas de avisos, tareas, asignaciones y marcas; conserva integrantes y eventos. Ambas migraciones se ejecutan automáticamente al arrancar el backend. No requieren borrar volúmenes.
+La migración de categorías conserva los eventos existentes con categoría **Otros**. La migración `003_profiles_daily_tasks` añade fotos opcionales y tablas de avisos, tareas, asignaciones y marcas; conserva integrantes y eventos. La migración `004_reusable_icons` añade el catálogo y referencias opcionales en eventos, avisos y tareas; mantiene actividades y marcas. Las migraciones se ejecutan automáticamente al arrancar el backend. No requieren borrar volúmenes.
 
 ## Parar, actualizar y consultar logs
 
@@ -148,6 +149,8 @@ Las imágenes se etiquetan `family-planner-backend:<commit>` y `family-planner-f
 - [API v1](docs/api.md): OAuth, operaciones, fechas y evolución del contrato.
 
 ## Estado
+
+Iconos reutilizables y eventos más legibles: [issue #9](https://github.com/a10pepo/family_planner/issues/9).
 
 MVP local implementado en el [issue #3](https://github.com/a10pepo/family_planner/issues/3); vista diaria y demo actualizadas en el [issue #5](https://github.com/a10pepo/family_planner/issues/5). Configuración, fotos, avisos y tareas diarias implementados en el [#6](https://github.com/a10pepo/family_planner/issues/6). El seguimiento de progreso y el despliegue público pertenecen a versiones posteriores.
 

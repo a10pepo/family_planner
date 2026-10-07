@@ -49,6 +49,16 @@ La reversión de la migración elimina exclusivamente la columna de fotos y las 
 
 La demo añade tres rutinas diarias para Jaime y Lucía y dos avisos sintéticos. Las demos reconocidas sin ninguna tarea se amplían una vez sin sustituir perfiles o eventos; las rutinas archivadas no se recrean. Las instalaciones normales no reciben fixtures.
 
+## Catálogo de iconos y legibilidad (issue #9)
+
+Pedro autorizó «Sí, guardar el catálogo y las referencias» y confirmó el uso en tareas, avisos y eventos. También precisó que los bloques a ensanchar y mostrar con letra mayor son los eventos con horario.
+
+La migración `004_reusable_icons` añade `custom_icons` (UUID, nombre, imagen normalizada y fecha de creación) y una referencia nullable en `tasks`, `all_day_notices` y `events`. Los elementos existentes reciben `null` y conservan su icono incluido. La omisión de la referencia en una edición la conserva, mientras que `null` vuelve a la opción incluida. Se validan las referencias en el dominio y con claves foráneas. Las categorías y los colores de eventos no cambian al elegir una imagen personalizada.
+
+El navegador admite JPG/PNG/WebP hasta 5 MB y prepara una imagen pequeña; la API verifica independientemente un máximo de 2 MB y 20 millones de píxeles y reencodea un PNG de 128 × 128, sin metadatos, preservando proporciones y transparencia. Se almacena en PostgreSQL, sin servicios AWS ni URLs externas. El alta del icono es independiente del guardado del elemento; cancelar su edición conserva la nueva opción global. No se implementan borrado ni edición del catálogo en este alcance.
+
+La reversión retira exclusivamente las referencias y el catálogo, perdiendo las imágenes personalizadas y recuperando los iconos incluidos; conserva actividades, integrantes y marcas. Guardar copia antes de revertir. Pruebas verifican migración, reutilización entre los tres tipos, errores de entrada y referencias, compatibilidad con ediciones anteriores y persistencia al recargar y reiniciar.
+
 ## Próximas versiones
 
 - Seguimiento y progresión histórica de las rutinas.

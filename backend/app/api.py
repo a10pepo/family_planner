@@ -16,6 +16,7 @@ from app.adapters.database import SqlCalendarRepository, make_engine
 from app.adapters.oauth import OAuthVerifier
 from app.adapters.photos import normalize_photo
 from app.api_daily import install_daily_routes
+from app.api_icons import install_icon_routes
 from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
 
 
@@ -42,6 +43,7 @@ class EventUpdate(BaseModel):
     starts_at: AwareDatetime
     ends_at: AwareDatetime
     category: Category | None = None
+    custom_icon_id: UUID | None = None
 
 
 class EventInput(EventUpdate):
@@ -168,7 +170,12 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
     def add_event(data: EventInput, service: use_calendar):
         return asdict(
             service.create_event(
-                data.member_id, data.title, data.starts_at, data.ends_at, data.category
+                data.member_id,
+                data.title,
+                data.starts_at,
+                data.ends_at,
+                data.category,
+                data.custom_icon_id,
             )
         )
 
@@ -180,7 +187,15 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
     )
     def update_event(event_id: UUID, data: EventUpdate, service: use_calendar):
         return asdict(
-            service.update_event(event_id, data.title, data.starts_at, data.ends_at, data.category)
+            service.update_event(
+                event_id,
+                data.title,
+                data.starts_at,
+                data.ends_at,
+                data.category,
+                data.custom_icon_id,
+                "custom_icon_id" in data.model_fields_set,
+            )
         )
 
     @app.delete("/api/v1/events/{event_id}", status_code=204, dependencies=guarded, tags=["events"])
@@ -189,4 +204,5 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
         return Response(status_code=204)
 
     install_daily_routes(app, engine, guarded)
+    install_icon_routes(app, engine, guarded)
     return app

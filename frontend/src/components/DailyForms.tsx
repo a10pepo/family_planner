@@ -8,7 +8,7 @@ import {
   type TaskInput,
 } from "../api";
 import { noticeIcons, taskIcons } from "../daily-icons";
-import { Icon } from "../visuals";
+import { CustomSymbol, IconPicker } from "./IconCatalog";
 import { Dialog } from "./Dialog";
 
 const errorMessage = (error: unknown) =>
@@ -33,6 +33,9 @@ export function NoticeForm({
   const [icon, setIcon] = useState<NonNullable<NoticeInput["icon"]>>(
     notice?.icon ?? "uniform",
   );
+  const [customIcon, setCustomIcon] = useState<string | null>(
+    notice?.custom_icon_id ?? null,
+  );
   const [date, setDate] = useState(notice?.day ?? day);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -47,6 +50,7 @@ export function NoticeForm({
           day: date,
           title: title.trim(),
           icon,
+          custom_icon_id: customIcon,
         });
       else
         await api.addNotice({
@@ -54,6 +58,7 @@ export function NoticeForm({
           day: date,
           title: title.trim(),
           icon,
+          custom_icon_id: customIcon,
         });
       saved();
     } catch (error) {
@@ -74,31 +79,25 @@ export function NoticeForm({
         <p className="muted">Para {member.name}</p>
         <fieldset disabled={busy}>
           <legend>Icono del aviso</legend>
-          <div className="symbol-options">
-            {Object.entries(noticeIcons).map(([value, details]) => (
-              <button
-                type="button"
-                key={value}
-                className={
-                  icon === value ? "symbol-choice chosen" : "symbol-choice"
-                }
-                aria-label={details.label}
-                aria-pressed={icon === value}
-                title={details.label}
-                onClick={() => {
-                  setIcon(value as typeof icon);
-                  if (
-                    Object.values(noticeIcons).some(
-                      (details) => details.label === title,
-                    )
-                  )
-                    setTitle(details.label);
-                }}
-              >
-                <Icon name={details.icon} />
-              </button>
-            ))}
-          </div>
+          <IconPicker
+            options={noticeIcons}
+            builtin={icon}
+            selected={customIcon}
+            busy={busy}
+            setBusy={setBusy}
+            onChange={(value, custom, label) => {
+              setIcon(value as typeof icon);
+              setCustomIcon(custom);
+              if (
+                !notice &&
+                !custom &&
+                Object.values(noticeIcons).some(
+                  (details) => details.label === title,
+                )
+              )
+                setTitle(label);
+            }}
+          />
         </fieldset>
         <label>
           Título del aviso
@@ -203,6 +202,9 @@ export function TaskForm({
   const [icon, setIcon] = useState<NonNullable<TaskInput["icon"]>>(
     task?.icon ?? "tooth",
   );
+  const [customIcon, setCustomIcon] = useState<string | null>(
+    task?.custom_icon_id ?? null,
+  );
   const [frequency, setFrequency] = useState<
     NonNullable<TaskInput["frequency"]>
   >(task?.frequency ?? "daily");
@@ -217,6 +219,7 @@ export function TaskForm({
     const data: TaskInput = {
       title: title.trim(),
       icon,
+      custom_icon_id: customIcon,
       frequency,
       starts_on: starts,
       member_ids: ids,
@@ -240,31 +243,25 @@ export function TaskForm({
       <form onSubmit={submit}>
         <fieldset disabled={busy}>
           <legend>Icono de la tarea</legend>
-          <div className="symbol-options">
-            {Object.entries(taskIcons).map(([value, details]) => (
-              <button
-                type="button"
-                key={value}
-                className={
-                  icon === value ? "symbol-choice chosen" : "symbol-choice"
-                }
-                aria-label={details.label}
-                aria-pressed={icon === value}
-                title={details.label}
-                onClick={() => {
-                  setIcon(value as typeof icon);
-                  if (
-                    Object.values(taskIcons).some(
-                      (details) => details.label === title,
-                    )
-                  )
-                    setTitle(details.label);
-                }}
-              >
-                <Icon name={details.icon} />
-              </button>
-            ))}
-          </div>
+          <IconPicker
+            options={taskIcons}
+            builtin={icon}
+            selected={customIcon}
+            busy={busy}
+            setBusy={setBusy}
+            onChange={(value, custom, label) => {
+              setIcon(value as typeof icon);
+              setCustomIcon(custom);
+              if (
+                !task &&
+                !custom &&
+                Object.values(taskIcons).some(
+                  (details) => details.label === title,
+                )
+              )
+                setTitle(label);
+            }}
+          />
         </fieldset>
         <label>
           Nombre de la tarea
@@ -389,7 +386,10 @@ export function TasksPanel({
         {tasks.map((task) => (
           <article className="task-card" key={task.id}>
             <span className="task-symbol">
-              <Icon name={taskIcons[task.icon].icon} />
+              <CustomSymbol
+                id={task.custom_icon_id}
+                fallback={taskIcons[task.icon].icon}
+              />
             </span>
             <div className="task-description">
               <h2>{task.title}</h2>

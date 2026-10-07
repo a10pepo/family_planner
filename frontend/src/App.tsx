@@ -11,6 +11,7 @@ import { DateTime } from "luxon";
 import {
   Api,
   type CalendarEvent,
+  type CustomIcon,
   type Member,
   type Notice,
   type Task,
@@ -21,6 +22,11 @@ import { fromLocalInput, localInput } from "./dates";
 import { Avatar, Icon } from "./visuals";
 import { categories, type Category } from "./categories";
 import { Dialog } from "./components/Dialog";
+import {
+  IconCatalog,
+  IconPicker,
+  CustomSymbol,
+} from "./components/IconCatalog";
 import { Profiles } from "./components/Profiles";
 import { NoticeForm, TasksPanel } from "./components/DailyForms";
 import { noticeIcons, taskIcons } from "./daily-icons";
@@ -153,6 +159,9 @@ function EventForm({
   const [category, setCategory] = useState<Category>(
     editor.event?.category ?? "other",
   );
+  const [customIcon, setCustomIcon] = useState<string | null>(
+    editor.event?.custom_icon_id ?? null,
+  );
   const [memberId, setMemberId] = useState(
     editor.event?.member_id ??
       editor.memberId ??
@@ -174,7 +183,13 @@ function EventForm({
         ends_at = fromLocalInput(end, zone);
       if (Date.parse(ends_at) <= Date.parse(starts_at))
         throw new Error("El final debe ser posterior al inicio.");
-      const data = { title: title.trim(), starts_at, ends_at, category };
+      const data = {
+        title: title.trim(),
+        starts_at,
+        ends_at,
+        category,
+        custom_icon_id: customIcon,
+      };
       if (editor.event) await api.updateEvent(editor.event.id, data);
       else await api.addEvent({ ...data, member_id: memberId });
       saved();
@@ -246,6 +261,20 @@ function EventForm({
             ))}
           </select>
         </label>
+        <fieldset disabled={busy}>
+          <legend>Icono del evento</legend>
+          <IconPicker
+            options={categories}
+            builtin={category}
+            selected={customIcon}
+            busy={busy}
+            setBusy={setBusy}
+            onChange={(value, custom) => {
+              setCategory(value as Category);
+              setCustomIcon(custom);
+            }}
+          />
+        </fieldset>
         <div className="date-fields">
           <label>
             Inicio
@@ -332,6 +361,7 @@ export default function App({
 }) {
   const [authenticated, setAuthenticated] = useState(!!auth.authenticated);
   const api = useMemo(() => new Api(auth), [auth]);
+  const [customIcons, setCustomIcons] = useState<CustomIcon[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [view, setView] = useState<"calendar" | "settings" | "tasks">(
@@ -380,9 +410,11 @@ export default function App({
       ),
       api.notices(day),
       api.occurrences(day),
+      api.icons(),
     ])
-      .then(([people, routines, appointments, alerts, daily]) => {
+      .then(([people, routines, appointments, alerts, daily, icons]) => {
         if (active) {
+          setCustomIcons(icons);
           setMembers(people);
           setTasks(routines);
           setEvents(appointments);
@@ -488,456 +520,499 @@ export default function App({
     gridTemplateColumns: `56px repeat(${Math.max(members.length, 1)}, minmax(180px, 1fr))`,
   };
   return (
-    <div className="app-layout">
-      <aside className="sidebar" aria-label="Menú principal">
-        <a
-          href="/"
-          className="brand-mark"
-          aria-label="Family Planner"
-          title="Family Planner"
-        >
-          <Icon name="calendar" />
-        </a>
-        <nav className="sidebar-main">
-          <button
-            className={`rail-button ${view === "calendar" ? "active" : ""}`}
-            aria-label="Calendario"
-            aria-current={view === "calendar" ? "page" : undefined}
-            title="Calendario"
-            onClick={() => setView("calendar")}
+    <IconCatalog.Provider
+      value={{
+        api,
+        icons: customIcons,
+        added: (icon) => setCustomIcons((previous) => [...previous, icon]),
+      }}
+    >
+      <div className="app-layout">
+        <aside className="sidebar" aria-label="Menú principal">
+          <a
+            href="/"
+            className="brand-mark"
+            aria-label="Family Planner"
+            title="Family Planner"
           >
             <Icon name="calendar" />
-          </button>
-          <button
-            className={`rail-button ${view === "tasks" ? "active" : ""}`}
-            aria-label="Tareas"
-            title="Tareas"
-            aria-current={view === "tasks" ? "page" : undefined}
-            onClick={() => setView("tasks")}
-          >
-            <Icon name="tasks" />
-          </button>
-          <button
-            className={`rail-button ${view === "settings" ? "active" : ""}`}
-            aria-label="Configuración"
-            title="Configuración"
-            aria-current={view === "settings" ? "page" : undefined}
-            onClick={() => setView("settings")}
-          >
-            <Icon name="settings" />
-          </button>
-          <button
-            className="rail-button"
-            aria-label="Añadir integrante"
-            title="Añadir integrante"
-            onClick={() => setMemberForm(true)}
-          >
-            <Icon name="people" />
-          </button>
-        </nav>
-        <button
-          className="rail-button sidebar-bottom"
-          aria-label="Cerrar sesión"
-          title="Cerrar sesión"
-          onClick={() =>
-            auth.logout({ redirectUri: `${window.location.origin}/` })
-          }
-        >
-          <Icon name="logout" />
-        </button>
-      </aside>
-      <main className="workspace">
-        {view !== "calendar" && error && (
-          <div className="error-banner" role="alert">
-            <span>{error}</span>
+          </a>
+          <nav className="sidebar-main">
             <button
-              className="secondary"
-              onClick={() => setRefresh((value) => value + 1)}
+              className={`rail-button ${view === "calendar" ? "active" : ""}`}
+              aria-label="Calendario"
+              aria-current={view === "calendar" ? "page" : undefined}
+              title="Calendario"
+              onClick={() => setView("calendar")}
             >
-              Reintentar
+              <Icon name="calendar" />
             </button>
-          </div>
-        )}
-        {view === "settings" && (
-          <Profiles
-            members={members}
-            api={api}
-            saved={() => setRefresh((value) => value + 1)}
-          />
-        )}
-        {view === "tasks" && (
-          <TasksPanel
-            tasks={tasks}
-            members={members}
-            api={api}
-            day={day}
-            saved={() => setRefresh((value) => value + 1)}
-          />
-        )}
-        {view === "calendar" && (
-          <section
-            className="calendar-panel"
-            aria-label="Calendario diario por familiar"
+            <button
+              className={`rail-button ${view === "tasks" ? "active" : ""}`}
+              aria-label="Tareas"
+              title="Tareas"
+              aria-current={view === "tasks" ? "page" : undefined}
+              onClick={() => setView("tasks")}
+            >
+              <Icon name="tasks" />
+            </button>
+            <button
+              className={`rail-button ${view === "settings" ? "active" : ""}`}
+              aria-label="Configuración"
+              title="Configuración"
+              aria-current={view === "settings" ? "page" : undefined}
+              onClick={() => setView("settings")}
+            >
+              <Icon name="settings" />
+            </button>
+            <button
+              className="rail-button"
+              aria-label="Añadir integrante"
+              title="Añadir integrante"
+              onClick={() => setMemberForm(true)}
+            >
+              <Icon name="people" />
+            </button>
+          </nav>
+          <button
+            className="rail-button sidebar-bottom"
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+            onClick={() =>
+              auth.logout({ redirectUri: `${window.location.origin}/` })
+            }
           >
-            <header className="calendar-toolbar">
-              <div className="calendar-period">
-                <span className="month-label">
-                  {date.setLocale("es").toFormat("LLLL yyyy")}
-                </span>
-                <h1>{date.setLocale("es").toFormat("cccc, d 'de' LLLL")}</h1>
-              </div>
-              <div className="calendar-controls">
-                <button
-                  className="secondary"
-                  onClick={() =>
-                    setDay(DateTime.now().setZone(config.timezone).toISODate()!)
-                  }
-                >
-                  Hoy
-                </button>
-                <div className="arrows">
+            <Icon name="logout" />
+          </button>
+        </aside>
+        <main className="workspace">
+          {view !== "calendar" && error && (
+            <div className="error-banner" role="alert">
+              <span>{error}</span>
+              <button
+                className="secondary"
+                onClick={() => setRefresh((value) => value + 1)}
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+          {view === "settings" && (
+            <Profiles
+              members={members}
+              api={api}
+              saved={() => setRefresh((value) => value + 1)}
+            />
+          )}
+          {view === "tasks" && (
+            <TasksPanel
+              tasks={tasks}
+              members={members}
+              api={api}
+              day={day}
+              saved={() => setRefresh((value) => value + 1)}
+            />
+          )}
+          {view === "calendar" && (
+            <section
+              className="calendar-panel"
+              aria-label="Calendario diario por familiar"
+            >
+              <header className="calendar-toolbar">
+                <div className="calendar-period">
+                  <span className="month-label">
+                    {date.setLocale("es").toFormat("LLLL yyyy")}
+                  </span>
+                  <h1>{date.setLocale("es").toFormat("cccc, d 'de' LLLL")}</h1>
+                </div>
+                <div className="calendar-controls">
                   <button
-                    className="icon-button"
-                    aria-label="Día anterior"
-                    onClick={() => setDay(date.minus({ days: 1 }).toISODate()!)}
+                    className="secondary"
+                    onClick={() =>
+                      setDay(
+                        DateTime.now().setZone(config.timezone).toISODate()!,
+                      )
+                    }
                   >
-                    ‹
+                    Hoy
                   </button>
+                  <div className="arrows">
+                    <button
+                      className="icon-button"
+                      aria-label="Día anterior"
+                      onClick={() =>
+                        setDay(date.minus({ days: 1 }).toISODate()!)
+                      }
+                    >
+                      ‹
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label="Día siguiente"
+                      onClick={() =>
+                        setDay(date.plus({ days: 1 }).toISODate()!)
+                      }
+                    >
+                      ›
+                    </button>
+                  </div>
+                  <span className="view-badge">
+                    <Icon name="calendar" /> Día
+                  </span>
+                </div>
+              </header>
+              {error && (
+                <div className="error-banner" role="alert">
+                  <span>{error}</span>
                   <button
-                    className="icon-button"
-                    aria-label="Día siguiente"
-                    onClick={() => setDay(date.plus({ days: 1 }).toISODate()!)}
+                    className="secondary"
+                    onClick={() => setRefresh((value) => value + 1)}
                   >
-                    ›
+                    Reintentar
                   </button>
                 </div>
-                <span className="view-badge">
-                  <Icon name="calendar" /> Día
-                </span>
-              </div>
-            </header>
-            {error && (
-              <div className="error-banner" role="alert">
-                <span>{error}</span>
-                <button
-                  className="secondary"
-                  onClick={() => setRefresh((value) => value + 1)}
-                >
-                  Reintentar
-                </button>
-              </div>
-            )}
-            {loading && (
-              <p className="empty-note" role="status">
-                Cargando calendario…
-              </p>
-            )}
-            {!loading && !members.length && (
-              <div className="empty-note">
-                <span>Añade un integrante para empezar a planificar.</span>
-                <button
-                  className="secondary"
-                  onClick={() => setMemberForm(true)}
-                >
-                  Añadir integrante
-                </button>
-              </div>
-            )}
-            {!!members.length && (
-              <div className="day-viewport" ref={viewport}>
-                <div
-                  className="day-surface"
-                  style={{ minWidth: 56 + members.length * 180 }}
-                >
-                  <div className="family-headings" style={gridStyle}>
-                    <div className="time-heading" aria-hidden="true">
-                      <span>24 h</span>
-                    </div>
-                    {members.map((member) => {
-                      const [name, nickname] = member.name.split(/\s*[()]\s*/);
-                      return (
-                        <div className="person-heading" key={member.id}>
-                          <div className="person-identity">
-                            <Avatar
-                              name={member.name}
-                              color={member.color}
-                              photo={member.photo_data}
-                            />
-                            <span className="person-name">{name}</span>
-                            {nickname && (
-                              <span className="person-nickname">
-                                {nickname}
-                              </span>
-                            )}
-                            <button
-                              className="column-add"
-                              aria-label={`Añadir evento para ${name}`}
-                              title={`Añadir evento para ${name}`}
-                              onClick={() => addEvent(member.id)}
+              )}
+              {loading && (
+                <p className="empty-note" role="status">
+                  Cargando calendario…
+                </p>
+              )}
+              {!loading && !members.length && (
+                <div className="empty-note">
+                  <span>Añade un integrante para empezar a planificar.</span>
+                  <button
+                    className="secondary"
+                    onClick={() => setMemberForm(true)}
+                  >
+                    Añadir integrante
+                  </button>
+                </div>
+              )}
+              {!!members.length && (
+                <div className="day-viewport" ref={viewport}>
+                  <div
+                    className="day-surface"
+                    style={{ minWidth: 56 + members.length * 180 }}
+                  >
+                    <div className="family-headings" style={gridStyle}>
+                      <div className="time-heading" aria-hidden="true">
+                        <span>24 h</span>
+                      </div>
+                      {members.map((member) => {
+                        const [name, nickname] =
+                          member.name.split(/\s*[()]\s*/);
+                        return (
+                          <div className="person-heading" key={member.id}>
+                            <div className="person-identity">
+                              <Avatar
+                                name={member.name}
+                                color={member.color}
+                                photo={member.photo_data}
+                              />
+                              <span className="person-name">{name}</span>
+                              {nickname && (
+                                <span className="person-nickname">
+                                  {nickname}
+                                </span>
+                              )}
+                              <button
+                                className="column-add"
+                                aria-label={`Añadir evento para ${name}`}
+                                title={`Añadir evento para ${name}`}
+                                onClick={() => addEvent(member.id)}
+                              >
+                                ＋
+                              </button>
+                            </div>
+                            <div
+                              className="notice-strip"
+                              role="group"
+                              aria-label={`Avisos de todo el día de ${name}`}
                             >
-                              ＋
-                            </button>
-                          </div>
-                          <div
-                            className="notice-strip"
-                            role="group"
-                            aria-label={`Avisos de todo el día de ${name}`}
-                          >
-                            {notices
-                              .filter(
-                                (notice) =>
-                                  notice.member_id === member.id &&
-                                  notice.day === day,
-                              )
-                              .map((notice) => (
-                                <button
-                                  className="notice-token"
-                                  key={notice.id}
-                                  aria-label={`${notice.title}, editar aviso de ${name}`}
-                                  title={notice.title}
-                                  onClick={() =>
-                                    setNoticeEditor({
-                                      memberId: member.id,
-                                      notice,
-                                    })
-                                  }
-                                >
-                                  <Icon name={noticeIcons[notice.icon].icon} />
-                                </button>
-                              ))}
-                            <button
-                              className="daily-add"
-                              aria-label={`Añadir aviso de todo el día para ${name}`}
-                              title="Añadir aviso de todo el día"
-                              onClick={() =>
-                                setNoticeEditor({ memberId: member.id })
-                              }
+                              {notices
+                                .filter(
+                                  (notice) =>
+                                    notice.member_id === member.id &&
+                                    notice.day === day,
+                                )
+                                .map((notice) => (
+                                  <button
+                                    className="notice-token"
+                                    key={notice.id}
+                                    aria-label={`${notice.title}, editar aviso de ${name}`}
+                                    title={notice.title}
+                                    onClick={() =>
+                                      setNoticeEditor({
+                                        memberId: member.id,
+                                        notice,
+                                      })
+                                    }
+                                  >
+                                    <CustomSymbol
+                                      id={notice.custom_icon_id}
+                                      fallback={noticeIcons[notice.icon].icon}
+                                    />
+                                  </button>
+                                ))}
+                              <button
+                                className="daily-add"
+                                aria-label={`Añadir aviso de todo el día para ${name}`}
+                                title="Añadir aviso de todo el día"
+                                onClick={() =>
+                                  setNoticeEditor({ memberId: member.id })
+                                }
+                              >
+                                ＋
+                              </button>
+                            </div>
+                            <div
+                              className="task-strip"
+                              role="group"
+                              aria-label={`Tareas de ${name}`}
                             >
-                              ＋
-                            </button>
-                          </div>
-                          <div
-                            className="task-strip"
-                            role="group"
-                            aria-label={`Tareas de ${name}`}
-                          >
-                            {occurrences
-                              .filter(
+                              {occurrences
+                                .filter(
+                                  (item) =>
+                                    item.member_id === member.id &&
+                                    item.day === day,
+                                )
+                                .map((item) => (
+                                  <button
+                                    className={`task-token ${item.completed ? "done" : ""}`}
+                                    key={item.task_id}
+                                    aria-label={`${item.title}, ${name}`}
+                                    aria-pressed={item.completed}
+                                    title={`${item.title} · ${item.completed ? "Hecha" : "Pendiente"}`}
+                                    disabled={completing !== null}
+                                    onClick={() => complete(item)}
+                                  >
+                                    <CustomSymbol
+                                      id={item.custom_icon_id}
+                                      fallback={taskIcons[item.icon].icon}
+                                    />
+                                    {item.completed && (
+                                      <span className="task-tick">
+                                        <Icon name="check" />
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+                              {!occurrences.some(
                                 (item) =>
                                   item.member_id === member.id &&
                                   item.day === day,
-                              )
-                              .map((item) => (
-                                <button
-                                  className={`task-token ${item.completed ? "done" : ""}`}
-                                  key={item.task_id}
-                                  aria-label={`${item.title}, ${name}`}
-                                  aria-pressed={item.completed}
-                                  title={`${item.title} · ${item.completed ? "Hecha" : "Pendiente"}`}
-                                  disabled={completing !== null}
-                                  onClick={() => complete(item)}
-                                >
-                                  <Icon name={taskIcons[item.icon].icon} />
-                                  {item.completed && (
-                                    <span className="task-tick">
-                                      <Icon name="check" />
-                                    </span>
-                                  )}
-                                </button>
-                              ))}
-                            {!occurrences.some(
-                              (item) =>
-                                item.member_id === member.id &&
-                                item.day === day,
-                            ) && (
-                              <span className="small muted no-tasks">
-                                Sin tareas para hoy
-                              </span>
-                            )}
+                              ) && (
+                                <span className="small muted no-tasks">
+                                  Sin tareas para hoy
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="day-columns" style={gridStyle}>
-                    <div className="time-scale" aria-hidden="true">
-                      {Array.from({ length: 24 }, (_, hour) => (
-                        <div className="hour-label" key={hour}>
-                          <span>{`${String(hour).padStart(2, "0")}:00`}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                    {members.map((member) => (
-                      <div
-                        className="member-calendar"
-                        key={`${member.id}-${day}`}
-                        aria-label={`Calendario de ${member.name}`}
-                        data-member={member.name}
-                      >
-                        <FullCalendar
-                          plugins={[timeGrid, interaction, luxonPlugin]}
-                          locale={es}
-                          timeZone={config.timezone}
-                          initialDate={day}
-                          initialView="timeGridDay"
-                          headerToolbar={false}
-                          dayHeaders={false}
-                          allDaySlot={false}
-                          nowIndicator
-                          height="auto"
-                          slotMinTime="00:00:00"
-                          slotMaxTime="24:00:00"
-                          slotDuration="00:30:00"
-                          slotLabelContent={() => ""}
-                          editable={!moving && !editor}
-                          selectable
-                          selectMirror
-                          longPressDelay={350}
-                          eventMinHeight={44}
-                          eventTimeFormat={{
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                          }}
-                          events={events
-                            .filter((event) => event.member_id === member.id)
-                            .map((event) => ({
-                              id: event.id,
-                              title: event.title,
-                              start: event.starts_at,
-                              end: event.ends_at,
-                              backgroundColor: categories[event.category].color,
-                              textColor: categories[event.category].ink,
-                              extendedProps: { category: event.category },
-                              borderColor: categories[event.category].color,
-                            }))}
-                          dateClick={(info) =>
-                            addEvent(
-                              member.id,
-                              info.dateStr,
-                              DateTime.fromISO(info.dateStr)
-                                .plus({ hours: 1 })
-                                .toISO()!,
-                            )
-                          }
-                          select={(info) => {
-                            addEvent(member.id, info.startStr, info.endStr);
-                            info.view.calendar.unselect();
-                          }}
-                          eventDrop={move}
-                          eventResize={move}
-                          eventClick={(info) => {
-                            const event = events.find(
-                              (event) => event.id === info.event.id,
-                            );
-                            if (event)
-                              setEditor({
-                                event,
+                    <div className="day-columns" style={gridStyle}>
+                      <div className="time-scale" aria-hidden="true">
+                        {Array.from({ length: 24 }, (_, hour) => (
+                          <div className="hour-label" key={hour}>
+                            <span>{`${String(hour).padStart(2, "0")}:00`}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {members.map((member) => (
+                        <div
+                          className="member-calendar"
+                          key={`${member.id}-${day}`}
+                          aria-label={`Calendario de ${member.name}`}
+                          data-member={member.name}
+                        >
+                          <FullCalendar
+                            plugins={[timeGrid, interaction, luxonPlugin]}
+                            locale={es}
+                            timeZone={config.timezone}
+                            initialDate={day}
+                            initialView="timeGridDay"
+                            headerToolbar={false}
+                            dayHeaders={false}
+                            allDaySlot={false}
+                            nowIndicator
+                            height="auto"
+                            slotMinTime="00:00:00"
+                            slotMaxTime="24:00:00"
+                            slotDuration="00:30:00"
+                            slotLabelContent={() => ""}
+                            editable={!moving && !editor}
+                            selectable
+                            selectMirror
+                            longPressDelay={350}
+                            eventMinHeight={44}
+                            eventTimeFormat={{
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            }}
+                            events={events
+                              .filter((event) => event.member_id === member.id)
+                              .map((event) => ({
+                                id: event.id,
+                                title: event.title,
                                 start: event.starts_at,
                                 end: event.ends_at,
-                              });
-                          }}
-                          eventContent={(info) => (
-                            <div className="event-content">
-                              <span className="event-time">
-                                {info.timeText}
-                              </span>
-                              <strong>{info.event.title}</strong>
-                              <span className="event-category">
-                                <Icon
-                                  name={
+                                backgroundColor:
+                                  categories[event.category].color,
+                                textColor: categories[event.category].ink,
+                                extendedProps: {
+                                  category: event.category,
+                                  custom_icon_id: event.custom_icon_id,
+                                },
+                                borderColor: categories[event.category].color,
+                              }))}
+                            dateClick={(info) =>
+                              addEvent(
+                                member.id,
+                                info.dateStr,
+                                DateTime.fromISO(info.dateStr)
+                                  .plus({ hours: 1 })
+                                  .toISO()!,
+                              )
+                            }
+                            select={(info) => {
+                              addEvent(member.id, info.startStr, info.endStr);
+                              info.view.calendar.unselect();
+                            }}
+                            eventDrop={move}
+                            eventResize={move}
+                            eventClick={(info) => {
+                              const event = events.find(
+                                (event) => event.id === info.event.id,
+                              );
+                              if (event)
+                                setEditor({
+                                  event,
+                                  start: event.starts_at,
+                                  end: event.ends_at,
+                                });
+                            }}
+                            eventContent={(info) => (
+                              <div
+                                className="event-content"
+                                title={info.event.title}
+                              >
+                                <span className="event-time">
+                                  {info.timeText}
+                                </span>
+                                <strong>{info.event.title}</strong>
+                                <span
+                                  className="event-category"
+                                  role="img"
+                                  aria-label={
                                     categories[
                                       (info.event.extendedProps.category ??
                                         "other") as Category
-                                    ].icon
+                                    ].label
                                   }
-                                />
-                                {
-                                  categories[
-                                    (info.event.extendedProps.category ??
-                                      "other") as Category
-                                  ].label
-                                }
-                              </span>
-                            </div>
-                          )}
-                        />
-                      </div>
-                    ))}
+                                  title={
+                                    categories[
+                                      (info.event.extendedProps.category ??
+                                        "other") as Category
+                                    ].label
+                                  }
+                                >
+                                  <CustomSymbol
+                                    id={info.event.extendedProps.custom_icon_id}
+                                    fallback={
+                                      categories[
+                                        (info.event.extendedProps.category ??
+                                          "other") as Category
+                                      ].icon
+                                    }
+                                  />
+                                </span>
+                              </div>
+                            )}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <div className="category-legend" aria-label="Categorías de eventos">
-              {Object.entries(categories).map(([value, details]) => (
-                <span className="category-key" key={value}>
-                  <span
-                    className="category-swatch"
-                    style={{ background: details.color, color: details.ink }}
-                  >
-                    <Icon name={details.icon} />
+              )}
+              <div
+                className="category-legend"
+                aria-label="Categorías de eventos"
+              >
+                {Object.entries(categories).map(([value, details]) => (
+                  <span className="category-key" key={value}>
+                    <span
+                      className="category-swatch"
+                      style={{ background: details.color, color: details.ink }}
+                    >
+                      <Icon name={details.icon} />
+                    </span>
+                    {details.label}
                   </span>
-                  {details.label}
+                ))}
+              </div>
+              <footer className="calendar-footer">
+                <span role="status">
+                  <span className="status-dot" />
+                  {moving
+                    ? "Guardando movimiento…"
+                    : `${events.length} ${events.length === 1 ? "plan" : "planes"} para hoy`}
                 </span>
-              ))}
-            </div>
-            <footer className="calendar-footer">
-              <span role="status">
-                <span className="status-dot" />
-                {moving
-                  ? "Guardando movimiento…"
-                  : `${events.length} ${events.length === 1 ? "plan" : "planes"} para hoy`}
-              </span>
-              <span>Toca una hora para añadir un plan · {config.timezone}</span>
-            </footer>
-          </section>
-        )}
-      </main>
-      {noticeEditor &&
-        members.find((member) => member.id === noticeEditor.memberId) && (
-          <NoticeForm
+                <span>
+                  Toca una hora para añadir un plan · {config.timezone}
+                </span>
+              </footer>
+            </section>
+          )}
+        </main>
+        {noticeEditor &&
+          members.find((member) => member.id === noticeEditor.memberId) && (
+            <NoticeForm
+              api={api}
+              member={members.find(
+                (member) => member.id === noticeEditor.memberId,
+              )!}
+              day={day}
+              notice={noticeEditor.notice}
+              close={() => setNoticeEditor(null)}
+              saved={() => {
+                setNoticeEditor(null);
+                setRefresh((value) => value + 1);
+              }}
+            />
+          )}
+        {memberForm && (
+          <MemberForm
             api={api}
-            member={members.find(
-              (member) => member.id === noticeEditor.memberId,
-            )!}
-            day={day}
-            notice={noticeEditor.notice}
-            close={() => setNoticeEditor(null)}
+            initialColor={
+              colors.find(
+                (color) => !members.some((member) => member.color === color),
+              ) ?? colors[members.length % colors.length]
+            }
+            close={() => setMemberForm(false)}
+            saved={(member) => {
+              setMembers((previous) => [...previous, member]);
+              setMemberForm(false);
+            }}
+          />
+        )}
+        {editor && (
+          <EventForm
+            api={api}
+            members={members}
+            selected={null}
+            zone={config.timezone}
+            editor={editor}
+            close={() => setEditor(null)}
             saved={() => {
-              setNoticeEditor(null);
+              setEditor(null);
               setRefresh((value) => value + 1);
             }}
           />
         )}
-      {memberForm && (
-        <MemberForm
-          api={api}
-          initialColor={
-            colors.find(
-              (color) => !members.some((member) => member.color === color),
-            ) ?? colors[members.length % colors.length]
-          }
-          close={() => setMemberForm(false)}
-          saved={(member) => {
-            setMembers((previous) => [...previous, member]);
-            setMemberForm(false);
-          }}
-        />
-      )}
-      {editor && (
-        <EventForm
-          api={api}
-          members={members}
-          selected={null}
-          zone={config.timezone}
-          editor={editor}
-          close={() => setEditor(null)}
-          saved={() => {
-            setEditor(null);
-            setRefresh((value) => value + 1);
-          }}
-        />
-      )}
-    </div>
+      </div>
+    </IconCatalog.Provider>
   );
 }

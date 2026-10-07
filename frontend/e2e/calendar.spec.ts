@@ -79,7 +79,10 @@ test("daily demo has four faces and persistent categorized events", async ({
   const event = column.locator(".fc-event", { hasText: title });
   await expect(event).toBeVisible();
   await expect(event).toHaveCSS("background-color", "rgb(220, 232, 250)");
-  await expect(event.locator(".event-category")).toHaveText("Colegio");
+  await expect(event.locator(".event-category")).toHaveAttribute(
+    "aria-label",
+    "Colegio",
+  );
   await expect(event.locator(".event-category svg")).toHaveCount(1);
   await expect(
     page.locator(".member-calendar[data-member='Pedro (Papá)'] .fc-event", {
@@ -107,7 +110,10 @@ test("daily demo has four faces and persistent categorized events", async ({
     .selectOption("friends");
   await page.getByRole("button", { name: "Guardar evento" }).click();
   await expect(event).toHaveCSS("background-color", "rgb(231, 222, 244)");
-  await expect(event.locator(".event-category")).toHaveText("Amigos");
+  await expect(event.locator(".event-category")).toHaveAttribute(
+    "aria-label",
+    "Amigos",
+  );
 
   const box = await event.boundingBox();
   if (!box) throw new Error("Event has no drag target");
@@ -132,7 +138,10 @@ test("daily demo has four faces and persistent categorized events", async ({
       .setZone("Europe/Madrid")
       .toFormat("HH:mm"),
   );
-  await expect(event.locator(".event-category")).toHaveText("Amigos");
+  await expect(event.locator(".event-category")).toHaveAttribute(
+    "aria-label",
+    "Amigos",
+  );
 
   await page.getByRole("button", { name: "Día siguiente" }).click();
   await expect(event).toHaveCount(0);

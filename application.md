@@ -16,7 +16,7 @@ La vista por defecto es **Día**. Cada columna corresponde a un integrante y mue
 
 El menú izquierdo es estrecho y contiene únicamente iconos, con nombres accesibles para lectores de pantalla: calendario, Tareas, Configuración (engranaje), añadir integrante y cerrar sesión. Los eventos se añaden tocando una hora o seleccionando un intervalo en la columna correspondiente. El «+» de la cabecera ofrece la misma acción para teclado y pantalla táctil.
 
-Las tarjetas muestran horario, título, icono y nombre de categoría. El color depende de la categoría, con una paleta pastel:
+Las tarjetas muestran horario, título con letra más grande e icono de categoría, aprovechando el ancho disponible. El nombre de categoría se conserva en la leyenda, tooltip y descripción accesible; no aparece dentro de la tarjeta. El color depende de la categoría, con una paleta pastel:
 
 | Categoría | Color | Icono |
 | --- | --- | --- |
@@ -45,6 +45,10 @@ Debajo de cada cara hay una fila de avisos de día completo (uniforme, chándal,
 Tareas permite crear y editar rutinas con icono, título, integrantes y frecuencia: todos los días desde una fecha o solo un día. Los iconos se muestran bajo sus integrantes en el calendario. Tocarlos marca o desmarca la tarea para esa persona en el día seleccionado; un check y el color verde indican que está hecha. Al navegar al día siguiente las marcas son independientes. Archivar oculta la rutina y conserva sus marcas para un seguimiento futuro; editar la definición se aplica a todas las fechas conservando las marcas.
 
 Pedro aprobó la migración de estos datos, conservando los integrantes y eventos actuales y sin añadir servicios AWS.
+
+## Iconos reutilizables (issue #9)
+
+Los editores de tareas, avisos y eventos comparten un catálogo de iconos. Subir un fichero validado añade una opción persistente para cualquier integrante y cualquiera de esos formularios. El icono se guarda al subirlo; cancelar el formulario no lo retira del catálogo. Guardar el elemento aplica la selección. Se mantienen las opciones incluidas, las categorías y sus colores, las actividades y las marcas de tareas.
 
 ## Versiones posteriores
 

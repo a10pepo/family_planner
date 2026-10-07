@@ -30,6 +30,9 @@ class NoticeRow(Base):
     day: Mapped[date] = mapped_column(Date)
     title: Mapped[str] = mapped_column(String(80))
     icon: Mapped[str] = mapped_column(String(20))
+    custom_icon_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("custom_icons.id", name="all_day_notices_custom_icon"), nullable=True
+    )
 
 
 class TaskRow(Base):
@@ -41,6 +44,9 @@ class TaskRow(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     title: Mapped[str] = mapped_column(String(80))
     icon: Mapped[str] = mapped_column(String(20))
+    custom_icon_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("custom_icons.id", name="tasks_custom_icon"), nullable=True
+    )
     frequency: Mapped[str] = mapped_column(String(12))
     starts_on: Mapped[date] = mapped_column(Date)
     active: Mapped[bool] = mapped_column(Boolean, server_default="true")
@@ -66,7 +72,9 @@ class TaskCompletionRow(Base):
 
 
 def to_notice(row: NoticeRow) -> Notice:
-    return Notice(row.id, row.member_id, row.day, row.title, NoticeIcon(row.icon))
+    return Notice(
+        row.id, row.member_id, row.day, row.title, NoticeIcon(row.icon), row.custom_icon_id
+    )
 
 
 def to_task(row: TaskRow) -> Task:
@@ -78,12 +86,16 @@ def to_task(row: TaskRow) -> Task:
         row.starts_on,
         [assignment.member_id for assignment in row.assignments],
         row.active,
+        row.custom_icon_id,
     )
 
 
 class SqlDailyRepository:
     def __init__(self, session: Session):
         self.session = session
+
+    def icon(self, icon_id: UUID):
+        return SqlCalendarRepository(self.session).icon(icon_id)
 
     def member(self, member_id: UUID):
         return SqlCalendarRepository(self.session).member(member_id)
@@ -104,6 +116,7 @@ class SqlDailyRepository:
             row = NoticeRow(id=notice.id, member_id=notice.member_id)
             self.session.add(row)
         row.day, row.title, row.icon = notice.day, notice.title, notice.icon.value
+        row.custom_icon_id = notice.custom_icon_id
         self.session.flush()
         return notice
 
@@ -125,6 +138,7 @@ class SqlDailyRepository:
             self.session.add(row)
         row.title, row.icon, row.frequency = task.title, task.icon.value, task.frequency.value
         row.starts_on, row.active = task.starts_on, task.active
+        row.custom_icon_id = task.custom_icon_id
         existing = {assignment.member_id: assignment for assignment in row.assignments}
         row.assignments = [
             existing.get(member_id) or TaskAssignmentRow(member_id=member_id)

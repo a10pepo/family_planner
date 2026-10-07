@@ -9,6 +9,14 @@ from app.domain.calendar import InvalidInput
 
 
 def normalize_photo(value: str | None) -> str | None:
+    return normalize_image(value)
+
+
+def normalize_icon(value: str) -> str:
+    return normalize_image(value, icon=True)
+
+
+def normalize_image(value: str | None, *, icon=False) -> str | None:
     if value is None:
         return None
     try:
@@ -32,6 +40,17 @@ def normalize_photo(value: str | None) -> str | None:
                     raise ValueError("image")
                 image.load()
                 oriented = ImageOps.exif_transpose(image)
+                if icon:
+                    resized = ImageOps.contain(
+                        oriented.convert("RGBA"), (128, 128), Image.Resampling.LANCZOS
+                    )
+                    canvas = Image.new("RGBA", (128, 128), (0, 0, 0, 0))
+                    canvas.paste(resized, ((128 - resized.width) // 2, (128 - resized.height) // 2))
+                    output = BytesIO()
+                    canvas.save(output, "PNG", optimize=True)
+                    return "data:image/png;base64," + base64.b64encode(output.getvalue()).decode(
+                        "ascii"
+                    )
                 rgba = ImageOps.fit(oriented.convert("RGBA"), (256, 256), Image.Resampling.LANCZOS)
                 background = Image.new("RGB", (256, 256), "white")
                 background.paste(rgba, mask=rgba.getchannel("A"))
@@ -49,5 +68,7 @@ def normalize_photo(value: str | None) -> str | None:
         Image.DecompressionBombWarning,
     ) as exc:
         raise InvalidInput(
-            "La foto debe ser una imagen JPG, PNG o WebP válida (máximo 2 MB)."
+            "El icono debe ser una imagen JPG, PNG o WebP válida (máximo 2 MB)."
+            if icon
+            else "La foto debe ser una imagen JPG, PNG o WebP válida (máximo 2 MB)."
         ) from exc

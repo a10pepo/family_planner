@@ -1,6 +1,7 @@
 import type Keycloak from "keycloak-js";
 import type { components } from "./api-schema";
 
+export type CustomIcon = components["schemas"]["IconOutput"];
 export type Member = components["schemas"]["MemberOutput"];
 export type CalendarEvent = components["schemas"]["EventOutput"];
 export type EventInput = components["schemas"]["EventInput"];
@@ -43,6 +44,15 @@ export class Api {
     return response.status === 204 ? (undefined as T) : response.json();
   }
 
+  icons() {
+    return this.request<CustomIcon[]>("/icons");
+  }
+  addIcon(name: string, image_data: string) {
+    return this.request<CustomIcon>("/icons", {
+      method: "POST",
+      body: JSON.stringify({ name, image_data }),
+    });
+  }
   members() {
     return this.request<Member[]>("/members");
   }

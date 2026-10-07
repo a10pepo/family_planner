@@ -15,10 +15,19 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from app.domain.calendar import Category, Event, Member
+from app.domain.icons import CustomIcon
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class IconRow(Base):
+    __tablename__ = "custom_icons"
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    image_data: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class MemberRow(Base):
@@ -47,6 +56,9 @@ class EventRow(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     category: Mapped[str] = mapped_column(String(32), server_default="other")
+    custom_icon_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("custom_icons.id", name="events_custom_icon"), nullable=True
+    )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -56,13 +68,23 @@ def make_engine(url: str):
 
 def to_event(row: EventRow) -> Event:
     return Event(
-        row.id, row.member_id, row.title, row.starts_at, row.ends_at, Category(row.category)
+        row.id,
+        row.member_id,
+        row.title,
+        row.starts_at,
+        row.ends_at,
+        Category(row.category),
+        row.custom_icon_id,
     )
 
 
 class SqlCalendarRepository:
     def __init__(self, session: Session):
         self.session = session
+
+    def icon(self, icon_id: UUID):
+        row = self.session.get(IconRow, icon_id)
+        return CustomIcon(row.id, row.name, row.image_data) if row else None
 
     def members(self) -> list[Member]:
         rows = self.session.scalars(select(MemberRow).order_by(MemberRow.created_at, MemberRow.id))
@@ -105,6 +127,7 @@ class SqlCalendarRepository:
             self.session.add(row)
         row.title, row.starts_at, row.ends_at = event.title, event.starts_at, event.ends_at
         row.category = event.category.value
+        row.custom_icon_id = event.custom_icon_id
         row.updated_at = now
         self.session.flush()
         return event

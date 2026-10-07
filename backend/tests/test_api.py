@@ -48,6 +48,7 @@ def client(database):
         for table in ("task_completions", "task_assignments", "all_day_notices", "tasks"):
             connection.execute(text(f"DELETE FROM {table}"))
         connection.execute(text("DELETE FROM events"))
+        connection.execute(text("DELETE FROM custom_icons"))
         connection.execute(text("DELETE FROM members"))
     app = create_app(url, TestVerifier())
     with TestClient(app, headers={"Authorization": "Bearer valid"}) as client:
@@ -185,6 +186,7 @@ def test_category_migration_preserves_existing_events(database):
         for table in ("task_completions", "task_assignments", "all_day_notices", "tasks"):
             connection.execute(text(f"DELETE FROM {table}"))
         connection.execute(text("DELETE FROM events"))
+        connection.execute(text("DELETE FROM custom_icons"))
         connection.execute(text("DELETE FROM members"))
     command.downgrade(Config("alembic.ini"), "001_calendar")
     member_id, event_id = uuid4(), uuid4()
@@ -392,6 +394,7 @@ def test_new_migration_preserves_members_and_categorized_events(database):
             "all_day_notices",
             "tasks",
             "events",
+            "custom_icons",
             "members",
         ):
             connection.execute(text(f"DELETE FROM {table}"))
@@ -428,6 +431,126 @@ def test_new_migration_preserves_members_and_categorized_events(database):
                 ).scalar()
                 == "school"
             )
+            assert not compare_metadata(MigrationContext.configure(connection), Base.metadata)
+    finally:
+        command.upgrade(Config("alembic.ini"), "head")
+
+
+def test_uploaded_icon_is_reusable_across_types_and_preserved_by_legacy_updates(client):
+    from test_photos import synthetic_photo
+
+    uploaded = client.post(
+        "/api/v1/icons", json={"name": " Dibujito ", "image_data": synthetic_photo()}
+    )
+    assert uploaded.status_code == 201
+    icon = uploaded.json()
+    assert icon["name"] == "Dibujito" and icon["image_data"].startswith("data:image/png;base64,")
+    assert client.get("/api/v1/icons").json() == [icon]
+    assert (
+        client.post("/api/v1/icons", json={"name": "bad", "image_data": "bad"}).status_code == 422
+    )
+    member = client.post("/api/v1/members", json={"name": "Alex", "color": "#abcdef"}).json()["id"]
+    task_data = {
+        "title": "Dientes",
+        "icon": "tooth",
+        "starts_on": "2026-10-07",
+        "member_ids": [member],
+    }
+    task = client.post("/api/v1/tasks", json=task_data | {"custom_icon_id": icon["id"]}).json()
+    mark = {"member_id": member, "day": "2026-10-07", "completed": True}
+    assert (
+        client.put(f"/api/v1/tasks/{task['id']}/completion", json=mark).json()["custom_icon_id"]
+        == icon["id"]
+    )
+    assert (
+        client.put(f"/api/v1/tasks/{task['id']}", json=task_data).json()["custom_icon_id"]
+        == icon["id"]
+    )
+    assert client.get("/api/v1/task-occurrences", params={"day": "2026-10-07"}).json()[0][
+        "completed"
+    ]
+    notice_data = {"member_id": member, "title": "Uniforme", "day": "2026-10-07", "icon": "uniform"}
+    notice = client.post(
+        "/api/v1/notices", json=notice_data | {"custom_icon_id": icon["id"]}
+    ).json()
+    assert (
+        client.put(
+            f"/api/v1/notices/{notice['id']}",
+            json={k: v for k, v in notice_data.items() if k != "member_id"},
+        ).json()["custom_icon_id"]
+        == icon["id"]
+    )
+    event_data = {
+        "title": "Colegio",
+        "starts_at": "2026-10-07T09:00:00Z",
+        "ends_at": "2026-10-07T10:00:00Z",
+        "category": "school",
+    }
+    event = client.post(
+        "/api/v1/events", json=event_data | {"member_id": member, "custom_icon_id": icon["id"]}
+    ).json()
+    path = f"/api/v1/events/{event['id']}"
+    assert client.put(path, json=event_data).json()["custom_icon_id"] == icon["id"]
+    assert (
+        client.put(path, json=event_data | {"custom_icon_id": None}).json()["custom_icon_id"]
+        is None
+    )
+    assert (
+        client.post("/api/v1/tasks", json=task_data | {"custom_icon_id": str(uuid4())}).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/notices", json=notice_data | {"custom_icon_id": str(uuid4())}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/events",
+            json=event_data | {"member_id": member, "custom_icon_id": str(uuid4())},
+        ).status_code
+        == 404
+    )
+    client.delete(f"/api/v1/tasks/{task['id']}")
+    assert client.get("/api/v1/icons").json() == [icon]  # Archiving never removes the shared image.
+    client.headers.pop("Authorization")
+    assert client.get("/api/v1/icons").status_code == 401
+    assert (
+        client.post(
+            "/api/v1/icons", json={"name": "X", "image_data": synthetic_photo()}
+        ).status_code
+        == 401
+    )
+
+
+def test_icon_migration_preserves_routines_notices_and_marks(client, database):
+    _, engine = database
+    member = client.post("/api/v1/members", json={"name": "Legacy", "color": "#abcdef"}).json()[
+        "id"
+    ]
+    task = client.post(
+        "/api/v1/tasks",
+        json={"title": "Cama", "icon": "bed", "starts_on": "2026-10-07", "member_ids": [member]},
+    ).json()["id"]
+    notice = client.post(
+        "/api/v1/notices",
+        json={"member_id": member, "title": "Uniforme", "icon": "uniform", "day": "2026-10-07"},
+    ).json()["id"]
+    client.put(
+        f"/api/v1/tasks/{task}/completion",
+        json={"member_id": member, "day": "2026-10-07", "completed": True},
+    )
+    command.downgrade(Config("alembic.ini"), "003_profiles_daily_tasks")
+    try:
+        command.upgrade(Config("alembic.ini"), "head")
+        assert client.get("/api/v1/tasks").json()[0]["id"] == task
+        assert client.get("/api/v1/tasks").json()[0]["custom_icon_id"] is None
+        assert client.get("/api/v1/notices", params={"day": "2026-10-07"}).json()[0]["id"] == notice
+        assert client.get("/api/v1/task-occurrences", params={"day": "2026-10-07"}).json()[0][
+            "completed"
+        ]
+        with engine.connect() as connection:
             assert not compare_metadata(MigrationContext.configure(connection), Base.metadata)
     finally:
         command.upgrade(Config("alembic.ini"), "head")

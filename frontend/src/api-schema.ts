@@ -74,6 +74,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/icons": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Icons */
+    get: operations["icons_api_v1_icons_get"];
+    put?: never;
+    /** Add Icon */
+    post: operations["add_icon_api_v1_icons_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/members": {
     parameters: {
       query?: never;
@@ -243,6 +261,8 @@ export interface components {
     EventInput: {
       /** @default other */
       category: components["schemas"]["Category"];
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /**
        * Ends At
        * Format: date-time
@@ -265,6 +285,8 @@ export interface components {
     EventOutput: {
       /** @default other */
       category: components["schemas"]["Category"];
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /**
        * Ends At
        * Format: date-time
@@ -291,6 +313,8 @@ export interface components {
     /** EventUpdate */
     EventUpdate: {
       category?: components["schemas"]["Category"] | null;
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /**
        * Ends At
        * Format: date-time
@@ -313,6 +337,25 @@ export interface components {
     HTTPValidationError: {
       /** Detail */
       detail?: components["schemas"]["ValidationError"][];
+    };
+    /** IconInput */
+    IconInput: {
+      /** Image Data */
+      image_data: string;
+      /** Name */
+      name: string;
+    };
+    /** IconOutput */
+    IconOutput: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Image Data */
+      image_data: string;
+      /** Name */
+      name: string;
     };
     /** MemberInput */
     MemberInput: {
@@ -349,6 +392,8 @@ export interface components {
     NoticeIcon: "uniform" | "tracksuit" | "trip" | "other";
     /** NoticeInput */
     NoticeInput: {
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /**
        * Day
        * Format: date
@@ -366,6 +411,8 @@ export interface components {
     };
     /** NoticeOutput */
     NoticeOutput: {
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /**
        * Day
        * Format: date
@@ -388,6 +435,8 @@ export interface components {
     };
     /** NoticeUpdate */
     NoticeUpdate: {
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /**
        * Day
        * Format: date
@@ -402,6 +451,8 @@ export interface components {
     OccurrenceOutput: {
       /** Completed */
       completed: boolean;
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /**
        * Day
        * Format: date
@@ -428,6 +479,8 @@ export interface components {
     TaskIcon: "tooth" | "backpack" | "bed" | "other";
     /** TaskInput */
     TaskInput: {
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /** @default daily */
       frequency: components["schemas"]["Frequency"];
       /** @default other */
@@ -446,6 +499,8 @@ export interface components {
     TaskOutput: {
       /** Active */
       active: boolean;
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
       /** @default daily */
       frequency: components["schemas"]["Frequency"];
       /** @default other */
@@ -645,6 +700,59 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  icons_api_v1_icons_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IconOutput"][];
+        };
+      };
+    };
+  };
+  add_icon_api_v1_icons_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IconInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IconOutput"];
+        };
       };
       /** @description Validation Error */
       422: {
