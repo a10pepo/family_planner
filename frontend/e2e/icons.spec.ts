@@ -110,7 +110,8 @@ test("uploaded icon is shared by tasks, notices and events and survives restart"
   await expect(event.locator("strong")).toHaveCSS("font-size", "17px");
   const bounds = await event.boundingBox();
   const column = await page
-    .locator(".member-calendar[data-member='Laura (Mamá)']")
+    .locator(".member-calendar")
+    .filter({ hasText: "Evento icono de prueba" })
     .boundingBox();
   expect(bounds!.width / column!.width).toBeGreaterThan(0.9);
   await page.reload();

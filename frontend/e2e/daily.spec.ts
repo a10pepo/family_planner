@@ -18,6 +18,10 @@ test("profiles, day notices and independent recurring tasks survive reload and r
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await login(page);
+  if (process.env.EXPECT_PERSISTENCE === "1")
+    await expect(
+      page.getByRole("img", { name: "Foto de Laura" }),
+    ).toBeVisible();
   await page
     .getByRole("button", { name: "Configuración", exact: true })
     .click();
@@ -25,6 +29,10 @@ test("profiles, day notices and independent recurring tasks survive reload and r
     .getByRole("button", { name: "Editar perfil de Laura (Mamá)" })
     .click();
   await page.getByLabel("Nombre", { exact: true }).fill("Laura prueba (Mamá)");
+  // A persisted preview must not satisfy the wait for the newly uploaded photo.
+  const removePhoto = page.getByRole("button", { name: "Quitar foto" });
+  if (await removePhoto.count()) await removePhoto.click();
+  await expect(removePhoto).toHaveCount(0);
   await page.getByLabel("Foto del integrante").setInputFiles({
     name: "synthetic.png",
     mimeType: "image/png",
