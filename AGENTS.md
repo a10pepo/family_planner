@@ -60,6 +60,8 @@ La vista vigente es diaria, con una columna y cara ilustrada por integrante; el 
 
 Pedro aprobó expresamente la estructura del issue #6: fotos opcionales validadas y reducidas en la API, avisos por integrante y fecha, rutinas asignables para un día o todos los días y marcas por tarea/integrante/fecha. La migración `003_profiles_daily_tasks` es aditiva y conserva los datos anteriores. Archivar conserva las marcas históricas; no añadir borrado físico, analítica o servicios AWS sin un nuevo acuerdo. La edición de perfiles mantiene sus identificadores y sus eventos. Los iconos de avisos y tareas aparecen bajo las caras; el menú incluye Configuración y Tareas.
 
+Pedro aprobó el catálogo persistente de iconos y sus referencias opcionales en tareas, avisos y eventos (issue #9). La migración `004_reusable_icons` añade `custom_icons` y campos `custom_icon_id` nullable. Omitir la referencia al editar conserva el icono; `null` recupera el icono incluido. La API valida y normaliza las imágenes a PNG de 128 × 128 con transparencia, conservando el dibujo completo. El catálogo es común y no se elimina al archivar una tarea. Los cambios de ancho y letra se aplican a eventos con horario; muestran solo el icono de categoría, conservando su nombre accesible.
+
 ## Comandos y estructura actual
 
 - `frontend/src/`: interfaz y cliente OAuth/API. `backend/app/api.py` y `api_daily.py`: adaptadores HTTP y DTO. `backend/app/domain/`: negocio puro y puerto de repositorio. `backend/app/adapters/`: PostgreSQL y validación OAuth.

@@ -45,6 +45,18 @@
             "$ref": "#/components/schemas/Category",
             "default": "other"
           },
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
           "ends_at": {
             "format": "date-time",
             "title": "Ends At",
@@ -82,6 +94,18 @@
           "category": {
             "$ref": "#/components/schemas/Category",
             "default": "other"
+          },
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
           },
           "ends_at": {
             "format": "date-time",
@@ -133,6 +157,18 @@
               }
             ]
           },
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
           "ends_at": {
             "format": "date-time",
             "title": "Ends At",
@@ -177,6 +213,58 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IconInput": {
+        "additionalProperties": false,
+        "properties": {
+          "image_data": {
+            "maxLength": 2800000,
+            "minLength": 1,
+            "title": "Image Data",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "image_data"
+        ],
+        "title": "IconInput",
+        "type": "object"
+      },
+      "IconOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_data": {
+            "maxLength": 2800000,
+            "minLength": 1,
+            "title": "Image Data",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "image_data",
+          "id"
+        ],
+        "title": "IconOutput",
         "type": "object"
       },
       "MemberInput": {
@@ -281,6 +369,18 @@
       "NoticeInput": {
         "additionalProperties": false,
         "properties": {
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
           "day": {
             "format": "date",
             "title": "Day",
@@ -313,6 +413,18 @@
       "NoticeOutput": {
         "additionalProperties": false,
         "properties": {
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
           "day": {
             "format": "date",
             "title": "Day",
@@ -351,6 +463,18 @@
       "NoticeUpdate": {
         "additionalProperties": false,
         "properties": {
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
           "day": {
             "format": "date",
             "title": "Day",
@@ -379,6 +503,18 @@
           "completed": {
             "title": "Completed",
             "type": "boolean"
+          },
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
           },
           "day": {
             "format": "date",
@@ -427,6 +563,18 @@
       "TaskInput": {
         "additionalProperties": false,
         "properties": {
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
           "frequency": {
             "$ref": "#/components/schemas/Frequency",
             "default": "daily"
@@ -471,6 +619,18 @@
           "active": {
             "title": "Active",
             "type": "boolean"
+          },
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
           },
           "frequency": {
             "$ref": "#/components/schemas/Frequency",
@@ -832,6 +992,80 @@
         "summary": "Update Event",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/v1/icons": {
+      "get": {
+        "operationId": "icons_api_v1_icons_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IconOutput"
+                  },
+                  "title": "Response Icons Api V1 Icons Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "Icons",
+        "tags": [
+          "icons"
+        ]
+      },
+      "post": {
+        "operationId": "add_icon_api_v1_icons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IconInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IconOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "Add Icon",
+        "tags": [
+          "icons"
         ]
       }
     },

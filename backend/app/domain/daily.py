@@ -33,6 +33,7 @@ class Notice:
     day: date
     title: str
     icon: NoticeIcon
+    custom_icon_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class Task:
     starts_on: date
     member_ids: list[UUID]
     active: bool = True
+    custom_icon_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -54,9 +56,11 @@ class Occurrence:
     title: str
     icon: TaskIcon
     completed: bool
+    custom_icon_id: UUID | None = None
 
 
 class DailyRepository(Protocol):
+    def icon(self, icon_id: UUID): ...
     def member(self, member_id: UUID) -> Member | None: ...
     def notices(self, day: date) -> list[Notice]: ...
     def notice(self, notice_id: UUID) -> Notice | None: ...
@@ -83,27 +87,50 @@ class DailyPlanner:
     def __init__(self, repository: DailyRepository):
         self.repository = repository
 
-    def create_notice(self, member_id: UUID, day: date, title: str, icon: str) -> Notice:
+    def validate_icon(self, icon_id: UUID | None):
+        if icon_id is not None and self.repository.icon(icon_id) is None:
+            raise MissingEntity("No existe el icono.")
+
+    def create_notice(
+        self, member_id: UUID, day: date, title: str, icon: str, custom_icon_id: UUID | None = None
+    ) -> Notice:
         if self.repository.member(member_id) is None:
             raise MissingEntity("No existe el integrante.")
+        self.validate_icon(custom_icon_id)
         try:
             selected_icon = NoticeIcon(icon)
         except ValueError as exc:
             raise InvalidInput("El icono del aviso no es válido.") from exc
         return self.repository.save_notice(
-            Notice(uuid4(), member_id, day, clean_text(title, 80), selected_icon)
+            Notice(uuid4(), member_id, day, clean_text(title, 80), selected_icon, custom_icon_id)
         )
 
-    def update_notice(self, notice_id: UUID, day: date, title: str, icon: str) -> Notice:
+    def update_notice(
+        self,
+        notice_id: UUID,
+        day: date,
+        title: str,
+        icon: str,
+        custom_icon_id: UUID | None = None,
+        replace_custom_icon: bool = False,
+    ) -> Notice:
         previous = self.repository.notice(notice_id)
         if previous is None:
             raise MissingEntity("No existe el aviso.")
+        reference = custom_icon_id if replace_custom_icon else previous.custom_icon_id
+        self.validate_icon(reference)
         try:
             selected_icon = NoticeIcon(icon)
         except ValueError as exc:
             raise InvalidInput("El icono del aviso no es válido.") from exc
         return self.repository.save_notice(
-            replace(previous, day=day, title=clean_text(title, 80), icon=selected_icon)
+            replace(
+                previous,
+                day=day,
+                title=clean_text(title, 80),
+                icon=selected_icon,
+                custom_icon_id=reference,
+            )
         )
 
     def delete_notice(self, notice_id: UUID) -> None:
@@ -119,11 +146,18 @@ class DailyPlanner:
         starts_on: date,
         member_ids: list[UUID],
         task_id: UUID | None = None,
+        custom_icon_id: UUID | None = None,
+        replace_custom_icon: bool = False,
     ) -> Task:
+        previous = None
         if task_id is not None:
             previous = self.repository.task(task_id)
             if previous is None or not previous.active:
                 raise MissingEntity("No existe una tarea activa con ese identificador.")
+        reference = (
+            custom_icon_id if replace_custom_icon or previous is None else previous.custom_icon_id
+        )
+        self.validate_icon(reference)
         if not member_ids or len(set(member_ids)) != len(member_ids):
             raise InvalidInput("Selecciona al menos un integrante, sin repetirlo.")
         if any(self.repository.member(member_id) is None for member_id in member_ids):
@@ -140,6 +174,7 @@ class DailyPlanner:
                 repeat,
                 starts_on,
                 member_ids,
+                custom_icon_id=reference,
             )
         )
 
@@ -159,6 +194,7 @@ class DailyPlanner:
                 task.title,
                 task.icon,
                 completed.get((task.id, member_id), False),
+                task.custom_icon_id,
             )
             for task in self.repository.tasks()
             if occurs_on(task, day)
@@ -172,4 +208,6 @@ class DailyPlanner:
         if member_id not in task.member_ids or not occurs_on(task, day):
             raise InvalidInput("La tarea no está asignada a este integrante en esa fecha.")
         self.repository.set_completion(task_id, member_id, day, completed)
-        return Occurrence(task.id, member_id, day, task.title, task.icon, completed)
+        return Occurrence(
+            task.id, member_id, day, task.title, task.icon, completed, task.custom_icon_id
+        )

@@ -38,3 +38,18 @@ def test_photo_is_resized_to_jpeg_without_source_metadata():
 def test_invalid_or_oversized_photo_is_rejected(photo):
     with pytest.raises(InvalidInput):
         normalize_photo(photo)
+
+
+def test_icon_preserves_transparency_aspect_and_strips_metadata():
+    from app.adapters.photos import normalize_icon
+
+    output = BytesIO()
+    image = Image.new("RGBA", (300, 100), (100, 150, 200, 180))
+    exif = Image.Exif()
+    exif[270] = "synthetic icon metadata"
+    image.save(output, "PNG", exif=exif)
+    value = "data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii")
+    normalized = normalize_icon(value)
+    result = Image.open(BytesIO(base64.b64decode(normalized.split(",")[1])))
+    assert result.size == (128, 128) and result.mode == "RGBA" and not result.getexif()
+    assert result.getpixel((64, 0))[3] == 0 and result.getpixel((64, 64))[3] == 180
