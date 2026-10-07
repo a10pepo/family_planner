@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.adapters.database import SqlCalendarRepository, make_engine
 from app.adapters.oauth import OAuthVerifier
+from app.adapters.photos import normalize_photo
+from app.api_daily import install_daily_routes
 from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
 
 
@@ -23,8 +25,15 @@ class MemberInput(BaseModel):
     color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
 
 
+class MemberUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=80)
+    photo_data: str | None = Field(default=None, max_length=2_800_000)
+
+
 class MemberOutput(MemberInput):
     id: UUID
+    photo_data: str | None = None
 
 
 class EventUpdate(BaseModel):
@@ -127,6 +136,17 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
     def add_member(data: MemberInput, service: use_calendar):
         return asdict(service.add_member(data.name, data.color))
 
+    @app.put(
+        "/api/v1/members/{member_id}",
+        response_model=MemberOutput,
+        dependencies=guarded,
+        tags=["members"],
+    )
+    def update_member(member_id: UUID, data: MemberUpdate, service: use_calendar):
+        replace_photo = "photo_data" in data.model_fields_set
+        photo = normalize_photo(data.photo_data) if replace_photo else None
+        return asdict(service.update_member(member_id, data.name, photo, replace_photo))
+
     @app.get(
         "/api/v1/events", response_model=list[EventOutput], dependencies=guarded, tags=["events"]
     )
@@ -168,4 +188,5 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
         service.delete_event(event_id)
         return Response(status_code=204)
 
+    install_daily_routes(app, engine, guarded)
     return app

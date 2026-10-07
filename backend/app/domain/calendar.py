@@ -33,6 +33,7 @@ class Member:
     id: UUID
     name: str
     color: str
+    photo_data: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class CalendarRepository(Protocol):
     def members(self) -> list[Member]: ...
     def member(self, member_id: UUID) -> Member | None: ...
     def add_member(self, member: Member) -> Member: ...
+    def save_member(self, member: Member) -> Member: ...
     def events(self, start: datetime, end: datetime, member_id: UUID | None) -> list[Event]: ...
     def event(self, event_id: UUID) -> Event | None: ...
     def save_event(self, event: Event) -> Event: ...
@@ -83,6 +85,25 @@ class Calendar:
         ):
             raise InvalidInput("El color debe ser hexadecimal, por ejemplo #2563eb.")
         return self.repository.add_member(Member(uuid4(), clean_text(name, 80), color.lower()))
+
+    def update_member(
+        self,
+        member_id: UUID,
+        name: str,
+        photo_data: str | None = None,
+        replace_photo: bool = False,
+    ) -> Member:
+        previous = self.repository.member(member_id)
+        if previous is None:
+            raise MissingEntity("No existe el integrante.")
+        return self.repository.save_member(
+            Member(
+                previous.id,
+                clean_text(name, 80),
+                previous.color,
+                photo_data if replace_photo else previous.photo_data,
+            )
+        )
 
     def create_event(
         self,

@@ -1,6 +1,6 @@
 # family_planner
 
-Aplicación web de calendario familiar para una pantalla táctil en casa. Una cuenta familiar permite añadir integrantes y crear, mover y eliminar sus eventos en un calendario diario con una columna por persona.
+Aplicación web de calendario familiar para una pantalla táctil en casa. Una cuenta familiar permite editar integrantes y fotos, gestionar sus eventos y avisos de día completo y marcar rutinas diarias en un calendario con una columna por persona.
 
 Frontend React + TypeScript, backend FastAPI, PostgreSQL y acceso OAuth con usuario y contraseña mediante Keycloak. La API es la única vía de acceso a los datos del calendario.
 
@@ -32,6 +32,10 @@ Abre [http://localhost:8080](http://localhost:8080). La primera vez, Keycloak pu
 3. Elige su categoría: Colegio, Extraescolares, Médicos, Amigos u Otros. Cada categoría tiene un color pastel y un icono propio.
 4. Arrastra un evento para moverlo; en pantalla táctil, mantén pulsado antes de arrastrar. También puedes pulsarlo y editar inicio, fin, título y categoría.
 5. Para eliminarlo, abre el evento y confirma su eliminación. Usa **Hoy** y las flechas para cambiar de día.
+6. Abre el **engranaje (Configuración)** para editar el nombre y elegir o quitar la foto de cada integrante. Puedes usar JPG, PNG o WebP de hasta 5 MB; la interfaz recorta al centro y la API guarda una imagen de 256 × 256 sin metadatos de origen. Sin foto se muestra una cara ilustrada.
+7. Bajo cada cara, pulsa el «+» de **avisos de todo el día** para añadir uniforme, chándal, excursión u otro aviso a esa persona y fecha. Pulsa su icono para editarlo o eliminarlo.
+8. Abre **Tareas** en el menú lateral para crear una rutina, elegir su icono y asignarla a uno o varios integrantes. Elige **Todos los días** desde una fecha o **Solo un día**. Los iconos aparecen debajo de cada persona; al tocarlos se marcan en verde con un check. Tócalos de nuevo para desmarcar. Cada persona y día tiene su propia marca.
+9. Desde Tareas puedes editar o archivar una rutina. Al archivarla deja de mostrarse, conservando sus marcas en la base de datos para versiones futuras. Cambiar la definición aplica a todas sus fechas; las marcas se conservan por identificador, integrante y fecha.
 
 Las cuatro caras ilustradas de la demo encabezan sus columnas; las instalaciones normales admiten un número variable de integrantes. Las horas se presentan en `Europe/Madrid`, configurable mediante `FAMILY_TIMEZONE` en `.env`. El formulario rechaza las horas inexistentes o ambiguas durante el cambio horario para evitar guardarlas con un desplazamiento incorrecto.
 
@@ -46,11 +50,11 @@ docker run --rm --user "$(id -u):$(id -g)" \
 docker compose up --build -d
 ```
 
-La demo usa `test-family` / `Fictional-test-password-42` y `DEMO_MODE=1`. Crea solo **Laura (Mamá), Pedro (Papá), Jaime (Tete) y Lucía (Teta)**, con caras ilustradas y ocho actividades ficticias para el día del primer arranque. No contiene fotografías reales. Los reinicios conservan la demo y sus cambios; no vuelven a crear los perfiles ni desplazan los eventos al día actual. Las pruebas usan la misma demo con `--test`.
+La demo usa `test-family` / `Fictional-test-password-42` y `DEMO_MODE=1`. Crea solo **Laura (Mamá), Pedro (Papá), Jaime (Tete) y Lucía (Teta)**, con caras ilustradas, ocho actividades ficticias, avisos de uniforme y chándal y tres rutinas diarias para Jaime y Lucía (dientes, cama y mochila). No contiene fotografías reales. Los reinicios conservan la demo y sus cambios; no vuelven a crear los perfiles ni desplazan los eventos al día actual. Las pruebas usan la misma demo con `--test`.
 
-El modo normal configura `DEMO_MODE=0` y empieza vacío. Activar la demo sobre una base con integrantes no los sustituye. Solo para renovar una instalación ficticia conocida, tras guardar una copia, puede ejecutarse `docker compose exec backend python -m app.demo --replace-test-fixtures`: exige el modo demo y rechaza perfiles que no sean los cuatro de la demo o los antiguos `Alex <número>` / `Sam <número>`. No utilizar este comando en una instalación familiar.
+El modo normal configura `DEMO_MODE=0` y empieza vacío. Activar la demo sobre una base con integrantes no los sustituye. Al actualizar una demo reconocida de cuatro integrantes sin tareas se añaden una vez las nuevas rutinas y avisos; sus nombres, fotos y eventos se conservan. Las tareas archivadas cuentan como existentes y no se recrean al reiniciar. Solo para renovar una instalación ficticia conocida, tras guardar una copia, puede ejecutarse `docker compose exec backend python -m app.demo --replace-test-fixtures`: exige el modo demo y rechaza perfiles que no sean los cuatro de la demo o los antiguos `Alex <número>` / `Sam <número>`. No utilizar este comando en una instalación familiar.
 
-La migración de categorías conserva los eventos existentes con categoría **Otros**. No requiere borrar volúmenes.
+La migración de categorías conserva los eventos existentes con categoría **Otros**. La migración `003_profiles_daily_tasks` añade fotos opcionales y tablas de avisos, tareas, asignaciones y marcas; conserva integrantes y eventos. Ambas migraciones se ejecutan automáticamente al arrancar el backend. No requieren borrar volúmenes.
 
 ## Parar, actualizar y consultar logs
 
@@ -100,7 +104,7 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-Las pruebas de navegador requieren una instancia local aislada con la **cuenta ficticia de pruebas**. No las ejecutes contra tu calendario familiar: añaden integrantes y crean, mueven y eliminan eventos de prueba. En un clon o worktree sin configuración previa:
+Las pruebas de navegador requieren una instancia local aislada con la **cuenta ficticia de pruebas**. No las ejecutes contra tu calendario familiar: editan perfiles con fotos sintéticas y crean, mueven, eliminan o archivan eventos, avisos y tareas de prueba. En un clon o worktree sin configuración previa:
 
 ```bash
 python3 scripts/setup.py --test
@@ -110,13 +114,18 @@ cd frontend
 npm ci
 npx playwright install chromium
 npm run test:e2e
+# Desde la raíz, reinicia los servicios y verifica los datos conservados:
+cd ..
+docker compose restart backend db identity
+python3 scripts/wait_for_app.py
+EXPECT_PERSISTENCE=1 npm --prefix frontend run test:e2e
 ```
 
 El asistente `--test` configura únicamente datos ficticios (`test-family` / `Fictional-test-password-42`). Nunca se usan como valores predeterminados del arranque normal.
 
 ## CI y entrega
 
-[GitHub Actions](.github/workflows/ci.yml) valida que la PR esté vinculada a un issue etiquetado, comprueba formato, análisis estático, tipos, límites de arquitectura y contrato API, ejecuta pruebas de backend con PostgreSQL desechable y pruebas de navegador con OAuth real, y verifica un reinicio de servicios y la persistencia de la demo y las categorías.
+[GitHub Actions](.github/workflows/ci.yml) valida que la PR esté vinculada a un issue etiquetado, comprueba formato, análisis estático, tipos, límites de arquitectura y contrato API, ejecuta pruebas de backend con PostgreSQL desechable y pruebas de navegador con OAuth real, y verifica un reinicio de servicios y la persistencia de los eventos, fotos, avisos y marcas de tareas.
 
 Tras un merge a `main`, empaqueta las imágenes de aplicación validadas en un artefacto identificado por el commit. No activa merge automático ni un despliegue remoto. La protección de ramas y el destino de despliegue público siguen pendientes; no se crean recursos AWS.
 
@@ -139,7 +148,7 @@ Las imágenes se etiquetan `family-planner-backend:<commit>` y `family-planner-f
 
 ## Estado
 
-MVP local implementado en el [issue #3](https://github.com/a10pepo/family_planner/issues/3); vista diaria y demo actualizadas en el [issue #5](https://github.com/a10pepo/family_planner/issues/5). Las tareas diarias, el seguimiento de progreso y el despliegue público pertenecen a versiones posteriores.
+MVP local implementado en el [issue #3](https://github.com/a10pepo/family_planner/issues/3); vista diaria y demo actualizadas en el [issue #5](https://github.com/a10pepo/family_planner/issues/5). Configuración, fotos, avisos y tareas diarias implementados en el [#6](https://github.com/a10pepo/family_planner/issues/6). El seguimiento de progreso y el despliegue público pertenecen a versiones posteriores.
 
 ## Contribuir
 

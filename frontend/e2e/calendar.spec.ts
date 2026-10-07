@@ -36,7 +36,9 @@ test("daily demo has four faces and persistent categorized events", async ({
   ]);
   for (const name of names)
     await expect(
-      page.getByRole("img", { name: `Cara ilustrada de ${name}` }),
+      page.getByRole("img", {
+        name: new RegExp(`^(Cara ilustrada|Foto) de ${name}$`),
+      }),
     ).toBeVisible();
   await expect(
     page.getByText("Nuestro calendario", { exact: true }),

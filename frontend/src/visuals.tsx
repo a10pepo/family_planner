@@ -1,6 +1,15 @@
 import type { CSSProperties } from "react";
 
 export type IconName =
+  | "settings"
+  | "tasks"
+  | "uniform"
+  | "tracksuit"
+  | "trip"
+  | "tooth"
+  | "backpack"
+  | "bed"
+  | "check"
   | "calendar"
   | "people"
   | "logout"
@@ -11,6 +20,56 @@ export type IconName =
   | "other";
 
 const paths: Record<IconName, React.ReactNode> = {
+  settings: (
+    <>
+      <path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h4l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3H9Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  tasks: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="3" />
+      <path d="m7 8 1 1 2-2m3 1h4m-10 6 1 1 2-2m3 1h4" />
+    </>
+  ),
+  uniform: (
+    <>
+      <path d="m8 3-6 4 3 5 3-2v11h8V10l3 2 3-5-6-4-4 3-4-3Z" />
+      <path d="m10 5 2 4 2-4m-2 4v6" />
+    </>
+  ),
+  tracksuit: (
+    <>
+      <path d="m8 3-6 4 3 5 3-2v11h8V10l3 2 3-5-6-4H8Z" />
+      <path d="M12 3v18m-3-8h2m2 0h2" />
+    </>
+  ),
+  trip: (
+    <>
+      <rect x="4" y="3" width="16" height="16" rx="3" />
+      <path d="M4 11h16m-8-8v8m-4 4h1m6 0h1M7 19v2m10-2v2" />
+    </>
+  ),
+  tooth: (
+    <>
+      <path d="M12 5c-2-3-8-4-9 2-1 5 3 14 5 14 2 0 1-7 4-7s2 7 4 7c2 0 6-9 5-14-1-6-7-5-9-2Z" />
+      <path d="M9 4c0 2 2 3 5 3" />
+    </>
+  ),
+  backpack: (
+    <>
+      <rect x="5" y="6" width="14" height="15" rx="4" />
+      <path d="M9 6V4a3 3 0 0 1 6 0v2M5 11H3v7h2m14-7h2v7h-2" />
+      <rect x="8" y="13" width="8" height="5" rx="1" />
+    </>
+  ),
+  bed: (
+    <>
+      <path d="M3 20V8m18 12V10H3m0 7h18" />
+      <path d="M7 10V5h10v5M4 17v-3a3 3 0 0 1 3-3h10a4 4 0 0 1 4 4v2" />
+    </>
+  ),
+  check: <path d="m5 12 4 4L19 6" />,
   calendar: (
     <>
       <rect x="3" y="5" width="18" height="16" rx="3" />
@@ -74,8 +133,18 @@ export function Icon({ name }: { name: IconName }) {
   );
 }
 
-export function Avatar({ name, color }: { name: string; color: string }) {
+export function Avatar({
+  name,
+  color,
+  photo,
+}: {
+  name: string;
+  color: string;
+  photo?: string | null;
+}) {
   const first = name.split(/[\s(]/)[0];
+  if (photo)
+    return <img className="face-avatar" src={photo} alt={`Foto de ${first}`} />;
   const kind =
     first === "Laura"
       ? "long"

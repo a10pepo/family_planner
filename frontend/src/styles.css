@@ -636,3 +636,257 @@ legend {
     align-items: flex-start;
   }
 }
+
+/* Profile and daily routine screens share the calendar's touch-sized controls. */
+.management-panel {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 28px;
+}
+.management-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.management-heading h1 {
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.7px;
+  margin-bottom: 8px;
+}
+.management-heading p {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+.management-note {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+}
+.profile-card {
+  background: #fafbfd;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 25px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+.profile-card h2 {
+  font-size: 15px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.profile-card .face-avatar,
+.photo-editor .face-avatar {
+  width: 90px;
+  height: 90px;
+}
+.face-avatar {
+  object-fit: cover;
+}
+.photo-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.photo-editor p {
+  margin-bottom: 0;
+}
+.photo-editor input[hidden] {
+  display: none;
+}
+.symbol-options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.symbol-choice {
+  padding: 12px;
+  background: #f0f3f6;
+  color: #859399;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+}
+.symbol-choice.chosen {
+  border-color: #9ebbad;
+  background: #e9f2ec;
+  color: #577668;
+}
+.assignment-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.assignment-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.assignment-options input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  accent-color: var(--green);
+}
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.task-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fafbfd;
+}
+.task-description {
+  flex: 1;
+  min-width: 0;
+}
+.task-description h2 {
+  font-size: 16px;
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+.task-description p {
+  font-size: 12px;
+  color: #8c999e;
+  margin-bottom: 7px;
+}
+.task-symbol {
+  background: #e9efe6;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #819276;
+  flex-shrink: 0;
+}
+.task-actions {
+  display: flex;
+  gap: 6px;
+}
+.person-heading {
+  height: auto;
+  min-height: 258px;
+  justify-content: flex-start;
+  padding-bottom: 12px;
+  gap: 3px;
+}
+.person-identity {
+  width: 100%;
+  height: 145px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.notice-strip,
+.task-strip {
+  display: flex;
+  min-height: 48px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  flex-wrap: wrap;
+}
+.notice-token,
+.task-token,
+.daily-add {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.notice-token {
+  background: #edf0fa;
+  color: #7b83a0;
+}
+.daily-add {
+  background: transparent;
+  border: 1px dashed #dce1e8;
+  color: #acb5be;
+  font-size: 21px;
+}
+.task-token {
+  background: #f4f1e9;
+  color: #a19983;
+}
+.task-token.done {
+  background: #e1efe6;
+  color: #63816d;
+}
+.task-tick {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  background: #6f997d;
+  color: white;
+  border: 2px solid white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.task-tick .icon {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+.no-tasks {
+  font-size: 10px;
+  color: #b0b8bc;
+}
+@media (max-width: 760px) {
+  .management-panel {
+    padding: 20px 15px;
+    border-radius: 16px;
+  }
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+  .management-heading {
+    gap: 16px;
+  }
+  .task-card {
+    flex-wrap: wrap;
+    padding: 15px;
+    gap: 12px;
+  }
+  .task-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

@@ -14,7 +14,7 @@ Fuente: respuestas de Pedro Nieto del 7 de octubre de 2026. Configuración inici
 | Stack | React y TypeScript, Vite y FullCalendar; FastAPI y SQLAlchemy; PostgreSQL y Alembic. |
 | Arquitectura | Frontend y backend separados; solo backend accede a la base de datos del calendario. |
 | Contrato | OpenAPI bajo /api/v1; tipos del cliente generados y comprobados en CI. |
-| Datos | Tablas members y events, con categoría de evento; identidades y sesiones administradas por Keycloak. |
+| Datos | Tablas members (foto opcional) y events (categoría), all_day_notices, tasks, task_assignments y task_completions; identidades y sesiones administradas por Keycloak. |
 | Movimiento | Cambia fecha y hora conservando integrante; formulario y redimensionado permiten cambiar duración. |
 | Idiomas | Interfaz y documentación en español; código en inglés. Valor inicial adoptado en este MVP. |
 | Zona | Europe/Madrid configurable; instantes persistidos con zona horaria. |
@@ -37,11 +37,23 @@ Pedro aprobó expresamente añadir la categoría persistente. La migración `002
 
 El modo demo es explícito e idempotente; no sustituye bases con perfiles existentes. La renovación de esta demo local se limitó a los antiguos perfiles ficticios de las pruebas, tras guardar una copia en `.local`, excluida de Git. Una instalación normal sigue empezando vacía y permite más integrantes.
 
+## Configuración y rutinas (issue #6)
+
+Pedro aprobó expresamente: «Sí, implementar esta estructura», en respuesta a la propuesta de fotos opcionales de integrantes, avisos de día completo y tareas asignables para un día o todos los días con estado por persona y fecha. La propuesta indicaba validación y reducción de fotos en la API, conservación de integrantes y eventos, archivo de tareas sin perder marcas anteriores y ausencia de servicios AWS.
+
+La migración `003_profiles_daily_tasks` añade `members.photo_data` nullable y cuatro tablas nuevas. Las fotos se almacenan como JPEG de 256 × 256 en PostgreSQL; no hay almacenamiento externo ni peticiones a URLs de fotografías. El navegador admite archivos de 5 MB y prepara una imagen pequeña; la API verifica independientemente JPG/PNG/WebP de hasta 2 MB y 20 millones de píxeles, recorta, elimina metadatos y reencodea con Pillow. La ausencia del campo en una edición conserva la foto; `null` la quita.
+
+Los avisos tienen integrante, fecha local, título e icono. Las rutinas tienen icono, título, frecuencia (`daily`/`once`), fecha inicial, asignaciones y estado activo. La fecha corresponde al día del calendario familiar, sin hora. Las marcas se guardan con clave única tarea/integrante/fecha; escribir el mismo estado es idempotente. Una edición de la definición aplica a todas sus fechas y conserva las marcas incluso al quitar y volver a asignar un integrante. Archivar oculta la rutina y no elimina sus registros de completado. La progresión sigue pendiente.
+
+La reversión de la migración elimina exclusivamente la columna de fotos y las nuevas tablas, perdiendo sus fotos, avisos, tareas y marcas; conserva integrantes, eventos y categorías. Guardar copia antes de revertir. Pruebas con PostgreSQL desechable comprueban que la actualización mantiene los datos previos y coincide con los modelos de persistencia.
+
+La demo añade tres rutinas diarias para Jaime y Lucía y dos avisos sintéticos. Las demos reconocidas sin ninguna tarea se amplían una vez sin sustituir perfiles o eventos; las rutinas archivadas no se recrean. Las instalaciones normales no reciben fixtures.
+
 ## Próximas versiones
 
-- Rutinas diarias de los niños y marcado como completadas; progreso posterior.
+- Seguimiento y progresión histórica de las rutinas.
 - Eventos compartidos, recurrencias y vistas semanales o mensuales si se aprueba su alcance.
-- Cambiar el integrante asignado a un evento, gestionar perfiles existentes y fotos.
+- Cambiar el integrante asignado a un evento, reasignación y gestión avanzada de perfiles.
 - Configuración para la pantalla de la nevera por red doméstica y despliegue público, incluyendo HTTPS y OAuth para su URL real.
 - Destino de despliegue AWS, estimación de costes y seguridad para acceso público.
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.

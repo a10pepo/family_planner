@@ -7,7 +7,7 @@
 - Lee [application.md](application.md) antes de cambiar comportamiento de producto y [docs/architecture.md](docs/architecture.md) antes de implementar código.
 - Consulta [docs/decisions.md](docs/decisions.md) para distinguir acuerdos de decisiones pendientes. No conviertas una propuesta en una decisión aprobada.
 - Las instrucciones explícitas de Pedro tienen prioridad sobre estos documentos. Si cambia una decisión, actualiza sus referencias en el mismo trabajo.
-- Estado actual: MVP local React/TypeScript + FastAPI + PostgreSQL + Keycloak OAuth, ejecutable con Docker Compose. Issues de implementación: [#3](https://github.com/a10pepo/family_planner/issues/3) y [#5](https://github.com/a10pepo/family_planner/issues/5). No inventes resultados de validación.
+- Estado actual: MVP local React/TypeScript + FastAPI + PostgreSQL + Keycloak OAuth, ejecutable con Docker Compose. Issues de implementación: [#3](https://github.com/a10pepo/family_planner/issues/3) y [#5](https://github.com/a10pepo/family_planner/issues/5), ampliados en [#6](https://github.com/a10pepo/family_planner/issues/6). No inventes resultados de validación.
 
 ## Producto y alcance
 
@@ -15,7 +15,7 @@
 - Una única cuenta de familia protegida con contraseña. Los integrantes son perfiles de la familia; no cuentas de acceso independientes.
 - Tras iniciar sesión, todas las actividades son visibles y editables por la familia. «Públicas» significa compartidas dentro de la sesión familiar, no accesibles sin autenticación en internet.
 - MVP confirmado: añadir integrantes; seleccionar un integrante; crear eventos para él; mover eventos en el calendario; eliminarlos; persistir los cambios.
-- Eventos y tareas son conceptos distintos. Las tareas son rutinas diarias de los niños que podrán marcarse como hechas. Su inclusión en el MVP está pendiente; la progresión corresponde a versiones futuras.
+- Eventos y tareas son conceptos distintos. Las tareas son rutinas diarias de los niños que podrán marcarse como hechas. Las tareas asignables para un día o todos los días están implementadas, con marcas independientes por persona y fecha; la progresión corresponde a versiones futuras.
 - No añadir por iniciativa propia múltiples familias, roles individuales, funcionamiento offline, integraciones de calendarios o servicios de pago.
 - Mantener interacción táctil con objetivos mínimos de 44 × 44 px y un número variable de integrantes.
 
@@ -58,9 +58,11 @@ Para el MVP local Pedro ha autorizado implementar la propuesta con OAuth y usuar
 
 La vista vigente es diaria, con una columna y cara ilustrada por integrante; el menú lateral contiene solo iconos. Las categorías de evento tienen color pastel e icono, y se guardan en `events.category` tras aprobación expresa de Pedro (issue #5). Los eventos anteriores reciben `other`; una edición sin categoría conserva la existente. La demo explícita tiene los cuatro nombres solicitados por Pedro, caras genéricas y actividades ficticias; el arranque normal no incorpora estos datos. No modificar o recrear datos familiares para preparar una demo.
 
+Pedro aprobó expresamente la estructura del issue #6: fotos opcionales validadas y reducidas en la API, avisos por integrante y fecha, rutinas asignables para un día o todos los días y marcas por tarea/integrante/fecha. La migración `003_profiles_daily_tasks` es aditiva y conserva los datos anteriores. Archivar conserva las marcas históricas; no añadir borrado físico, analítica o servicios AWS sin un nuevo acuerdo. La edición de perfiles mantiene sus identificadores y sus eventos. Los iconos de avisos y tareas aparecen bajo las caras; el menú incluye Configuración y Tareas.
+
 ## Comandos y estructura actual
 
-- `frontend/src/`: interfaz y cliente OAuth/API. `backend/app/api.py`: adaptador HTTP y DTO. `backend/app/domain/`: negocio puro y puerto de repositorio. `backend/app/adapters/`: PostgreSQL y validación OAuth.
+- `frontend/src/`: interfaz y cliente OAuth/API. `backend/app/api.py` y `api_daily.py`: adaptadores HTTP y DTO. `backend/app/domain/`: negocio puro y puerto de repositorio. `backend/app/adapters/`: PostgreSQL y validación OAuth.
 - `backend/migrations/`: migraciones Alembic. Keycloak gestiona su propio almacén de identidad; nunca accede a la base de datos del calendario.
 - Demo: `python3 scripts/setup.py --demo`, solo en una instalación sin configuración; se conserva entre reinicios.
 - Arranque: preparar configuración con `python3 scripts/setup.py` o su equivalente Docker del README; después `docker compose up --build -d`.
@@ -76,7 +78,7 @@ La vista vigente es diaria, con una columna y cara ilustrada por integrante; el 
 - Todo código nuevo debe ser comprobable automáticamente en CI. Diseñar pruebas de comportamiento, evitando pruebas que solo reproduzcan la implementación.
 - El bootstrap del stack debe incluir los comandos reproducibles de instalación, formato, análisis estático, pruebas y compilación, junto con CI; documentarlos aquí y en README.
 - La CI deberá verificar reglas de arquitectura y contrato API, pruebas de backend con base de datos desechable, y flujos principales de interfaz.
-- Probar los flujos de autenticación y de creación de integrantes y eventos, movimiento, eliminación y persistencia después de recargar.
+- Probar autenticación, edición de nombres y fotos, eventos (creación, movimiento y eliminación), avisos, rutinas (asignación y archivo), independencia de las marcas por integrante y día y persistencia después de recargar y reiniciar.
 - Ejecutar los controles pertinentes antes de entregar. Si no pueden ejecutarse, indicar exactamente qué queda sin verificar.
 - No sustituir pruebas automáticas por comprobaciones visuales. Verificar también la experiencia táctil cuando se cambie la interfaz.
 - `main` debe recibir cambios mediante PR con CI satisfactoria. La protección de rama deberá exigir los controles cuando estos existan.

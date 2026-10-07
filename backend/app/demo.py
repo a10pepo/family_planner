@@ -9,8 +9,16 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
+from app.adapters.daily import (
+    NoticeRow,
+    SqlDailyRepository,
+    TaskAssignmentRow,
+    TaskCompletionRow,
+    TaskRow,
+)
 from app.adapters.database import EventRow, MemberRow, SqlCalendarRepository, make_engine
 from app.domain.calendar import Calendar, Category
+from app.domain.daily import DailyPlanner
 
 DEMO_MEMBERS = (
     ("Laura (Mamá)", "#dcebe2"),
@@ -36,6 +44,16 @@ def seed_demo(engine, zone: str, replace_test_fixtures: bool = False) -> bool:
         session.execute(text("LOCK TABLE members IN EXCLUSIVE MODE"))
         names = list(session.scalars(select(MemberRow.name)))
         if names and not replace_test_fixtures:
+            # Upgrade only a recognized synthetic demo, once; archived tasks also count.
+            if (
+                len(names) == 4
+                and set(names) == {name for name, _ in DEMO_MEMBERS}
+                and not session.scalar(select(TaskRow.id).limit(1))
+            ):
+                people = {
+                    person.name: person for person in SqlCalendarRepository(session).members()
+                }
+                seed_daily(session, zone, [people[name] for name, _ in DEMO_MEMBERS])
             return False
         if replace_test_fixtures:
             demo_names = {name for name, _ in DEMO_MEMBERS}
@@ -46,6 +64,8 @@ def seed_demo(engine, zone: str, replace_test_fixtures: bool = False) -> bool:
                 raise ValueError(
                     "La base contiene perfiles ajenos a la demo; no se cambia ningún dato."
                 )
+            for model in (TaskCompletionRow, TaskAssignmentRow, NoticeRow, TaskRow):
+                session.execute(delete(model))
             session.execute(delete(EventRow))
             session.execute(delete(MemberRow))
         calendar = Calendar(SqlCalendarRepository(session))
@@ -56,7 +76,22 @@ def seed_demo(engine, zone: str, replace_test_fixtures: bool = False) -> bool:
             calendar.create_event(
                 people[index].id, title, start, start + timedelta(hours=duration), category
             )
+        seed_daily(session, zone, people)
     return True
+
+
+def seed_daily(session, zone, people):
+    service = DailyPlanner(SqlDailyRepository(session))
+    today = datetime.now(ZoneInfo(zone)).date()
+    children = [people[2].id, people[3].id]
+    for title, icon in (
+        ("Lavarse los dientes", "tooth"),
+        ("Hacer la cama", "bed"),
+        ("Hacer la mochila", "backpack"),
+    ):
+        service.save_task(title, icon, "daily", today, children)
+    service.create_notice(children[0], today, "Día de uniforme", "uniform")
+    service.create_notice(children[1], today, "Día de chándal", "tracksuit")
 
 
 def main():

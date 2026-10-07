@@ -92,6 +92,129 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/members/{member_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Member */
+    put: operations["update_member_api_v1_members__member_id__put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/notices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Notices */
+    get: operations["notices_api_v1_notices_get"];
+    put?: never;
+    /** Create Notice */
+    post: operations["create_notice_api_v1_notices_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/notices/{notice_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Notice */
+    put: operations["update_notice_api_v1_notices__notice_id__put"];
+    post?: never;
+    /** Delete Notice */
+    delete: operations["delete_notice_api_v1_notices__notice_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/task-occurrences": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Occurrences */
+    get: operations["occurrences_api_v1_task_occurrences_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/tasks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Tasks */
+    get: operations["tasks_api_v1_tasks_get"];
+    put?: never;
+    /** Create Task */
+    post: operations["create_task_api_v1_tasks_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/tasks/{task_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Task */
+    put: operations["update_task_api_v1_tasks__task_id__put"];
+    post?: never;
+    /** Archive Task */
+    delete: operations["archive_task_api_v1_tasks__task_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/tasks/{task_id}/completion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Complete Task */
+    put: operations["complete_task_api_v1_tasks__task_id__completion_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -101,6 +224,21 @@ export interface components {
      * @enum {string}
      */
     Category: "school" | "activities" | "medical" | "friends" | "other";
+    /** CompletionInput */
+    CompletionInput: {
+      /** Completed */
+      completed: boolean;
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      /**
+       * Member Id
+       * Format: uuid
+       */
+      member_id: string;
+    };
     /** EventInput */
     EventInput: {
       /** @default other */
@@ -166,6 +304,11 @@ export interface components {
       /** Title */
       title: string;
     };
+    /**
+     * Frequency
+     * @enum {string}
+     */
+    Frequency: "daily" | "once";
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -189,6 +332,138 @@ export interface components {
       id: string;
       /** Name */
       name: string;
+      /** Photo Data */
+      photo_data?: string | null;
+    };
+    /** MemberUpdate */
+    MemberUpdate: {
+      /** Name */
+      name: string;
+      /** Photo Data */
+      photo_data?: string | null;
+    };
+    /**
+     * NoticeIcon
+     * @enum {string}
+     */
+    NoticeIcon: "uniform" | "tracksuit" | "trip" | "other";
+    /** NoticeInput */
+    NoticeInput: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      /** @default other */
+      icon: components["schemas"]["NoticeIcon"];
+      /**
+       * Member Id
+       * Format: uuid
+       */
+      member_id: string;
+      /** Title */
+      title: string;
+    };
+    /** NoticeOutput */
+    NoticeOutput: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      /** @default other */
+      icon: components["schemas"]["NoticeIcon"];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Member Id
+       * Format: uuid
+       */
+      member_id: string;
+      /** Title */
+      title: string;
+    };
+    /** NoticeUpdate */
+    NoticeUpdate: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      /** @default other */
+      icon: components["schemas"]["NoticeIcon"];
+      /** Title */
+      title: string;
+    };
+    /** OccurrenceOutput */
+    OccurrenceOutput: {
+      /** Completed */
+      completed: boolean;
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      icon: components["schemas"]["TaskIcon"];
+      /**
+       * Member Id
+       * Format: uuid
+       */
+      member_id: string;
+      /**
+       * Task Id
+       * Format: uuid
+       */
+      task_id: string;
+      /** Title */
+      title: string;
+    };
+    /**
+     * TaskIcon
+     * @enum {string}
+     */
+    TaskIcon: "tooth" | "backpack" | "bed" | "other";
+    /** TaskInput */
+    TaskInput: {
+      /** @default daily */
+      frequency: components["schemas"]["Frequency"];
+      /** @default other */
+      icon: components["schemas"]["TaskIcon"];
+      /** Member Ids */
+      member_ids: string[];
+      /**
+       * Starts On
+       * Format: date
+       */
+      starts_on: string;
+      /** Title */
+      title: string;
+    };
+    /** TaskOutput */
+    TaskOutput: {
+      /** Active */
+      active: boolean;
+      /** @default daily */
+      frequency: components["schemas"]["Frequency"];
+      /** @default other */
+      icon: components["schemas"]["TaskIcon"];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Member Ids */
+      member_ids: string[];
+      /**
+       * Starts On
+       * Format: date
+       */
+      starts_on: string;
+      /** Title */
+      title: string;
     };
     /** ValidationError */
     ValidationError: {
@@ -422,6 +697,352 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MemberOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_member_api_v1_members__member_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        member_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MemberUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemberOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  notices_api_v1_notices_get: {
+    parameters: {
+      query: {
+        day: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NoticeOutput"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_notice_api_v1_notices_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["NoticeInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NoticeOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_notice_api_v1_notices__notice_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        notice_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["NoticeUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NoticeOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_notice_api_v1_notices__notice_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        notice_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  occurrences_api_v1_task_occurrences_get: {
+    parameters: {
+      query: {
+        day: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OccurrenceOutput"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  tasks_api_v1_tasks_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskOutput"][];
+        };
+      };
+    };
+  };
+  create_task_api_v1_tasks_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TaskInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_task_api_v1_tasks__task_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        task_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TaskInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  archive_task_api_v1_tasks__task_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        task_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  complete_task_api_v1_tasks__task_id__completion_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        task_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CompletionInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OccurrenceOutput"];
         };
       };
       /** @description Validation Error */
