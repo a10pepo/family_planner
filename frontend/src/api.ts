@@ -4,6 +4,13 @@ import type { components } from "./api-schema";
 export type Member = components["schemas"]["MemberOutput"];
 export type CalendarEvent = components["schemas"]["EventOutput"];
 export type EventInput = components["schemas"]["EventInput"];
+export type Notice = components["schemas"]["NoticeOutput"];
+export type NoticeInput = components["schemas"]["NoticeInput"];
+export type NoticeUpdate = components["schemas"]["NoticeUpdate"];
+export type Task = components["schemas"]["TaskOutput"];
+export type TaskInput = components["schemas"]["TaskInput"];
+export type Occurrence = components["schemas"]["OccurrenceOutput"];
+export type MemberUpdate = components["schemas"]["MemberUpdate"];
 export type EventUpdate = components["schemas"]["EventUpdate"];
 
 export class Api {
@@ -43,6 +50,61 @@ export class Api {
     return this.request<Member>("/members", {
       method: "POST",
       body: JSON.stringify({ name, color }),
+    });
+  }
+  updateMember(id: string, data: MemberUpdate) {
+    return this.request<Member>(`/members/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+  notices(day: string) {
+    return this.request<Notice[]>(`/notices?day=${day}`);
+  }
+  addNotice(data: NoticeInput) {
+    return this.request<Notice>("/notices", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  updateNotice(id: string, data: NoticeUpdate) {
+    return this.request<Notice>(`/notices/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+  deleteNotice(id: string) {
+    return this.request<void>(`/notices/${id}`, { method: "DELETE" });
+  }
+  tasks() {
+    return this.request<Task[]>("/tasks");
+  }
+  addTask(data: TaskInput) {
+    return this.request<Task>("/tasks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  updateTask(id: string, data: TaskInput) {
+    return this.request<Task>(`/tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+  archiveTask(id: string) {
+    return this.request<void>(`/tasks/${id}`, { method: "DELETE" });
+  }
+  occurrences(day: string) {
+    return this.request<Occurrence[]>(`/task-occurrences?day=${day}`);
+  }
+  completeTask(occurrence: Occurrence, completed: boolean) {
+    return this.request<Occurrence>(`/tasks/${occurrence.task_id}/completion`, {
+      method: "PUT",
+      body: JSON.stringify({
+        member_id: occurrence.member_id,
+        day: occurrence.day,
+        completed,
+      }),
     });
   }
   events(start: string, end: string, memberId: string | null) {

@@ -7,6 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
+    Text,
     Uuid,
     create_engine,
     select,
@@ -25,6 +26,7 @@ class MemberRow(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String(80))
     color: Mapped[str] = mapped_column(String(7))
+    photo_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -64,11 +66,11 @@ class SqlCalendarRepository:
 
     def members(self) -> list[Member]:
         rows = self.session.scalars(select(MemberRow).order_by(MemberRow.created_at, MemberRow.id))
-        return [Member(row.id, row.name, row.color) for row in rows]
+        return [Member(row.id, row.name, row.color, row.photo_data) for row in rows]
 
     def member(self, member_id: UUID) -> Member | None:
         row = self.session.get(MemberRow, member_id)
-        return Member(row.id, row.name, row.color) if row else None
+        return Member(row.id, row.name, row.color, row.photo_data) if row else None
 
     def add_member(self, member: Member) -> Member:
         self.session.add(
@@ -76,6 +78,12 @@ class SqlCalendarRepository:
                 id=member.id, name=member.name, color=member.color, created_at=datetime.now(UTC)
             )
         )
+        self.session.flush()
+        return member
+
+    def save_member(self, member: Member) -> Member:
+        row = self.session.get(MemberRow, member.id)
+        row.name, row.photo_data = member.name, member.photo_data
         self.session.flush()
         return member
 

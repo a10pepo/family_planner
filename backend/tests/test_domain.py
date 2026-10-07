@@ -14,6 +14,10 @@ class MemoryRepository:
         self.people[member.id] = member
         return member
 
+    def save_member(self, member):
+        self.people[member.id] = member
+        return member
+
     def member(self, member_id):
         return self.people.get(member_id)
 
@@ -78,3 +82,17 @@ def test_category_survives_movement_and_can_be_changed():
     assert calendar.repository.event(event.id).category == "friends"
     with pytest.raises(InvalidInput):
         calendar.create_event(member.id, "Actividad", start, end, "unknown")
+
+
+def test_member_edit_preserves_id_color_and_optional_photo():
+    calendar = Calendar(MemoryRepository())
+    member = calendar.add_member("Alex", "#abcdef")
+    edited = calendar.update_member(member.id, " New ", "normalized-photo", True)
+    assert edited.id == member.id and edited.color == member.color
+    assert edited.name == "New" and edited.photo_data == "normalized-photo"
+    assert calendar.update_member(member.id, "Name only").photo_data == "normalized-photo"
+    assert calendar.update_member(member.id, "New", None, True).photo_data is None
+    with pytest.raises(InvalidInput):
+        calendar.update_member(member.id, " ")
+    with pytest.raises(MissingEntity):
+        calendar.update_member(uuid4(), "New")

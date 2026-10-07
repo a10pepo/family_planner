@@ -26,7 +26,7 @@ Frontend → API del backend → lógica de negocio → persistencia → base de
 - El contrato de API puede compartirse o generar tipos de cliente; los modelos de persistencia no constituyen un contrato compartido.
 - Evitar servicios adicionales hasta que un requisito concreto del issue los justifique.
 
-Las rutas son `frontend/src`, `backend/app/api.py`, `backend/app/domain` y `backend/app/adapters`. El contrato OpenAPI se encuentra en `docs/openapi.json` y genera los tipos `frontend/src/api-schema.ts`. El proveedor OAuth conserva sus identidades en su propio volumen, sin acceso a PostgreSQL del calendario.
+Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/app/domain` y `backend/app/adapters`. El contrato OpenAPI se encuentra en `docs/openapi.json` y genera los tipos `frontend/src/api-schema.ts`. El proveedor OAuth conserva sus identidades en su propio volumen, sin acceso a PostgreSQL del calendario.
 
 ## 3. Contrato API estable
 
@@ -42,6 +42,8 @@ Las rutas son `frontend/src`, `backend/app/api.py`, `backend/app/domain` y `back
 
 - Una cuenta familiar autentica el acceso; los integrantes son perfiles seleccionables.
 - Un evento es un elemento situado en el calendario. Una tarea es una rutina diaria que puede completarse. No tratarlos como sinónimos.
+- Las tareas se expanden por fecha en el dominio; no crear eventos con horario por cada repetición. Guardar las marcas por tarea/integrante/fecha y archivar sin borrarlas. Los avisos de día completo no tienen horario.
+- Validar y reducir fotos en el adaptador del backend; el dominio recibe la imagen normalizada. No confiar en la conversión del navegador.
 - La progresión de tareas pertenece a versiones futuras; no crear tablas o endpoints de analítica para anticiparla.
 - La estructura inicial de datos y cualquier cambio posterior requieren propuesta y aprobación previa de Pedro.
 - Cuando exista esquema, versionar las migraciones y probarlas con una base de datos desechable. No ejecutar cambios destructivos sobre datos reales sin aprobación expresa.

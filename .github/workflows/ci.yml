@@ -39,6 +39,7 @@ jobs:
           ruff format --config backend/pyproject.toml --check backend scripts
           python scripts/check_architecture.py
           python scripts/export_openapi.py --check
+          pytest -q scripts/tests
       - name: Install and check frontend
         working-directory: frontend
         run: |
