@@ -1,0 +1,82 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: family
+      POSTGRES_USER: family
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Ejecuta primero scripts/setup.py}
+    volumes:
+      - calendar-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U family -d family"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  identity:
+    image: quay.io/keycloak/keycloak:26.8.0
+    command: [start-dev, --import-realm]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USERNAME:?Ejecuta primero scripts/setup.py}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?Ejecuta primero scripts/setup.py}
+      KC_HOSTNAME: ${APP_ORIGIN:-http://localhost:8080}/auth
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - identity-data:/opt/keycloak/data
+      - ./.local/family-realm.json:/opt/keycloak/data/import/family-realm.json:ro
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://family:${POSTGRES_PASSWORD}@db:5432/family
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
+      FAMILY_TIMEZONE: ${FAMILY_TIMEZONE:-Europe/Madrid}
+      DEMO_MODE: ${DEMO_MODE:-0}
+      OAUTH_JWKS_URL: http://identity:8080/auth/realms/family/protocol/openid-connect/certs
+      TEST_DATABASE_URL: postgresql+psycopg://family:${POSTGRES_PASSWORD}@db-test:5432/family_test
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+      identity:
+        condition: service_started
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://localhost:8080/api/health]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  db-test:
+    image: postgres:17-alpine
+    profiles: [test]
+    environment:
+      POSTGRES_DB: family_test
+      POSTGRES_USER: family
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U family -d family_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  calendar-data:
+  identity-data:

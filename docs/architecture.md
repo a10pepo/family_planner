@@ -1,6 +1,6 @@
 # Guardrails de arquitectura
 
-Estado: restricciones acordadas para guiar la implementación. Los controles automáticos se añadirán con el bootstrap del stack; este documento por sí solo no los ejecuta.
+Estado: MVP local implementado. `scripts/check_architecture.py` comprueba las dependencias del frontend y el dominio; CI valida contrato, tipos, pruebas y despliegue local. Las restricciones adicionales siguen siendo criterios de revisión; el script no detecta todos los patrones dinámicos de importación.
 
 ## 1. Separación cliente, API y datos
 
@@ -26,12 +26,12 @@ Frontend → API del backend → lógica de negocio → persistencia → base de
 - El contrato de API puede compartirse o generar tipos de cliente; los modelos de persistencia no constituyen un contrato compartido.
 - Evitar servicios adicionales hasta que un requisito concreto del issue los justifique.
 
-Las rutas de carpetas y herramientas de comprobación se elegirán con el stack. Estos límites deben poder verificarse automáticamente por reglas de importación o pruebas de arquitectura.
+Las rutas son `frontend/src`, `backend/app/api.py`, `backend/app/domain` y `backend/app/adapters`. El contrato OpenAPI se encuentra en `docs/openapi.json` y genera los tipos `frontend/src/api-schema.ts`. El proveedor OAuth conserva sus identidades en su propio volumen, sin acceso a PostgreSQL del calendario.
 
 ## 3. Contrato API estable
 
 - Definir y versionar en el repositorio un contrato de operaciones, entradas, salidas y errores antes de implementar sus consumidores.
-- El formato de contrato está pendiente de elegir; documentar la decisión antes del bootstrap.
+- El formato de contrato es OpenAPI; `scripts/export_openapi.py --check` detecta cambios y `npm --prefix frontend run api:check` comprueba los tipos generados del cliente.
 - Las pruebas deben detectar discrepancias entre el contrato, el backend y el cliente.
 - Mantener compatibilidad con los consumidores existentes. Documentar y coordinar cualquier cambio incompatible mediante su issue.
 - Validar entradas y referencias en el backend. No asumir que los datos recibidos vienen de la interfaz oficial.
@@ -53,7 +53,7 @@ Las rutas de carpetas y herramientas de comprobación se elegirán con el stack.
 - No incluir contraseñas o secretos en el frontend ni en control de versiones. Las variables de configuración que recibe el navegador son públicas.
 - No persistir contraseñas en texto plano ni crear credenciales predeterminadas utilizables fuera de pruebas.
 - No registrar secretos, credenciales o detalles personales innecesarios.
-- La propuesta de autenticación debe concretar almacenamiento de contraseña, duración y revocación de sesión, protección de endpoints y recuperación de acceso antes de implementarse.
+- OAuth local autorizado por Pedro: Keycloak con cuenta familiar, Authorization Code + PKCE, tokens solo en memoria y validación en el backend. La duración y cierre de sesión y la recuperación de acceso se documentan en `docs/api.md` y README. El despliegue público requiere revisar la configuración; el modo `start-dev` se limita a local.
 - Al desplegar, revisar transporte cifrado, cookies o tokens, exposición de servicios y permisos del entorno.
 - Cualquier cambio con riesgo de seguridad requiere consulta previa, incluso si su objetivo es corregir una vulnerabilidad.
 
