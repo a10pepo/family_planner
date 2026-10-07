@@ -102,6 +102,15 @@ El asistente `--test` configura únicamente datos ficticios (`test-family` / `Fi
 
 Tras un merge a `main`, empaqueta las imágenes de aplicación validadas en un artefacto identificado por el commit. No activa merge automático ni un despliegue remoto. La protección de ramas y el destino de despliegue público siguen pendientes; no se crean recursos AWS.
 
+Para ejecutar una entrega ya validada sin reconstruir, descarga el artefacto de esa ejecución de Actions y extrae el archivo `family-planner-images.tar.gz`. Con la configuración local preparada, carga las imágenes y sustituye `SHA_DEL_COMMIT` por el commit del artefacto:
+
+```bash
+gzip -dc family-planner-images.tar.gz | docker load
+APP_VERSION=SHA_DEL_COMMIT docker compose -f compose.yaml -f compose.images.yaml up -d --no-build
+```
+
+Las imágenes se etiquetan `family-planner-backend:<commit>` y `family-planner-frontend:<commit>`. La configuración OAuth y los volúmenes locales siguen siendo propios de cada instalación; no forman parte del artefacto.
+
 ## Documentación
 
 - [AGENTS.md](AGENTS.md): instrucciones de trabajo, issues, aprobaciones y validación.

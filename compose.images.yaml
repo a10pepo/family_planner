@@ -1,0 +1,6 @@
+# Ejecutar con compose.yaml, APP_VERSION y --no-build tras cargar el artefacto de CI.
+services:
+  backend:
+    image: family-planner-backend:${APP_VERSION:?Indica el commit del artefacto}
+  frontend:
+    image: family-planner-frontend:${APP_VERSION:?Indica el commit del artefacto}

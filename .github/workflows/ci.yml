@@ -69,7 +69,9 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           mkdir -p artifacts
-          docker save $(docker compose images -q backend frontend) | gzip > artifacts/family-planner-images.tar.gz
+          docker tag "$(docker compose images -q backend)" "family-planner-backend:${GITHUB_SHA}"
+          docker tag "$(docker compose images -q frontend)" "family-planner-frontend:${GITHUB_SHA}"
+          docker save "family-planner-backend:${GITHUB_SHA}" "family-planner-frontend:${GITHUB_SHA}" | gzip > artifacts/family-planner-images.tar.gz
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: github.ref == 'refs/heads/main'
         with:
