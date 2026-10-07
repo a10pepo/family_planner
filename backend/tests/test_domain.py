@@ -1,0 +1,62 @@
+from datetime import UTC, datetime
+from uuid import uuid4
+
+import pytest
+from app.domain.calendar import Calendar, InvalidInput, MissingEntity, validate_interval
+
+
+class MemoryRepository:
+    def __init__(self):
+        self.people = {}
+        self.appointments = {}
+
+    def add_member(self, member):
+        self.people[member.id] = member
+        return member
+
+    def member(self, member_id):
+        return self.people.get(member_id)
+
+    def event(self, event_id):
+        return self.appointments.get(event_id)
+
+    def save_event(self, event):
+        self.appointments[event.id] = event
+        return event
+
+    def remove_event(self, event_id):
+        del self.appointments[event_id]
+
+
+def test_event_lifecycle_preserves_assignee_and_normalizes_time():
+    calendar = Calendar(MemoryRepository())
+    member = calendar.add_member("  Alex  ", "#ABCDEF")
+    start = datetime.fromisoformat("2026-10-25T02:30:00+02:00")
+    end = datetime.fromisoformat("2026-10-25T02:15:00+01:00")
+    event = calendar.create_event(member.id, "  Colegio  ", start, end)
+    assert member.name == "Alex" and member.color == "#abcdef"
+    assert event.title == "Colegio" and event.starts_at.tzinfo == UTC
+    assert (event.ends_at - event.starts_at).total_seconds() == 2700
+    changed = calendar.update_event(event.id, "Clase", event.starts_at, event.ends_at)
+    assert changed.id == event.id and changed.member_id == member.id
+    calendar.delete_event(event.id)
+    with pytest.raises(MissingEntity):
+        calendar.delete_event(event.id)
+
+
+@pytest.mark.parametrize("name,color", [(" ", "#abcdef"), ("A" * 81, "#abcdef"), ("Alex", "red")])
+def test_invalid_member_is_not_persisted(name, color):
+    repository = MemoryRepository()
+    with pytest.raises(InvalidInput):
+        Calendar(repository).add_member(name, color)
+    assert not repository.people
+
+
+def test_invalid_interval_and_missing_member():
+    now = datetime.now(UTC)
+    with pytest.raises(InvalidInput):
+        validate_interval(now, now)
+    with pytest.raises(InvalidInput):
+        validate_interval(datetime(2026, 1, 1), now)
+    with pytest.raises(MissingEntity):
+        Calendar(MemoryRepository()).create_event(uuid4(), "Evento", now, now)

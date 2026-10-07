@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Check linked issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/check_issue.py
+      - name: Install and check backend
+        run: |
+          pip install -r backend/requirements.txt
+          ruff check --config backend/pyproject.toml backend scripts
+          ruff format --config backend/pyproject.toml --check backend scripts
+          python scripts/check_architecture.py
+          python scripts/export_openapi.py --check
+      - name: Install and check frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run api:check
+          npm run format:check
+          npm run lint
+          npm test
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Prepare fictional test account
+        run: python scripts/setup.py --test
+      - name: Build and deploy local test stack
+        run: |
+          docker compose --profile test up --build -d
+          python scripts/wait_for_app.py
+      - name: Backend integration tests with disposable PostgreSQL
+        run: docker compose run --rm backend pytest -q
+      - name: Browser tests against real OAuth and API
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Restart application and verify persistence
+        run: |
+          docker compose restart backend db identity
+          python scripts/wait_for_app.py
+          EXPECT_PERSISTENCE=1 npm --prefix frontend run test:e2e
+      - name: Package validated application images
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p artifacts
+          docker save $(docker compose images -q backend frontend) | gzip > artifacts/family-planner-images.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: family-planner-${{ github.sha }}
+          path: artifacts/family-planner-images.tar.gz
+          retention-days: 7
+      - name: Stop test services
+        if: always()
+        run: docker compose --profile test down -v

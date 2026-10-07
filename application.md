@@ -7,7 +7,7 @@ Decisiones de Pedro Nieto del 7 de octubre de 2026:
 - Añadir integrantes de una familia, con un número variable de perfiles.
 - Seleccionar un integrante y crear eventos en el calendario para él.
 - Mover eventos por el calendario y eliminarlos, conservando los cambios.
-- Acceder mediante una única cuenta familiar con contraseña. Todos los perfiles y actividades están disponibles y son editables dentro de la sesión familiar.
+- Acceder mediante una única cuenta familiar con usuario y contraseña, utilizando OAuth con Authorization Code y PKCE. Todos los perfiles y actividades están disponibles y son editables dentro de la sesión familiar.
 - Uso táctil en una pantalla doméstica en la nevera, con conexión permanente a internet.
 - Frontend y backend separados; el frontend accede a los datos exclusivamente a través de la API del backend.
 - Ejecución local con Docker Compose; AWS será un destino futuro.

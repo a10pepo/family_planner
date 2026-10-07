@@ -7,7 +7,7 @@
 - Lee [application.md](application.md) antes de cambiar comportamiento de producto y [docs/architecture.md](docs/architecture.md) antes de implementar código.
 - Consulta [docs/decisions.md](docs/decisions.md) para distinguir acuerdos de decisiones pendientes. No conviertas una propuesta en una decisión aprobada.
 - Las instrucciones explícitas de Pedro tienen prioridad sobre estos documentos. Si cambia una decisión, actualiza sus referencias en el mismo trabajo.
-- Estado actual: documentación inicial, sin aplicación, stack, modelo de datos, Docker Compose ni pipelines implementados. No inventes comandos de desarrollo o resultados de validación.
+- Estado actual: MVP local React/TypeScript + FastAPI + PostgreSQL + Keycloak OAuth, ejecutable con Docker Compose. Issue de implementación: [#3](https://github.com/a10pepo/family_planner/issues/3). No inventes resultados de validación.
 
 ## Producto y alcance
 
@@ -53,6 +53,20 @@ Antes de solicitar aprobación, preparar una propuesta concreta: qué cambia, po
 La aprobación debe cubrir la acción concreta. Una preferencia general por AWS, una contraseña compartida o un issue etiquetado `issue` no autoriza cualquier implementación. Continuar mientras tanto con tareas independientes que sí estén autorizadas.
 
 Los cambios rutinarios dentro del alcance y los límites acordados no necesitan nueva confirmación.
+
+Para el MVP local Pedro ha autorizado implementar la propuesta con OAuth y usuario/contraseña. Se usa Authorization Code + PKCE, con cuenta compartida en Keycloak, y tablas de integrantes y eventos. No se implementan las sesiones opacas de la propuesta anterior. La preparación de seguridad para acceso público queda fuera de este issue; no pedir otra aprobación para los controles básicos del OAuth local ya autorizado.
+
+## Comandos y estructura actual
+
+- `frontend/src/`: interfaz y cliente OAuth/API. `backend/app/api.py`: adaptador HTTP y DTO. `backend/app/domain/`: negocio puro y puerto de repositorio. `backend/app/adapters/`: PostgreSQL y validación OAuth.
+- `backend/migrations/`: migraciones Alembic. Keycloak gestiona su propio almacén de identidad; nunca accede a la base de datos del calendario.
+- Arranque: preparar configuración con `python3 scripts/setup.py` o su equivalente Docker del README; después `docker compose up --build -d`.
+- Backend: `docker compose --profile test up -d --wait db-test` y `docker compose run --rm backend pytest -q`.
+- Código: `ruff check --config backend/pyproject.toml backend scripts`; `ruff format --config backend/pyproject.toml --check backend scripts`.
+- Arquitectura y contrato: `python scripts/check_architecture.py`; `python scripts/export_openapi.py --check`; `npm --prefix frontend run api:check`.
+- Frontend: `npm --prefix frontend ci`; `npm --prefix frontend run format:check`; `npm --prefix frontend run lint`; `npm --prefix frontend test`; `npm --prefix frontend run build`.
+- Navegador: `npm --prefix frontend run test:e2e`, solo contra una instancia aislada con configuración ficticia `scripts/setup.py --test`; no ejecutar sobre datos familiares reales.
+- Node 24 y Python 3.12 o posterior para controles fuera de Docker. El README incluye los comandos completos.
 
 ## Validación y entrega
 
