@@ -12,6 +12,7 @@ import {
   Api,
   type CalendarEvent,
   type CustomIcon,
+  type FamilyEvent,
   type Member,
   type Notice,
   type Task,
@@ -19,7 +20,7 @@ import {
 } from "./api";
 import type { AppConfig } from "./auth";
 import { fromLocalInput, localInput } from "./dates";
-import { Avatar, Icon } from "./visuals";
+import { Icon } from "./visuals";
 import { categories, type Category } from "./categories";
 import { Dialog } from "./components/Dialog";
 import {
@@ -29,7 +30,10 @@ import {
 } from "./components/IconCatalog";
 import { Profiles } from "./components/Profiles";
 import { NoticeForm, TasksPanel } from "./components/DailyForms";
-import { noticeIcons, taskIcons } from "./daily-icons";
+import { MemberHeading } from "./components/MemberHeading";
+import { CurrentTime, useCurrentTime } from "./components/CurrentTime";
+import { WeekCalendar } from "./components/WeekCalendar";
+import { FamilyEvents, FamilyEventForm } from "./components/FamilyEvents";
 
 const colors = [
   "#dcebe2",
@@ -362,7 +366,16 @@ export default function App({
   const [authenticated, setAuthenticated] = useState(!!auth.authenticated);
   const api = useMemo(() => new Api(auth), [auth]);
   const [customIcons, setCustomIcons] = useState<CustomIcon[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [allMembers, setMembers] = useState<Member[]>([]);
+  const members = allMembers.filter((member) => member.active !== false);
+  const [calendarMode, setCalendarMode] = useState<"day" | "week">("day");
+  const [hiddenMembers, setHiddenMembers] = useState<string[]>([]);
+  const [familyEvents, setFamilyEvents] = useState<FamilyEvent[]>([]);
+  const [familyEditor, setFamilyEditor] = useState<{
+    day: string;
+    event?: FamilyEvent;
+  } | null>(null);
+  const now = useCurrentTime(config.timezone);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [view, setView] = useState<"calendar" | "settings" | "tasks">(
     "calendar",
@@ -381,6 +394,15 @@ export default function App({
   const date = useMemo(
     () => DateTime.fromISO(day, { zone: config.timezone }),
     [day, config.timezone],
+  );
+  const rangeStart = useMemo(
+    () =>
+      calendarMode === "week" ? date.startOf("week") : date.startOf("day"),
+    [date, calendarMode],
+  );
+  const rangeEnd = useMemo(
+    () => rangeStart.plus({ days: calendarMode === "week" ? 7 : 1 }),
+    [rangeStart, calendarMode],
   );
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState("");
@@ -401,29 +423,29 @@ export default function App({
     if (!authenticated) return;
     let active = true;
     Promise.all([
-      api.members(),
+      api.members(true),
       api.tasks(),
-      api.events(
-        date.startOf("day").toISO()!,
-        date.plus({ days: 1 }).startOf("day").toISO()!,
-        null,
-      ),
+      api.events(rangeStart.toISO()!, rangeEnd.toISO()!, null),
       api.notices(day),
       api.occurrences(day),
       api.icons(),
+      api.familyEvents(rangeStart.toISODate()!, rangeEnd.toISODate()!),
     ])
-      .then(([people, routines, appointments, alerts, daily, icons]) => {
-        if (active) {
-          setCustomIcons(icons);
-          setMembers(people);
-          setTasks(routines);
-          setEvents(appointments);
-          setNotices(alerts);
-          setOccurrences(daily);
-          setLoading(false);
-          setError("");
-        }
-      })
+      .then(
+        ([people, routines, appointments, alerts, daily, icons, family]) => {
+          if (active) {
+            setCustomIcons(icons);
+            setFamilyEvents(family);
+            setMembers(people);
+            setTasks(routines);
+            setEvents(appointments);
+            setNotices(alerts);
+            setOccurrences(daily);
+            setLoading(false);
+            setError("");
+          }
+        },
+      )
       .catch((error) => {
         if (active) {
           setError(message(error));
@@ -433,7 +455,7 @@ export default function App({
     return () => {
       active = false;
     };
-  }, [api, authenticated, date, day, refresh]);
+  }, [api, authenticated, day, refresh, rangeStart, rangeEnd]);
 
   useEffect(() => {
     if (viewport.current) viewport.current.scrollTop = 7 * 56;
@@ -517,7 +539,7 @@ export default function App({
     );
 
   const gridStyle = {
-    gridTemplateColumns: `56px repeat(${Math.max(members.length, 1)}, minmax(180px, 1fr))`,
+    gridTemplateColumns: `56px repeat(${Math.max(members.length, 1)}, minmax(280px, 1fr))`,
   };
   return (
     <IconCatalog.Provider
@@ -599,7 +621,7 @@ export default function App({
           )}
           {view === "settings" && (
             <Profiles
-              members={members}
+              members={allMembers}
               api={api}
               saved={() => setRefresh((value) => value + 1)}
             />
@@ -616,15 +638,28 @@ export default function App({
           {view === "calendar" && (
             <section
               className="calendar-panel"
-              aria-label="Calendario diario por familiar"
+              aria-label={
+                calendarMode === "day"
+                  ? "Calendario diario por familiar"
+                  : "Calendario semanal familiar"
+              }
             >
               <header className="calendar-toolbar">
                 <div className="calendar-period">
                   <span className="month-label">
                     {date.setLocale("es").toFormat("LLLL yyyy")}
                   </span>
-                  <h1>{date.setLocale("es").toFormat("cccc, d 'de' LLLL")}</h1>
+                  <h1>
+                    {calendarMode === "day"
+                      ? date.setLocale("es").toFormat("cccc, d 'de' LLLL")
+                      : `${rangeStart.setLocale("es").toFormat("d LLL")} — ${rangeEnd.minus({ days: 1 }).setLocale("es").toFormat("d LLL yyyy")}`}
+                  </h1>
                 </div>
+                <FamilyEvents
+                  events={familyEvents.filter((event) => event.day === day)}
+                  add={() => setFamilyEditor({ day })}
+                  edit={(event) => setFamilyEditor({ day: event.day, event })}
+                />
                 <div className="calendar-controls">
                   <button
                     className="secondary"
@@ -639,26 +674,59 @@ export default function App({
                   <div className="arrows">
                     <button
                       className="icon-button"
-                      aria-label="Día anterior"
+                      aria-label={
+                        calendarMode === "day"
+                          ? "Día anterior"
+                          : "Semana anterior"
+                      }
                       onClick={() =>
-                        setDay(date.minus({ days: 1 }).toISODate()!)
+                        setDay(
+                          date
+                            .minus({ days: calendarMode === "week" ? 7 : 1 })
+                            .toISODate()!,
+                        )
                       }
                     >
                       ‹
                     </button>
                     <button
                       className="icon-button"
-                      aria-label="Día siguiente"
+                      aria-label={
+                        calendarMode === "day"
+                          ? "Día siguiente"
+                          : "Semana siguiente"
+                      }
                       onClick={() =>
-                        setDay(date.plus({ days: 1 }).toISODate()!)
+                        setDay(
+                          date
+                            .plus({ days: calendarMode === "week" ? 7 : 1 })
+                            .toISODate()!,
+                        )
                       }
                     >
                       ›
                     </button>
                   </div>
-                  <span className="view-badge">
-                    <Icon name="calendar" /> Día
-                  </span>
+                  <div
+                    className="view-switch"
+                    role="group"
+                    aria-label="Vista del calendario"
+                  >
+                    <button
+                      className={`view-badge ${calendarMode === "day" ? "selected" : ""}`}
+                      aria-pressed={calendarMode === "day"}
+                      onClick={() => setCalendarMode("day")}
+                    >
+                      Día
+                    </button>
+                    <button
+                      className={`view-badge ${calendarMode === "week" ? "selected" : ""}`}
+                      aria-pressed={calendarMode === "week"}
+                      onClick={() => setCalendarMode("week")}
+                    >
+                      Semana
+                    </button>
+                  </div>
                 </div>
               </header>
               {error && (
@@ -688,130 +756,71 @@ export default function App({
                   </button>
                 </div>
               )}
-              {!!members.length && (
+              {calendarMode === "week" && (
+                <WeekCalendar
+                  date={date}
+                  zone={config.timezone}
+                  now={now}
+                  members={members}
+                  events={events}
+                  familyEvents={familyEvents}
+                  hidden={hiddenMembers}
+                  toggle={(id) =>
+                    setHiddenMembers((previous) =>
+                      previous.includes(id)
+                        ? previous.filter((item) => item !== id)
+                        : [...previous, id],
+                    )
+                  }
+                  addEvent={addEvent}
+                  editEvent={(event) =>
+                    setEditor({
+                      event,
+                      start: event.starts_at,
+                      end: event.ends_at,
+                    })
+                  }
+                  editFamilyEvent={(day, event) =>
+                    setFamilyEditor({ day, event })
+                  }
+                  move={move}
+                  busy={moving || !!editor || !!familyEditor}
+                />
+              )}
+              {!!members.length && calendarMode === "day" && (
                 <div className="day-viewport" ref={viewport}>
                   <div
                     className="day-surface"
-                    style={{ minWidth: 56 + members.length * 180 }}
+                    style={{ minWidth: 56 + members.length * 280 }}
                   >
                     <div className="family-headings" style={gridStyle}>
                       <div className="time-heading" aria-hidden="true">
                         <span>24 h</span>
                       </div>
-                      {members.map((member) => {
-                        const [name, nickname] =
-                          member.name.split(/\s*[()]\s*/);
-                        return (
-                          <div className="person-heading" key={member.id}>
-                            <div className="person-identity">
-                              <Avatar
-                                name={member.name}
-                                color={member.color}
-                                photo={member.photo_data}
-                              />
-                              <span className="person-name">{name}</span>
-                              {nickname && (
-                                <span className="person-nickname">
-                                  {nickname}
-                                </span>
-                              )}
-                              <button
-                                className="column-add"
-                                aria-label={`Añadir evento para ${name}`}
-                                title={`Añadir evento para ${name}`}
-                                onClick={() => addEvent(member.id)}
-                              >
-                                ＋
-                              </button>
-                            </div>
-                            <div
-                              className="notice-strip"
-                              role="group"
-                              aria-label={`Avisos de todo el día de ${name}`}
-                            >
-                              {notices
-                                .filter(
-                                  (notice) =>
-                                    notice.member_id === member.id &&
-                                    notice.day === day,
-                                )
-                                .map((notice) => (
-                                  <button
-                                    className="notice-token"
-                                    key={notice.id}
-                                    aria-label={`${notice.title}, editar aviso de ${name}`}
-                                    title={notice.title}
-                                    onClick={() =>
-                                      setNoticeEditor({
-                                        memberId: member.id,
-                                        notice,
-                                      })
-                                    }
-                                  >
-                                    <CustomSymbol
-                                      id={notice.custom_icon_id}
-                                      fallback={noticeIcons[notice.icon].icon}
-                                    />
-                                  </button>
-                                ))}
-                              <button
-                                className="daily-add"
-                                aria-label={`Añadir aviso de todo el día para ${name}`}
-                                title="Añadir aviso de todo el día"
-                                onClick={() =>
-                                  setNoticeEditor({ memberId: member.id })
-                                }
-                              >
-                                ＋
-                              </button>
-                            </div>
-                            <div
-                              className="task-strip"
-                              role="group"
-                              aria-label={`Tareas de ${name}`}
-                            >
-                              {occurrences
-                                .filter(
-                                  (item) =>
-                                    item.member_id === member.id &&
-                                    item.day === day,
-                                )
-                                .map((item) => (
-                                  <button
-                                    className={`task-token ${item.completed ? "done" : ""}`}
-                                    key={item.task_id}
-                                    aria-label={`${item.title}, ${name}`}
-                                    aria-pressed={item.completed}
-                                    title={`${item.title} · ${item.completed ? "Hecha" : "Pendiente"}`}
-                                    disabled={completing !== null}
-                                    onClick={() => complete(item)}
-                                  >
-                                    <CustomSymbol
-                                      id={item.custom_icon_id}
-                                      fallback={taskIcons[item.icon].icon}
-                                    />
-                                    {item.completed && (
-                                      <span className="task-tick">
-                                        <Icon name="check" />
-                                      </span>
-                                    )}
-                                  </button>
-                                ))}
-                              {!occurrences.some(
-                                (item) =>
-                                  item.member_id === member.id &&
-                                  item.day === day,
-                              ) && (
-                                <span className="small muted no-tasks">
-                                  Sin tareas para hoy
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {members.map((member) => (
+                        <MemberHeading
+                          key={member.id}
+                          member={member}
+                          notices={notices.filter(
+                            (notice) =>
+                              notice.member_id === member.id &&
+                              notice.day === day,
+                          )}
+                          tasks={occurrences.filter(
+                            (item) =>
+                              item.member_id === member.id && item.day === day,
+                          )}
+                          busy={completing !== null}
+                          addEvent={() => addEvent(member.id)}
+                          editNotice={(notice) =>
+                            setNoticeEditor({ memberId: member.id, notice })
+                          }
+                          complete={complete}
+                        />
+                      ))}
                     </div>
                     <div className="day-columns" style={gridStyle}>
+                      <CurrentTime now={now} day={day} />
                       <div className="time-scale" aria-hidden="true">
                         {Array.from({ length: 24 }, (_, hour) => (
                           <div className="hour-label" key={hour}>
@@ -835,7 +844,6 @@ export default function App({
                             headerToolbar={false}
                             dayHeaders={false}
                             allDaySlot={false}
-                            nowIndicator
                             height="auto"
                             slotMinTime="00:00:00"
                             slotMaxTime="24:00:00"
@@ -958,7 +966,7 @@ export default function App({
                   <span className="status-dot" />
                   {moving
                     ? "Guardando movimiento…"
-                    : `${events.length} ${events.length === 1 ? "plan" : "planes"} para hoy`}
+                    : `${events.length} ${events.length === 1 ? "plan" : "planes"} ${calendarMode === "week" ? "esta semana" : "para este día"}`}
                 </span>
                 <span>
                   Toca una hora para añadir un plan · {config.timezone}
@@ -967,6 +975,18 @@ export default function App({
             </section>
           )}
         </main>
+        {familyEditor && (
+          <FamilyEventForm
+            api={api}
+            day={familyEditor.day}
+            event={familyEditor.event}
+            close={() => setFamilyEditor(null)}
+            saved={() => {
+              setFamilyEditor(null);
+              setRefresh((value) => value + 1);
+            }}
+          />
+        )}
         {noticeEditor &&
           members.find((member) => member.id === noticeEditor.memberId) && (
             <NoticeForm

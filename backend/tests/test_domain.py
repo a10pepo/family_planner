@@ -18,8 +18,9 @@ class MemoryRepository:
         self.people[member.id] = member
         return member
 
-    def member(self, member_id):
-        return self.people.get(member_id)
+    def member(self, member_id, include_archived=False):
+        person = self.people.get(member_id)
+        return person if person and (person.active or include_archived) else None
 
     def event(self, event_id):
         return self.appointments.get(event_id)
@@ -96,3 +97,24 @@ def test_member_edit_preserves_id_color_and_optional_photo():
         calendar.update_member(member.id, " ")
     with pytest.raises(MissingEntity):
         calendar.update_member(uuid4(), "New")
+
+
+def test_archiving_member_preserves_identity_and_events_and_restore_is_idempotent():
+    calendar = Calendar(MemoryRepository())
+    member = calendar.add_member("Alex", "#abcdef")
+    start = datetime.fromisoformat("2026-10-08T09:00:00Z")
+    end = datetime.fromisoformat("2026-10-08T10:00:00Z")
+    event = calendar.create_event(member.id, "Clase", start, end)
+    archived = calendar.set_member_active(member.id, False)
+    assert archived.id == member.id and not archived.active
+    assert calendar.repository.event(event.id) == event
+    with pytest.raises(MissingEntity):
+        calendar.create_event(member.id, "Nuevo", start, end)
+    with pytest.raises(MissingEntity):
+        calendar.update_event(event.id, "Nuevo", start, end)
+    with pytest.raises(MissingEntity):
+        calendar.delete_event(event.id)
+    assert calendar.set_member_active(member.id, True) == member
+    assert calendar.set_member_active(member.id, True) == member
+    with pytest.raises(MissingEntity):
+        calendar.set_member_active(uuid4(), False)

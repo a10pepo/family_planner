@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, timedelta
 from uuid import uuid4
 
@@ -16,7 +17,9 @@ class MemoryDaily:
         self.states = {}
 
     def member(self, member_id):
-        return next((person for person in self.people if person.id == member_id), None)
+        return next(
+            (person for person in self.people if person.id == member_id and person.active), None
+        )
 
     def task(self, task_id):
         return self.routines.get(task_id)
@@ -116,3 +119,20 @@ def test_notices_lifecycle_and_invalid_references():
         service.create_notice(uuid4(), TODAY, "Excursión", "trip")
     with pytest.raises(InvalidInput):
         service.create_notice(repo.people[0].id, TODAY, "Excursión", "bad")
+
+
+def test_archived_member_keeps_assignments_and_marks_without_visible_occurrences():
+    repo = MemoryDaily()
+    service = DailyPlanner(repo)
+    first, other = [person.id for person in repo.people]
+    task = service.save_task("Cama", "bed", "daily", TODAY, [first, other])
+    service.complete(task.id, first, TODAY, True)
+    repo.people[0] = replace(repo.people[0], active=False)
+    assert [item.member_id for item in service.occurrences(TODAY)] == [other]
+    with pytest.raises(MissingEntity):
+        service.complete(task.id, first, TODAY, False)
+    service.save_task("Cama editada", "bed", "daily", TODAY, [first, other], task.id)
+    with pytest.raises(MissingEntity):
+        service.save_task("Nueva", "bed", "daily", TODAY, [first])
+    repo.people[0] = replace(repo.people[0], active=True)
+    assert service.occurrences(TODAY)[0].completed

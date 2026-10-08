@@ -74,6 +74,42 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/family-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Events */
+    get: operations["events_api_v1_family_events_get"];
+    put?: never;
+    /** Add Event */
+    post: operations["add_event_api_v1_family_events_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/family-events/{event_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Event */
+    put: operations["update_event_api_v1_family_events__event_id__put"];
+    post?: never;
+    /** Remove Event */
+    delete: operations["remove_event_api_v1_family_events__event_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/icons": {
     parameters: {
       query?: never;
@@ -121,6 +157,24 @@ export interface paths {
     /** Update Member */
     put: operations["update_member_api_v1_members__member_id__put"];
     post?: never;
+    /** Archive Member */
+    delete: operations["archive_member_api_v1_members__member_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/members/{member_id}/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Restore Member */
+    post: operations["restore_member_api_v1_members__member_id__restore_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -328,6 +382,44 @@ export interface components {
       /** Title */
       title: string;
     };
+    /** FamilyEventInput */
+    FamilyEventInput: {
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      /** @default birthday */
+      icon: components["schemas"]["FamilyIcon"];
+      /** Title */
+      title: string;
+    };
+    /** FamilyEventOutput */
+    FamilyEventOutput: {
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      /** @default birthday */
+      icon: components["schemas"]["FamilyIcon"];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Title */
+      title: string;
+    };
+    /**
+     * FamilyIcon
+     * @enum {string}
+     */
+    FamilyIcon: "birthday" | "celebration" | "trip" | "other";
     /**
      * Frequency
      * @enum {string}
@@ -366,6 +458,11 @@ export interface components {
     };
     /** MemberOutput */
     MemberOutput: {
+      /**
+       * Active
+       * @default true
+       */
+      active: boolean;
       /** Color */
       color: string;
       /**
@@ -712,6 +809,135 @@ export interface operations {
       };
     };
   };
+  events_api_v1_family_events_get: {
+    parameters: {
+      query: {
+        start: string;
+        end: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FamilyEventOutput"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  add_event_api_v1_family_events_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FamilyEventInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FamilyEventOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_event_api_v1_family_events__event_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        event_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FamilyEventInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FamilyEventOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  remove_event_api_v1_family_events__event_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        event_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   icons_api_v1_icons_get: {
     parameters: {
       query?: never;
@@ -767,7 +993,9 @@ export interface operations {
   };
   list_members_api_v1_members_get: {
     parameters: {
-      query?: never;
+      query?: {
+        include_archived?: boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -781,6 +1009,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MemberOutput"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };
@@ -832,6 +1069,66 @@ export interface operations {
         "application/json": components["schemas"]["MemberUpdate"];
       };
     };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemberOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  archive_member_api_v1_members__member_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        member_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  restore_member_api_v1_members__member_id__restore_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        member_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
       200: {

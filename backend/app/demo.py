@@ -48,6 +48,7 @@ def seed_demo(engine, zone: str, replace_test_fixtures: bool = False) -> bool:
             if (
                 len(names) == 4
                 and set(names) == {name for name, _ in DEMO_MEMBERS}
+                and all(session.scalars(select(MemberRow.active)))
                 and not session.scalar(select(TaskRow.id).limit(1))
             ):
                 people = {

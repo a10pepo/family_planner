@@ -16,6 +16,7 @@ from app.adapters.database import SqlCalendarRepository, make_engine
 from app.adapters.oauth import OAuthVerifier
 from app.adapters.photos import normalize_photo
 from app.api_daily import install_daily_routes
+from app.api_family import install_family_routes
 from app.api_icons import install_icon_routes
 from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
 
@@ -35,6 +36,7 @@ class MemberUpdate(BaseModel):
 class MemberOutput(MemberInput):
     id: UUID
     photo_data: str | None = None
+    active: bool = True
 
 
 class EventUpdate(BaseModel):
@@ -125,8 +127,24 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
     @app.get(
         "/api/v1/members", response_model=list[MemberOutput], dependencies=guarded, tags=["members"]
     )
-    def list_members(service: use_calendar):
-        return [asdict(member) for member in service.repository.members()]
+    def list_members(service: use_calendar, include_archived: bool = False):
+        return [asdict(member) for member in service.repository.members(include_archived)]
+
+    @app.delete(
+        "/api/v1/members/{member_id}", status_code=204, dependencies=guarded, tags=["members"]
+    )
+    def archive_member(member_id: UUID, service: use_calendar):
+        service.set_member_active(member_id, False)
+        return Response(status_code=204)
+
+    @app.post(
+        "/api/v1/members/{member_id}/restore",
+        response_model=MemberOutput,
+        dependencies=guarded,
+        tags=["members"],
+    )
+    def restore_member(member_id: UUID, service: use_calendar):
+        return asdict(service.set_member_active(member_id, True))
 
     @app.post(
         "/api/v1/members",
@@ -205,4 +223,5 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
 
     install_daily_routes(app, engine, guarded)
     install_icon_routes(app, engine, guarded)
+    install_family_routes(app, engine, guarded)
     return app

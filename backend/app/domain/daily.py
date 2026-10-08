@@ -115,7 +115,7 @@ class DailyPlanner:
         replace_custom_icon: bool = False,
     ) -> Notice:
         previous = self.repository.notice(notice_id)
-        if previous is None:
+        if previous is None or self.repository.member(previous.member_id) is None:
             raise MissingEntity("No existe el aviso.")
         reference = custom_icon_id if replace_custom_icon else previous.custom_icon_id
         self.validate_icon(reference)
@@ -134,7 +134,8 @@ class DailyPlanner:
         )
 
     def delete_notice(self, notice_id: UUID) -> None:
-        if self.repository.notice(notice_id) is None:
+        previous = self.repository.notice(notice_id)
+        if previous is None or self.repository.member(previous.member_id) is None:
             raise MissingEntity("No existe el aviso.")
         self.repository.remove_notice(notice_id)
 
@@ -160,7 +161,11 @@ class DailyPlanner:
         self.validate_icon(reference)
         if not member_ids or len(set(member_ids)) != len(member_ids):
             raise InvalidInput("Selecciona al menos un integrante, sin repetirlo.")
-        if any(self.repository.member(member_id) is None for member_id in member_ids):
+        if any(
+            self.repository.member(member_id) is None
+            and (previous is None or member_id not in previous.member_ids)
+            for member_id in member_ids
+        ):
             raise MissingEntity("No existe alguno de los integrantes.")
         try:
             selected_icon, repeat = TaskIcon(icon), Frequency(frequency)
@@ -199,6 +204,7 @@ class DailyPlanner:
             for task in self.repository.tasks()
             if occurs_on(task, day)
             for member_id in task.member_ids
+            if self.repository.member(member_id) is not None
         ]
 
     def complete(self, task_id: UUID, member_id: UUID, day: date, completed: bool) -> Occurrence:
@@ -207,6 +213,8 @@ class DailyPlanner:
             raise MissingEntity("No existe la tarea.")
         if member_id not in task.member_ids or not occurs_on(task, day):
             raise InvalidInput("La tarea no está asignada a este integrante en esa fecha.")
+        if self.repository.member(member_id) is None:
+            raise MissingEntity("No existe un integrante activo con ese identificador.")
         self.repository.set_completion(task_id, member_id, day, completed)
         return Occurrence(
             task.id, member_id, day, task.title, task.icon, completed, task.custom_icon_id

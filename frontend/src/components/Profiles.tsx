@@ -14,6 +14,27 @@ export function Profiles({
   saved: () => void;
 }) {
   const [editing, setEditing] = useState<Member | null>(null);
+  const [removing, setRemoving] = useState<Member | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function change(member: Member, restore = false) {
+    setBusy(true);
+    setError("");
+    try {
+      if (restore) await api.restoreMember(member.id);
+      else await api.archiveMember(member.id);
+      setRemoving(null);
+      saved();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "No se pudo cambiar el integrante.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  const active = members.filter((member) => member.active !== false);
+  const archived = members.filter((member) => member.active === false);
   return (
     <section className="management-panel" aria-label="Configuración">
       <header className="management-heading">
@@ -21,7 +42,7 @@ export function Profiles({
         <p className="muted">Un nombre y una cara para cada uno.</p>
       </header>
       <div className="profile-grid">
-        {members.map((member) => (
+        {active.map((member) => (
           <article className="profile-card" key={member.id}>
             <Avatar
               name={member.name}
@@ -36,13 +57,86 @@ export function Profiles({
             >
               Editar perfil
             </button>
+            <button
+              className="delete-button"
+              aria-label={`Retirar integrante ${member.name}`}
+              disabled={busy}
+              onClick={() => {
+                setError("");
+                setRemoving(member);
+              }}
+            >
+              Retirar integrante
+            </button>
           </article>
         ))}
       </div>
-      {!members.length && (
+      {!active.length && (
         <p className="empty-note">
           Añade primero a los integrantes desde el icono de personas.
         </p>
+      )}
+      {!removing && error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {!!archived.length && (
+        <section
+          className="archived-members"
+          aria-label="Integrantes archivados"
+        >
+          <h2>Integrantes archivados</h2>
+          {archived.map((member) => (
+            <div className="archived-member" key={member.id}>
+              <span>{member.name}</span>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() => change(member, true)}
+                aria-label={`Restaurar integrante ${member.name}`}
+              >
+                Restaurar
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+      {removing && (
+        <Dialog
+          title="Retirar integrante"
+          close={() => setRemoving(null)}
+          busy={busy}
+        >
+          <p>
+            ¿Retirar a <strong>{removing.name}</strong> del calendario?
+          </p>
+          <p className="muted">
+            Su columna y sus actividades dejarán de mostrarse. Conservaremos sus
+            eventos y marcas de tareas; podrás restaurarlos desde Configuración.
+          </p>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="form-actions">
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => setRemoving(null)}
+            >
+              Conservar integrante
+            </button>
+            <button
+              className="danger"
+              disabled={busy}
+              onClick={() => change(removing)}
+            >
+              Confirmar retiro
+            </button>
+          </div>
+        </Dialog>
       )}
       {editing && (
         <ProfileEditor

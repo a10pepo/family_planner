@@ -114,7 +114,14 @@ def install_daily_routes(app: FastAPI, engine, guarded):
 
     @app.get("/api/v1/tasks", response_model=list[TaskOutput], dependencies=guarded, tags=["tasks"])
     def tasks(service: use_daily):
-        return [asdict(task) for task in service.repository.tasks() if task.active]
+        return [
+            asdict(task)
+            for task in service.repository.tasks()
+            if task.active
+            and any(
+                service.repository.member(member_id) is not None for member_id in task.member_ids
+            )
+        ]
 
     @app.post(
         "/api/v1/tasks",

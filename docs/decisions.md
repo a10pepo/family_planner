@@ -59,10 +59,22 @@ El navegador admite JPG/PNG/WebP hasta 5 MB y prepara una imagen pequeña; la AP
 
 La reversión retira exclusivamente las referencias y el catálogo, perdiendo las imágenes personalizadas y recuperando los iconos incluidos; conserva actividades, integrantes y marcas. Guardar copia antes de revertir. Pruebas verifican migración, reutilización entre los tres tipos, errores de entrada y referencias, compatibilidad con ediciones anteriores y persistencia al recargar y reiniciar.
 
+## Vistas y gestión familiar (issue #11)
+
+Pedro autorizó el 8 de octubre de 2026 «Sí, eventos familiares y archivo con restauración» y confirmó «Sí, filtrar sus eventos». La propuesta incluía conservación del historial, reversión que elimina los nuevos eventos familiares y vuelve a mostrar a integrantes archivados, sin AWS ni cambios de autenticación.
+
+La migración `005_family_views` añade `members.active` (true para datos existentes) y `family_all_day_events` (UUID, fecha local, título, icono incluido y referencia nullable a `custom_icons`). Las fechas son de un día, sin zona horaria ni repetición anual automática. Los cumpleaños y otras actividades globales se muestran junto a la fecha en Día y en el área de todo el día en Semana. El icono puede reutilizar el catálogo común; omitirlo al editar conserva la referencia y null recupera la opción incluida.
+
+Retirar un perfil equivale a archivo, con confirmación en Configuración. Las consultas ordinarias solo incluyen integrantes activos y sus actividades; `include_archived=true` permite gestionar y restaurar perfiles. Los eventos, avisos, asignaciones y marcas permanecen en sus tablas. No se crean actividades ni se completan rutinas para un perfil archivado. La edición de rutinas compartidas admite sus asignaciones previas archivadas, conservándolas hasta restaurar al integrante. Las rutinas que solo tienen integrantes archivados no aparecen en la lista activa. Se pueden archivar todos los integrantes sin que la demo los repueble al reiniciar.
+
+Semana comienza en lunes y acaba en domingo, reúne eventos por día e identifica a la persona en cada tarjeta. Las caras alternan filtros de eventos con horario; los eventos familiares siguen visibles y las rutinas nunca se incluyen. Los filtros son temporales, se conservan durante la navegación de esa sesión y se reinician al recargar. La línea del día actual avanza cada 15 segundos; la semanal usa el indicador de FullCalendar. Se mantienen las interacciones de edición, arrastre y duración.
+
+El downgrade borra exclusivamente `family_all_day_events` y `members.active`; pierde los nuevos eventos globales y vuelve a mostrar todos los perfiles, conservando actividades anteriores y marcas. Guardar copia antes de revertir. Las pruebas usan PostgreSQL y un stack OAuth con datos ficticios, comprueban archivo/restauración, migración, confirmaciones, filtros, hora actual y persistencia tras recargar y reiniciar.
+
 ## Próximas versiones
 
 - Seguimiento y progresión histórica de las rutinas.
-- Eventos compartidos, recurrencias y vistas semanales o mensuales si se aprueba su alcance.
+- Eventos compartidos con horario, recurrencias y vista mensual si se aprueba su alcance.
 - Cambiar el integrante asignado a un evento, reasignación y gestión avanzada de perfiles.
 - Configuración para la pantalla de la nevera por red doméstica y despliegue público, incluyendo HTTPS y OAuth para su URL real.
 - Destino de despliegue AWS, estimación de costes y seguridad para acceso público.
