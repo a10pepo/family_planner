@@ -367,7 +367,10 @@ export default function App({
   const api = useMemo(() => new Api(auth), [auth]);
   const [customIcons, setCustomIcons] = useState<CustomIcon[]>([]);
   const [allMembers, setMembers] = useState<Member[]>([]);
-  const members = allMembers.filter((member) => member.active !== false);
+  const members = useMemo(
+    () => allMembers.filter((member) => member.active !== false),
+    [allMembers],
+  );
   const [calendarMode, setCalendarMode] = useState<"day" | "week">("day");
   const [hiddenMembers, setHiddenMembers] = useState<string[]>([]);
   const [familyEvents, setFamilyEvents] = useState<FamilyEvent[]>([]);

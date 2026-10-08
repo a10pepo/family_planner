@@ -1,3 +1,4 @@
+import { useMemo, useRef } from "react";
 import FullCalendar from "@fullcalendar/react";
 import timeGrid from "@fullcalendar/timegrid";
 import interaction from "@fullcalendar/interaction";
@@ -43,9 +44,58 @@ export function WeekCalendar({
 }) {
   const visible = members.filter((member) => !hidden.includes(member.id));
   const start = date.startOf("week").toISODate()!;
-  const appointments = events.filter((event) =>
-    visible.some((member) => member.id === event.member_id),
+  const appointments = useMemo(
+    () =>
+      events.filter((event) =>
+        members.some(
+          (member) =>
+            member.id === event.member_id && !hidden.includes(member.id),
+        ),
+      ),
+    [events, members, hidden],
   );
+  const calendarEvents = useMemo(
+    () => [
+      ...appointments.map((event) => ({
+        id: event.id,
+        title: event.title,
+        start: event.starts_at,
+        end: event.ends_at,
+        backgroundColor: categories[event.category].color,
+        textColor: categories[event.category].ink,
+        borderColor: members.find((member) => member.id === event.member_id)!
+          .color,
+        extendedProps: {
+          category: event.category,
+          member_id: event.member_id,
+          custom_icon_id: event.custom_icon_id,
+        },
+      })),
+      ...familyEvents.map((event) => ({
+        id: `family-${event.id}`,
+        title: event.title,
+        start: event.day,
+        end: DateTime.fromISO(event.day, { zone })
+          .plus({ days: 1 })
+          .toISODate()!,
+        allDay: true,
+        editable: false,
+        backgroundColor: "#f8e8da",
+        textColor: "#896c53",
+        borderColor: "#f8e8da",
+        extendedProps: {
+          family: true,
+          icon: event.icon,
+          custom_icon_id: event.custom_icon_id,
+        },
+      })),
+    ],
+    [appointments, familyEvents, members, zone],
+  );
+  const scroll = useRef(7 * 56);
+  // Refresh FullCalendar when its feed changes; its option updates can retain
+  // the previous array. Capture the scroll so edits and filters keep the hour.
+  const calendarKey = `${start}-${JSON.stringify(calendarEvents)}`;
   return (
     <>
       <div
@@ -78,9 +128,17 @@ export function WeekCalendar({
         </p>
       )}
       <div className="week-viewport">
-        <div className="week-calendar" aria-label="Semana de lunes a domingo">
+        <div
+          className="week-calendar"
+          aria-label="Semana de lunes a domingo"
+          onScrollCapture={(event) => {
+            const target = event.target as HTMLElement;
+            if (target.classList.contains("fc-scroller-liquid-absolute"))
+              scroll.current = target.scrollTop;
+          }}
+        >
           <FullCalendar
-            key={start}
+            key={calendarKey}
             plugins={[timeGrid, interaction, luxonPlugin]}
             locale={es}
             timeZone={zone}
@@ -90,7 +148,7 @@ export function WeekCalendar({
             weekends
             headerToolbar={false}
             height="100%"
-            scrollTime="07:00:00"
+            scrollTime={{ seconds: (scroll.current / 56) * 3600 }}
             allDaySlot
             allDayText="Todo el día"
             dayHeaderFormat={{ weekday: "short", day: "numeric" }}
@@ -113,42 +171,7 @@ export function WeekCalendar({
             selectMirror
             longPressDelay={350}
             eventMinHeight={44}
-            events={[
-              ...appointments.map((event) => ({
-                id: event.id,
-                title: event.title,
-                start: event.starts_at,
-                end: event.ends_at,
-                backgroundColor: categories[event.category].color,
-                textColor: categories[event.category].ink,
-                borderColor: members.find(
-                  (member) => member.id === event.member_id,
-                )!.color,
-                extendedProps: {
-                  category: event.category,
-                  member_id: event.member_id,
-                  custom_icon_id: event.custom_icon_id,
-                },
-              })),
-              ...familyEvents.map((event) => ({
-                id: `family-${event.id}`,
-                title: event.title,
-                start: event.day,
-                end: DateTime.fromISO(event.day, { zone })
-                  .plus({ days: 1 })
-                  .toISODate()!,
-                allDay: true,
-                editable: false,
-                backgroundColor: "#f8e8da",
-                textColor: "#896c53",
-                borderColor: "#f8e8da",
-                extendedProps: {
-                  family: true,
-                  icon: event.icon,
-                  custom_icon_id: event.custom_icon_id,
-                },
-              })),
-            ]}
+            events={calendarEvents}
             dateClick={(info) => {
               if (info.allDay) editFamilyEvent(info.dateStr);
               else if (visible[0])

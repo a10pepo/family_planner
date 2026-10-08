@@ -130,12 +130,13 @@ test("week filters, global all-day events and confirmed profile archive persist"
       .getByRole("button", { name: "Guardar evento", exact: true })
       .click();
   }
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const event = calendar.locator(".fc-event", { hasText: plan });
   await calendar
     .locator(".fc-scroller-liquid-absolute")
     .evaluateAll((elements) => {
       for (const element of elements) element.scrollTop = 7 * 56;
     });
-  const event = calendar.locator(".fc-event", { hasText: plan });
   await expect(event).toBeVisible();
   const filter = page.getByRole("button", {
     name: "Mostrar eventos de Laura (Mamá)",
