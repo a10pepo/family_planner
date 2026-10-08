@@ -21,8 +21,8 @@ variable "project" {
   type    = string
   default = "family-planner"
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{2,29}$", var.project))
-    error_message = "Usa 3–30 caracteres, minúsculas y guiones."
+    condition     = can(regex("^[a-z][a-z0-9-]{2,28}$", var.project))
+    error_message = "Usa 3–29 caracteres, minúsculas y guiones."
   }
 }
 

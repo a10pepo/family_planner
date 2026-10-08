@@ -136,3 +136,9 @@ run "custom_domain" {
     error_message = "El dominio propio debe configurar el sitio, callback y DNS IPv4/IPv6."
   }
 }
+
+run "reject_project_exceeding_bucket_limit" {
+  command = plan
+  variables { project = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+  expect_failures = [var.project]
+}

@@ -22,3 +22,9 @@ run "private_versioned_storage" {
     error_message = "Estado y ZIPs deben estar cifrados y protegidos frente al vaciado automático."
   }
 }
+
+run "reject_project_exceeding_bucket_limit" {
+  command = plan
+  variables { project = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+  expect_failures = [var.project]
+}
