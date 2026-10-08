@@ -2,6 +2,8 @@ import type Keycloak from "keycloak-js";
 import type { components } from "./api-schema";
 
 export type CustomIcon = components["schemas"]["IconOutput"];
+export type FamilyEvent = components["schemas"]["FamilyEventOutput"];
+export type FamilyEventInput = components["schemas"]["FamilyEventInput"];
 export type Member = components["schemas"]["MemberOutput"];
 export type CalendarEvent = components["schemas"]["EventOutput"];
 export type EventInput = components["schemas"]["EventInput"];
@@ -53,8 +55,36 @@ export class Api {
       body: JSON.stringify({ name, image_data }),
     });
   }
-  members() {
-    return this.request<Member[]>("/members");
+  members(includeArchived = false) {
+    return this.request<Member[]>(
+      `/members${includeArchived ? "?include_archived=true" : ""}`,
+    );
+  }
+  archiveMember(id: string) {
+    return this.request<void>(`/members/${id}`, { method: "DELETE" });
+  }
+  restoreMember(id: string) {
+    return this.request<Member>(`/members/${id}/restore`, { method: "POST" });
+  }
+  familyEvents(start: string, end: string) {
+    return this.request<FamilyEvent[]>(
+      `/family-events?${new URLSearchParams({ start, end })}`,
+    );
+  }
+  addFamilyEvent(data: FamilyEventInput) {
+    return this.request<FamilyEvent>("/family-events", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  updateFamilyEvent(id: string, data: FamilyEventInput) {
+    return this.request<FamilyEvent>(`/family-events/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+  deleteFamilyEvent(id: string) {
+    return this.request<void>(`/family-events/${id}`, { method: "DELETE" });
   }
   addMember(name: string, color: string) {
     return this.request<Member>("/members", {

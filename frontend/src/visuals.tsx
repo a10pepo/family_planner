@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 export type IconName =
+  | "birthday"
   | "settings"
   | "tasks"
   | "uniform"
@@ -20,6 +21,12 @@ export type IconName =
   | "other";
 
 const paths: Record<IconName, React.ReactNode> = {
+  birthday: (
+    <>
+      <path d="M4 12h16v9H4zM4 16c2 2 3-2 5 0s3-2 5 0 3-2 6 0M8 12V8m4 4V7m4 5V8" />
+      <path d="M8 5V3m4 1V2m4 3V3" />
+    </>
+  ),
   settings: (
     <>
       <path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h4l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3H9Z" />

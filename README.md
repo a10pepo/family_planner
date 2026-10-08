@@ -106,7 +106,7 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-Las pruebas de navegador requieren una instancia local aislada con la **cuenta ficticia de pruebas**. No las ejecutes contra tu calendario familiar: editan perfiles con fotos sintéticas y crean, mueven, eliminan o archivan eventos, avisos y tareas de prueba. En un clon o worktree sin configuración previa:
+Las pruebas de navegador requieren una instancia local aislada con la **cuenta ficticia de pruebas**. No las ejecutes contra tu calendario familiar: editan perfiles con fotos sintéticas y crean, mueven, eliminan o archivan eventos, avisos, integrantes y tareas de prueba. En un clon o worktree sin configuración previa:
 
 ```bash
 python3 scripts/setup.py --test
@@ -127,7 +127,7 @@ El asistente `--test` configura únicamente datos ficticios (`test-family` / `Fi
 
 ## CI y entrega
 
-[GitHub Actions](.github/workflows/ci.yml) valida que la PR esté vinculada a un issue etiquetado, comprueba formato, análisis estático, tipos, límites de arquitectura y contrato API, ejecuta pruebas de backend con PostgreSQL desechable y pruebas de navegador con OAuth real, y verifica un reinicio de servicios y la persistencia de los eventos, fotos, avisos y marcas de tareas.
+[GitHub Actions](.github/workflows/ci.yml) valida que la PR esté vinculada a un issue etiquetado, comprueba formato, análisis estático, tipos, límites de arquitectura y contrato API, ejecuta pruebas de backend con PostgreSQL desechable y pruebas de navegador con OAuth real, y verifica un reinicio de servicios y la persistencia de los eventos, fotos, avisos, eventos familiares, perfiles archivados y marcas de tareas.
 
 Tras un merge a `main`, empaqueta las imágenes de aplicación validadas en un artefacto identificado por el commit. No activa merge automático ni un despliegue remoto. La protección de ramas y el destino de despliegue público siguen pendientes; no se crean recursos AWS.
 
@@ -149,6 +149,8 @@ Las imágenes se etiquetan `family-planner-backend:<commit>` y `family-planner-f
 - [API v1](docs/api.md): OAuth, operaciones, fechas y evolución del contrato.
 
 ## Estado
+
+Vistas Día/Semana, línea horaria, eventos familiares y archivo con restauración: [issue #11](https://github.com/a10pepo/family_planner/issues/11). En Semana, toca una cara para filtrar eventos; las tareas diarias se muestran solo en Día. Configuración permite retirar un integrante con confirmación y restaurarlo conservando el historial.
 
 Iconos reutilizables y eventos más legibles: [issue #9](https://github.com/a10pepo/family_planner/issues/9).
 

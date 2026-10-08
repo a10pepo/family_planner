@@ -395,11 +395,8 @@ export function TasksPanel({
               <h2>{task.title}</h2>
               <p>
                 {task.member_ids
-                  .map(
-                    (id) =>
-                      members.find((member) => member.id === id)?.name ??
-                      "Integrante",
-                  )
+                  .map((id) => members.find((member) => member.id === id)?.name)
+                  .filter(Boolean)
                   .join(" · ")}
               </p>
               <span className="small muted">

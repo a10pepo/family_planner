@@ -14,8 +14,12 @@ El backend verifica firma RS256, caducidad, emisor, audiencia `family-api` y rol
 | --- | --- | --- |
 | GET | `/api/health` | Disponibilidad de la base de datos y de la migración; público. |
 | GET | `/api/v1/config` | Zona familiar y configuración pública de OAuth; no devuelve secretos. |
-| GET | `/api/v1/members` | Lista de integrantes. |
+| GET | `/api/v1/members` | Lista de integrantes activos; `include_archived=true` añade los archivados. |
+| DELETE | `/api/v1/members/{id}` | Archivar integrante conservando historia (204), idempotente. |
+| POST | `/api/v1/members/{id}/restore` | Restaurar el mismo integrante e historia, idempotente. |
 | POST | `/api/v1/members` | Alta con `name` y `color`; devuelve 201. |
+| GET / POST | `/api/v1/family-events` | Listar con `start` y `end` (fechas) / crear evento familiar de todo el día (201). |
+| PUT / DELETE | `/api/v1/family-events/{id}` | Editar fecha, título e icono / eliminar evento familiar (204). |
 | GET / POST | `/api/v1/icons` | Listar catálogo común / subir nombre e imagen (201). |
 | PUT | `/api/v1/members/{id}` | Editar nombre y foto opcional, manteniendo ID y color. |
 | GET | `/api/v1/events?start=…&end=…&member_id=…` | Eventos que se solapan con el intervalo; integrante opcional. |
@@ -41,6 +45,12 @@ Los errores usan `detail`: 401 para acceso ausente o inválido, 403 para cuenta 
 
 `PUT /members/{id}` recibe `name` (1–80 caracteres tras recortar) y `photo_data` opcional. Omitir la foto conserva la existente; enviar `null` la elimina. Para subirla se envía un data URI en base64 de JPEG, PNG o WebP. La API limita la imagen a 2 MB y 20 millones de píxeles, verifica su contenido y guarda una copia JPEG de 256 × 256 sin metadatos. La interfaz admite archivos de hasta 5 MB porque los reduce antes del envío. `GET /members` devuelve la foto normalizada o `null`; los nuevos integrantes empiezan sin foto. No se modifica el color ni el identificador y se mantienen eventos y asignaciones.
 
+`active` aparece en las respuestas de integrantes. Archivar no borra datos: eventos, avisos, asignaciones y marcas se ocultan y se recuperan al restaurar. No se permiten nuevas actividades ni marcas de un integrante archivado. La edición de una rutina puede conservar asignaciones previas archivadas, pero no añadir otras archivadas. Las rutinas activas sin ninguna asignación a un integrante activo no aparecen en GET /tasks.
+
+## Eventos familiares de día completo
+
+`family-events` usa `{id, day, title, icon, custom_icon_id}`. `day` es una fecha local `YYYY-MM-DD` y el título admite 1–80 caracteres. Iconos incluidos: `birthday`, `celebration`, `trip`, `other`. Se comparte el catálogo de imágenes con las demás actividades y se aplican las reglas de omisión/null en ediciones. No tiene integrante, hora ni repetición automática. GET requiere `start` incluido y `end` excluido; un intervalo vacío o invertido devuelve 422. Son operaciones autenticadas con la misma cuenta familiar.
+
 ## Avisos y rutinas
 
 Un aviso contiene `member_id`, `day`, `title` (1–80) e `icon`: `uniform`, `tracksuit`, `trip` u `other`. Son fechas de calendario familiar sin hora ni conversión UTC. Una edición mantiene el integrante; un aviso no se repite automáticamente.
@@ -53,7 +63,7 @@ La escritura de una marca establece el estado solicitado: repetir `completed=tru
 
 `GET /icons` lista `{id, name, image_data}`. `POST /icons` recibe nombre de 1–80 caracteres e imagen base64 en data URI JPG, PNG o WebP; requiere OAuth igual que las actividades. La API verifica el contenido, máximo 2 MB y 20 millones de píxeles, conserva proporciones y transparencia y devuelve PNG de 128 × 128 sin metadatos. El cliente puede admitir archivos mayores (hasta 5 MB) porque los reduce antes del envío. El icono queda en el catálogo aunque no se guarde después una actividad; no hay endpoint de borrado en este alcance.
 
-Eventos, avisos, tareas y ocurrencias añaden `custom_icon_id` nullable. El alta puede usar un UUID del catálogo o `null` para el icono incluido. En una edición, omitir el campo conserva la referencia y enviar `null` la elimina. Una referencia desconocida produce 404 y no guarda el elemento. Archivar una tarea conserva el icono global y sus marcas. La categoría y color de un evento se mantienen independientes de su icono personalizado. Las respuestas del catálogo contienen las imágenes normalizadas; las actividades devuelven solamente su referencia.
+Eventos, eventos familiares, avisos, tareas y ocurrencias añaden `custom_icon_id` nullable. El alta puede usar un UUID del catálogo o `null` para el icono incluido. En una edición, omitir el campo conserva la referencia y enviar `null` la elimina. Una referencia desconocida produce 404 y no guarda el elemento. Archivar una tarea conserva el icono global y sus marcas. La categoría y color de un evento se mantienen independientes de su icono personalizado. Las respuestas del catálogo contienen las imágenes normalizadas; las actividades devuelven solamente su referencia.
 
 ## Evolución del contrato
 

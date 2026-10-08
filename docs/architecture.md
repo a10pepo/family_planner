@@ -45,6 +45,7 @@ Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/ap
 - Las tareas se expanden por fecha en el dominio; no crear eventos con horario por cada repetición. Guardar las marcas por tarea/integrante/fecha y archivar sin borrarlas. Los avisos de día completo no tienen horario.
 - Validar y reducir fotos en el adaptador del backend; el dominio recibe la imagen normalizada. No confiar en la conversión del navegador.
 - El catálogo de iconos es común a eventos, avisos y tareas, con referencias opcionales validadas en el dominio y en PostgreSQL. No guardar imágenes repetidas en cada actividad ni quitar el catálogo al archivar una rutina.
+- Archivar un integrante conserva todos sus datos y oculta sus actividades y marcas en las consultas normales. Restaurarlo recupera las mismas identidades y asignaciones; no usar borrado en cascada. Los eventos familiares de día completo no dependen de un integrante y usan fechas locales, sin conversión a instantes UTC. Los filtros semanales afectan solo a la presentación.
 - La progresión de tareas pertenece a versiones futuras; no crear tablas o endpoints de analítica para anticiparla.
 - La estructura inicial de datos y cualquier cambio posterior requieren propuesta y aprobación previa de Pedro.
 - Cuando exista esquema, versionar las migraciones y probarlas con una base de datos desechable. No ejecutar cambios destructivos sobre datos reales sin aprobación expresa.

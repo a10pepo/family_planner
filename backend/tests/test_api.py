@@ -48,6 +48,7 @@ def client(database):
         for table in ("task_completions", "task_assignments", "all_day_notices", "tasks"):
             connection.execute(text(f"DELETE FROM {table}"))
         connection.execute(text("DELETE FROM events"))
+        connection.execute(text("DELETE FROM family_all_day_events"))
         connection.execute(text("DELETE FROM custom_icons"))
         connection.execute(text("DELETE FROM members"))
     app = create_app(url, TestVerifier())
@@ -186,6 +187,7 @@ def test_category_migration_preserves_existing_events(database):
         for table in ("task_completions", "task_assignments", "all_day_notices", "tasks"):
             connection.execute(text(f"DELETE FROM {table}"))
         connection.execute(text("DELETE FROM events"))
+        connection.execute(text("DELETE FROM family_all_day_events"))
         connection.execute(text("DELETE FROM custom_icons"))
         connection.execute(text("DELETE FROM members"))
     command.downgrade(Config("alembic.ini"), "001_calendar")
@@ -394,6 +396,7 @@ def test_new_migration_preserves_members_and_categorized_events(database):
             "all_day_notices",
             "tasks",
             "events",
+            "family_all_day_events",
             "custom_icons",
             "members",
         ):
@@ -554,3 +557,175 @@ def test_icon_migration_preserves_routines_notices_and_marks(client, database):
             assert not compare_metadata(MigrationContext.configure(connection), Base.metadata)
     finally:
         command.upgrade(Config("alembic.ini"), "head")
+
+
+def test_archived_profiles_hide_activities_and_restore_history(client):
+    person = client.post("/api/v1/members", json={"name": "Alex", "color": "#abcdef"}).json()
+    other = client.post("/api/v1/members", json={"name": "Sam", "color": "#abcdef"}).json()
+    member = person["id"]
+    data = {
+        "member_id": member,
+        "title": "Existing",
+        "starts_at": "2026-10-08T09:00:00Z",
+        "ends_at": "2026-10-08T10:00:00Z",
+    }
+    event = client.post("/api/v1/events", json=data).json()
+    notice = client.post(
+        "/api/v1/notices",
+        json={"member_id": member, "day": "2026-10-08", "title": "Uniforme", "icon": "uniform"},
+    ).json()
+    routine = {
+        "title": "Cama",
+        "icon": "bed",
+        "frequency": "daily",
+        "starts_on": "2026-10-08",
+        "member_ids": [member, other["id"]],
+    }
+    task = client.post("/api/v1/tasks", json=routine).json()
+    mark = {"member_id": member, "day": "2026-10-08", "completed": True}
+    assert client.put(f"/api/v1/tasks/{task['id']}/completion", json=mark).status_code == 200
+    query = {"start": "2026-10-08T00:00:00Z", "end": "2026-10-09T00:00:00Z"}
+    for _ in range(2):
+        assert client.delete(f"/api/v1/members/{member}").status_code == 204
+    assert client.get("/api/v1/members").json() == [other]
+    archived = client.get("/api/v1/members?include_archived=true").json()[0]
+    assert archived["id"] == member and not archived["active"]
+    assert client.get("/api/v1/events", params=query).json() == []
+    assert client.get("/api/v1/notices?day=2026-10-08").json() == []
+    assert [
+        item["member_id"] for item in client.get("/api/v1/task-occurrences?day=2026-10-08").json()
+    ] == [other["id"]]
+    assert client.post("/api/v1/events", json=data).status_code == 404
+    assert (
+        client.put(
+            f"/api/v1/events/{event['id']}",
+            json={k: v for k, v in data.items() if k != "member_id"},
+        ).status_code
+        == 404
+    )
+    assert client.put(f"/api/v1/tasks/{task['id']}/completion", json=mark).status_code == 404
+    assert (
+        client.put(
+            f"/api/v1/tasks/{task['id']}", json=routine | {"title": "Cama editada"}
+        ).status_code
+        == 200
+    )
+    assert client.post("/api/v1/tasks", json=routine).status_code == 404
+    assert client.post(f"/api/v1/members/{member}/restore").json() == person
+    assert client.post(f"/api/v1/members/{member}/restore").json() == person
+    assert client.get("/api/v1/events", params=query).json()[0] == event
+    assert client.get("/api/v1/notices?day=2026-10-08").json()[0] == notice
+    occurrences = client.get("/api/v1/task-occurrences?day=2026-10-08").json()
+    assert next(item for item in occurrences if item["member_id"] == member)["completed"]
+    assert client.delete(f"/api/v1/members/{uuid4()}").status_code == 404
+    assert client.post(f"/api/v1/members/{uuid4()}/restore").status_code == 404
+    client.headers.pop("Authorization")
+    assert client.delete(f"/api/v1/members/{member}").status_code == 401
+    assert client.post(f"/api/v1/members/{member}/restore").status_code == 401
+
+
+def test_family_events_are_global_date_scoped_and_reuse_icons(client):
+    from test_photos import synthetic_photo
+
+    icon = client.post(
+        "/api/v1/icons", json={"name": "Fiesta", "image_data": synthetic_photo()}
+    ).json()["id"]
+    data = {
+        "day": "2026-10-08",
+        "title": " Cumpleaños de prueba ",
+        "icon": "birthday",
+        "custom_icon_id": icon,
+    }
+    created = client.post("/api/v1/family-events", json=data)
+    assert created.status_code == 201
+    event = created.json()
+    assert event["title"] == "Cumpleaños de prueba"
+    query = {"start": "2026-10-08", "end": "2026-10-09"}
+    assert client.get("/api/v1/family-events", params=query).json() == [event]
+    assert (
+        client.get(
+            "/api/v1/family-events", params={"start": "2026-10-09", "end": "2026-10-10"}
+        ).json()
+        == []
+    )
+    assert (
+        client.get(
+            "/api/v1/family-events", params={"start": "2026-10-08", "end": "2026-10-08"}
+        ).status_code
+        == 422
+    )
+    assert client.post("/api/v1/family-events", json=data | {"icon": "bad"}).status_code == 422
+    assert client.post("/api/v1/family-events", json=data | {"title": " "}).status_code == 422
+    assert (
+        client.post(
+            "/api/v1/family-events", json=data | {"custom_icon_id": str(uuid4())}
+        ).status_code
+        == 404
+    )
+    edited = {"day": "2026-10-09", "title": "Fiesta", "icon": "celebration"}
+    assert (
+        client.put(f"/api/v1/family-events/{event['id']}", json=edited).json()["custom_icon_id"]
+        == icon
+    )
+    assert client.get("/api/v1/family-events", params=query).json() == []
+    assert (
+        client.put(
+            f"/api/v1/family-events/{event['id']}", json=edited | {"custom_icon_id": None}
+        ).json()["custom_icon_id"]
+        is None
+    )
+    assert client.delete(f"/api/v1/family-events/{event['id']}").status_code == 204
+    assert client.delete(f"/api/v1/family-events/{event['id']}").status_code == 404
+    client.headers.pop("Authorization")
+    assert client.get("/api/v1/family-events", params=query).status_code == 401
+    assert client.post("/api/v1/family-events", json=data).status_code == 401
+
+
+def test_family_views_migration_preserves_profiles_and_task_history(client, database):
+    _, engine = database
+    member = client.post("/api/v1/members", json={"name": "Legacy", "color": "#abcdef"}).json()[
+        "id"
+    ]
+    routine = {
+        "title": "Cama",
+        "icon": "bed",
+        "frequency": "daily",
+        "starts_on": "2026-10-08",
+        "member_ids": [member],
+    }
+    task = client.post("/api/v1/tasks", json=routine).json()["id"]
+    client.put(
+        f"/api/v1/tasks/{task}/completion",
+        json={"member_id": member, "day": "2026-10-08", "completed": True},
+    )
+    command.downgrade(Config("alembic.ini"), "004_reusable_icons")
+    try:
+        command.upgrade(Config("alembic.ini"), "head")
+        assert client.get("/api/v1/members").json()[0]["active"]
+        assert client.get("/api/v1/task-occurrences?day=2026-10-08").json()[0]["completed"]
+        client.delete(f"/api/v1/members/{member}")
+        client.post(
+            "/api/v1/family-events", json={"day": "2026-10-08", "title": "New", "icon": "birthday"}
+        )
+        with engine.connect() as connection:
+            assert not compare_metadata(MigrationContext.configure(connection), Base.metadata)
+        command.downgrade(Config("alembic.ini"), "004_reusable_icons")
+        command.upgrade(Config("alembic.ini"), "head")
+        assert client.get("/api/v1/members").json()[0]["id"] == member
+        assert client.get("/api/v1/members").json()[0]["active"]
+        assert client.get("/api/v1/task-occurrences?day=2026-10-08").json()[0]["completed"]
+        assert client.get("/api/v1/family-events?start=2026-10-08&end=2026-10-09").json() == []
+    finally:
+        command.upgrade(Config("alembic.ini"), "head")
+
+
+def test_demo_does_not_repopulate_archived_members(client, database):
+    from app.demo import DEMO_MEMBERS, seed_demo
+
+    _, engine = database
+    for name, color in DEMO_MEMBERS:
+        member = client.post("/api/v1/members", json={"name": name, "color": color}).json()
+        assert client.delete(f"/api/v1/members/{member['id']}").status_code == 204
+    assert not seed_demo(engine, "Europe/Madrid")
+    assert client.get("/api/v1/members").json() == []
+    assert len(client.get("/api/v1/members?include_archived=true").json()) == 4

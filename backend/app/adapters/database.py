@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -36,6 +37,7 @@ class MemberRow(Base):
     name: Mapped[str] = mapped_column(String(80))
     color: Mapped[str] = mapped_column(String(7))
     photo_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -86,13 +88,22 @@ class SqlCalendarRepository:
         row = self.session.get(IconRow, icon_id)
         return CustomIcon(row.id, row.name, row.image_data) if row else None
 
-    def members(self) -> list[Member]:
-        rows = self.session.scalars(select(MemberRow).order_by(MemberRow.created_at, MemberRow.id))
-        return [Member(row.id, row.name, row.color, row.photo_data) for row in rows]
+    def members(self, include_archived: bool = False) -> list[Member]:
+        query = select(MemberRow).order_by(MemberRow.created_at, MemberRow.id)
+        if not include_archived:
+            query = query.where(MemberRow.active)
+        return [
+            Member(row.id, row.name, row.color, row.photo_data, row.active)
+            for row in self.session.scalars(query)
+        ]
 
-    def member(self, member_id: UUID) -> Member | None:
+    def member(self, member_id: UUID, include_archived: bool = False) -> Member | None:
         row = self.session.get(MemberRow, member_id)
-        return Member(row.id, row.name, row.color, row.photo_data) if row else None
+        return (
+            Member(row.id, row.name, row.color, row.photo_data, row.active)
+            if row and (row.active or include_archived)
+            else None
+        )
 
     def add_member(self, member: Member) -> Member:
         self.session.add(
@@ -106,18 +117,23 @@ class SqlCalendarRepository:
     def save_member(self, member: Member) -> Member:
         row = self.session.get(MemberRow, member.id)
         row.name, row.photo_data = member.name, member.photo_data
+        row.active = member.active
         self.session.flush()
         return member
 
     def events(self, start: datetime, end: datetime, member_id: UUID | None) -> list[Event]:
-        query = select(EventRow).where(EventRow.starts_at < end, EventRow.ends_at > start)
+        query = (
+            select(EventRow)
+            .join(MemberRow)
+            .where(MemberRow.active, EventRow.starts_at < end, EventRow.ends_at > start)
+        )
         if member_id is not None:
             query = query.where(EventRow.member_id == member_id)
         return [to_event(row) for row in self.session.scalars(query.order_by(EventRow.starts_at))]
 
     def event(self, event_id: UUID) -> Event | None:
         row = self.session.get(EventRow, event_id)
-        return to_event(row) if row else None
+        return to_event(row) if row and self.member(row.member_id) else None
 
     def save_event(self, event: Event) -> Event:
         now = datetime.now(UTC)

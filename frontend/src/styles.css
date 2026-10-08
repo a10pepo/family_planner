@@ -951,3 +951,257 @@ legend {
   width: 22px;
   height: 22px;
 }
+
+/* Larger portraits with a vertical routine grid on their left. */
+.person-heading {
+  min-height: 280px;
+  padding: 12px 8px;
+  gap: 10px;
+}
+.member-head-main {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.person-heading .person-identity {
+  width: 116px;
+  height: auto;
+  flex-shrink: 0;
+}
+.person-heading .face-avatar {
+  width: 116px;
+  height: 116px;
+}
+.person-heading .person-name {
+  max-width: 100%;
+  font-size: 17px;
+}
+.person-heading .person-nickname {
+  font-size: 13px;
+}
+.person-heading .column-add {
+  position: static;
+  margin-top: 2px;
+}
+.person-heading .task-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 64px;
+  width: max-content;
+  min-height: 0;
+  max-height: 274px;
+  overflow-y: auto;
+  gap: 6px;
+  padding: 0;
+  align-content: center;
+}
+.person-heading .task-strip:empty {
+  display: none;
+}
+.person-heading .task-token {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+.person-heading .task-token > .icon,
+.person-heading .task-token > .custom-symbol {
+  width: 42px;
+  height: 42px;
+}
+.person-heading .task-tick {
+  width: 23px;
+  height: 23px;
+}
+.person-heading .task-tick .icon {
+  width: 14px;
+  height: 14px;
+}
+.person-heading .notice-strip {
+  margin-top: auto;
+}
+.day-columns {
+  position: relative;
+}
+.current-time-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  border-top: 2px solid #bd687b;
+  pointer-events: none;
+}
+.family-headings {
+  z-index: 6;
+}
+.current-time-line span {
+  position: sticky;
+  left: 0;
+  display: block;
+  width: 56px;
+  margin-top: -10px;
+  padding: 3px 0;
+  border-radius: 5px;
+  background: #bd687b;
+  color: white;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.family-event-strip {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.family-event-token {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f8e8da;
+  color: #896c53;
+  font-size: 13px;
+  max-width: 240px;
+}
+.family-event-token span {
+  overflow-wrap: anywhere;
+}
+.view-switch {
+  display: flex;
+  gap: 4px;
+  border-radius: 12px;
+  background: #f4f6f9;
+  padding: 3px;
+}
+.view-badge {
+  padding: 10px 12px;
+  background: transparent;
+  font-weight: 600;
+}
+.view-badge.selected {
+  background: #e5edf7;
+  color: #566e89;
+}
+.week-member-filters {
+  display: flex;
+  gap: 12px;
+  padding: 0 24px 18px;
+  overflow-x: auto;
+}
+.week-member-filter {
+  flex-shrink: 0;
+  background: #f0f5f2;
+  color: #587266;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  border: 2px solid #c7dcd0;
+  font-size: 13px;
+}
+.week-member-filter .face-avatar {
+  width: 68px;
+  height: 68px;
+}
+.week-member-filter.hidden-member {
+  background: #fafafa;
+  color: #92999c;
+  border-color: var(--line);
+}
+.hidden-member .face-avatar {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+.week-filter-note {
+  margin: 0 24px 15px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.week-viewport {
+  overflow: auto;
+}
+.week-calendar {
+  min-width: 920px;
+  height: max(420px, calc(100dvh - 420px));
+}
+.week-calendar .fc .fc-timegrid-slot-label,
+.week-calendar .fc .fc-timegrid-axis {
+  display: table-cell;
+  font-size: 11px;
+  color: #8d989e;
+}
+.week-calendar .fc-col-header-cell-cushion {
+  padding: 12px 4px;
+  text-transform: capitalize;
+  font-weight: 600;
+}
+.week-calendar .fc .fc-timegrid-event {
+  border-left-width: 4px;
+  border-radius: 8px;
+}
+.week-calendar .week-event-content {
+  padding: 5px 24px 5px 6px;
+  gap: 2px;
+}
+.week-calendar .week-event-content strong {
+  font-size: 14px;
+  line-height: 17px;
+}
+.week-calendar .family-week-event,
+.week-calendar .family-week-event strong {
+  white-space: normal;
+}
+.week-calendar .event-time,
+.week-calendar .event-person {
+  font-size: 10px;
+  line-height: 12px;
+}
+.week-calendar .event-category .icon,
+.week-calendar .event-category .custom-symbol {
+  width: 17px;
+  height: 17px;
+}
+.week-calendar .fc .fc-timegrid-now-indicator-line {
+  border-color: #bd687b;
+  border-top-width: 2px;
+  opacity: 1;
+}
+.week-calendar .fc .fc-timegrid-now-indicator-arrow {
+  border-color: #bd687b;
+}
+.archived-members {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.archived-members h2 {
+  font-size: 18px;
+}
+.archived-member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+.profile-card .delete-button {
+  margin: 0;
+  padding: 10px;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .family-event-strip {
+    flex-basis: 100%;
+  }
+  .week-member-filters {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .week-calendar {
+    height: max(420px, calc(100dvh - 500px));
+  }
+}

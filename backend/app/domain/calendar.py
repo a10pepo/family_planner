@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
@@ -34,6 +34,7 @@ class Member:
     name: str
     color: str
     photo_data: str | None = None
+    active: bool = True
 
 
 @dataclass(frozen=True)
@@ -49,8 +50,8 @@ class Event:
 
 class CalendarRepository(Protocol):
     def icon(self, icon_id: UUID): ...
-    def members(self) -> list[Member]: ...
-    def member(self, member_id: UUID) -> Member | None: ...
+    def members(self, include_archived: bool = False) -> list[Member]: ...
+    def member(self, member_id: UUID, include_archived: bool = False) -> Member | None: ...
     def add_member(self, member: Member) -> Member: ...
     def save_member(self, member: Member) -> Member: ...
     def events(self, start: datetime, end: datetime, member_id: UUID | None) -> list[Event]: ...
@@ -87,6 +88,12 @@ class Calendar:
         ):
             raise InvalidInput("El color debe ser hexadecimal, por ejemplo #2563eb.")
         return self.repository.add_member(Member(uuid4(), clean_text(name, 80), color.lower()))
+
+    def set_member_active(self, member_id: UUID, active: bool) -> Member:
+        previous = self.repository.member(member_id, include_archived=True)
+        if previous is None:
+            raise MissingEntity("No existe el integrante.")
+        return self.repository.save_member(replace(previous, active=active))
 
     def update_member(
         self,
@@ -144,7 +151,7 @@ class Calendar:
         replace_custom_icon: bool = False,
     ) -> Event:
         previous = self.repository.event(event_id)
-        if previous is None:
+        if previous is None or self.repository.member(previous.member_id) is None:
             raise MissingEntity("No existe el evento.")
         reference = custom_icon_id if replace_custom_icon else previous.custom_icon_id
         if reference is not None and self.repository.icon(reference) is None:
@@ -163,7 +170,8 @@ class Calendar:
         )
 
     def delete_event(self, event_id: UUID) -> None:
-        if self.repository.event(event_id) is None:
+        previous = self.repository.event(event_id)
+        if previous is None or self.repository.member(previous.member_id) is None:
             raise MissingEntity("No existe el evento.")
         self.repository.remove_event(event_id)
 

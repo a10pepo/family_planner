@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
-from app.adapters.database import Base, SqlCalendarRepository
+from app.adapters.database import Base, MemberRow, SqlCalendarRepository
 from app.domain.daily import Frequency, Notice, NoticeIcon, Task, TaskIcon
 
 
@@ -102,13 +102,16 @@ class SqlDailyRepository:
 
     def notices(self, day: date) -> list[Notice]:
         rows = self.session.scalars(
-            select(NoticeRow).where(NoticeRow.day == day).order_by(NoticeRow.title, NoticeRow.id)
+            select(NoticeRow)
+            .join(MemberRow)
+            .where(MemberRow.active, NoticeRow.day == day)
+            .order_by(NoticeRow.title, NoticeRow.id)
         )
         return [to_notice(row) for row in rows]
 
     def notice(self, notice_id: UUID) -> Notice | None:
         row = self.session.get(NoticeRow, notice_id)
-        return to_notice(row) if row else None
+        return to_notice(row) if row and self.member(row.member_id) else None
 
     def save_notice(self, notice: Notice) -> Notice:
         row = self.session.get(NoticeRow, notice.id)

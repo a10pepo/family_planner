@@ -12,7 +12,7 @@ Decisiones de Pedro Nieto del 7 de octubre de 2026, implementadas en los issues 
 
 ## Pantalla principal
 
-La vista por defecto es **Día**. Cada columna corresponde a un integrante y muestra su foto o cara ilustrada, nombre y apodo sobre sus eventos. Se elimina el título «Nuestro calendario» y los rótulos como «LA FAMILIA». La fecha, **Hoy** y las flechas permiten navegar entre días.
+La vista por defecto es **Día**. Cada columna corresponde a un integrante y muestra su foto o cara ilustrada ampliada, nombre y apodo sobre sus eventos. Las rutinas tienen iconos grandes a la izquierda de la cara, en una cuadrícula vertical que admite varias filas; tocarlos marca o desmarca la tarea. Se elimina el título «Nuestro calendario» y los rótulos como «LA FAMILIA». La fecha, **Hoy** y las flechas permiten navegar entre días.
 
 El menú izquierdo es estrecho y contiene únicamente iconos, con nombres accesibles para lectores de pantalla: calendario, Tareas, Configuración (engranaje), añadir integrante y cerrar sesión. Los eventos se añaden tocando una hora o seleccionando un intervalo en la columna correspondiente. El «+» de la cabecera ofrece la misma acción para teclado y pantalla táctil.
 
@@ -40,9 +40,9 @@ Contiene exactamente Laura (Mamá), Pedro (Papá), Jaime (Tete) y Lucía (Teta),
 
 Configuración permite editar nombre y foto de cada integrante, manteniendo sus eventos y asignaciones. La foto es opcional: elegir JPG, PNG o WebP, recortar al centro y guardar; quitarla recupera la ilustración.
 
-Debajo de cada cara hay una fila de avisos de día completo (uniforme, chándal, excursión u otro) para esa persona y fecha. Se añaden desde su «+» y se editan o eliminan pulsando el icono. Se muestran separados de los eventos con horario.
+Debajo del conjunto de cara y tareas hay una fila de avisos de día completo (uniforme, chándal, excursión u otro) para esa persona y fecha. Se añaden desde su «+» y se editan o eliminan pulsando el icono. Se muestran separados de los eventos con horario.
 
-Tareas permite crear y editar rutinas con icono, título, integrantes y frecuencia: todos los días desde una fecha o solo un día. Los iconos se muestran bajo sus integrantes en el calendario. Tocarlos marca o desmarca la tarea para esa persona en el día seleccionado; un check y el color verde indican que está hecha. Al navegar al día siguiente las marcas son independientes. Archivar oculta la rutina y conserva sus marcas para un seguimiento futuro; editar la definición se aplica a todas las fechas conservando las marcas.
+Tareas permite crear y editar rutinas con icono, título, integrantes y frecuencia: todos los días desde una fecha o solo un día. Los iconos se muestran a la izquierda de sus integrantes en el calendario diario. Tocarlos marca o desmarca la tarea para esa persona en el día seleccionado; un check y el color verde indican que está hecha. Al navegar al día siguiente las marcas son independientes. Archivar oculta la rutina y conserva sus marcas para un seguimiento futuro; editar la definición se aplica a todas las fechas conservando las marcas.
 
 Pedro aprobó la migración de estos datos, conservando los integrantes y eventos actuales y sin añadir servicios AWS.
 
@@ -50,10 +50,20 @@ Pedro aprobó la migración de estos datos, conservando los integrantes y evento
 
 Los editores de tareas, avisos y eventos comparten un catálogo de iconos. Subir un fichero validado añade una opción persistente para cualquier integrante y cualquiera de esos formularios. El icono se guarda al subirlo; cancelar el formulario no lo retira del catálogo. Guardar el elemento aplica la selección. Se mantienen las opciones incluidas, las categorías y sus colores, las actividades y las marcas de tareas.
 
+## Vistas y gestión familiar (issue #11)
+
+Día sigue siendo la vista inicial. Una línea común muestra la hora actual en la zona de la familia, se actualiza cada 15 segundos y solo aparece en la fecha de hoy. Los eventos familiares de día completo, como cumpleaños, se muestran junto a la fecha; se añaden desde su «+» y permiten editar fecha, título e icono o eliminar con confirmación. El catálogo de imágenes es compartido con el resto de actividades. Una fecha no implica repetición anual automática.
+
+Semana muestra lunes a domingo, con una columna por día que reúne los eventos con horario de todos los integrantes, tarjetas más compactas y el nombre de la persona. Las rutinas diarias no aparecen. Tocar la cara de un integrante muestra u oculta sus eventos, sin cambiar datos ni ocultar eventos familiares. Los filtros se mantienen al cambiar de día a semana y al navegar; recargar recupera todos los integrantes. El área de todo el día contiene los eventos familiares de cada fecha. Se puede crear un evento desde una hora vacía, editarlo, arrastrarlo y ajustar su duración. La navegación avanza o retrocede semanas completas.
+
+Configuración permite retirar un integrante tras una confirmación que explica el archivo. Desaparece su columna y dejan de mostrarse sus actividades y ocurrencias; se conservan perfil, eventos, avisos, asignaciones y marcas. Se puede restaurar desde Integrantes archivados. Se admite retirar todos los integrantes; los eventos familiares siguen disponibles.
+
+Pedro aprobó el esquema de eventos familiares y archivo con restauración, y confirmó que los filtros semanales afectan a eventos con horario, sin mostrar rutinas.
+
 ## Versiones posteriores
 
 Los eventos son elementos del calendario. Las tareas son rutinas diarias de los niños —desayunar, hacer la cama, vestirse, lavarse los dientes, hacer deberes— que podrán marcarse como hechas. El marcado diario de tareas ya está implementado; su progresión queda para versiones futuras.
 
-La exploración inicial contemplaba vistas semanal, mensual y lista, filtros combinados de integrantes, eventos compartidos, recurrencias de eventos y ajustes adicionales. Estas ideas requieren sus propios issues y decisiones; no forman parte de esta entrega.
+La exploración inicial contemplaba vistas mensual y lista, recurrencias de eventos y ajustes adicionales. Estas ideas requieren sus propios issues y decisiones; no forman parte de esta entrega.
 
 Consultar [docs/decisions.md](docs/decisions.md) y [docs/architecture.md](docs/architecture.md) para acuerdos técnicos y límites de implementación.

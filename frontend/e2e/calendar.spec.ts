@@ -48,7 +48,7 @@ test("daily demo has four faces and persistent categorized events", async ({
   await expect(
     page.locator(".sidebar").getByRole("button", { name: /evento/i }),
   ).toHaveCount(0);
-  await expect(page.locator(".view-badge")).toHaveText("Día");
+  await expect(page.locator(".view-badge.selected")).toHaveText("Día");
   if (process.env.EXPECT_PERSISTENCE === "1") {
     await expect(
       page.locator(".member-calendar[data-member='Jaime (Tete)'] .fc-event", {
