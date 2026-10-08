@@ -1,0 +1,12 @@
+aws_account_id = "111111111111"
+aws_region = "eu-west-1"
+lambda_artifact_bucket = "family-planner-production-111111111111-artifacts"
+lambda_artifact_key = "production/REPLACE_COMMIT.zip"
+lambda_artifact_version = "REPLACE_S3_VERSION_ID"
+lambda_artifact_sha256 = "REPLACE_BASE64_SHA256"
+# El handler debe existir en el ZIP compatible; aún no existe en la aplicación local.
+# lambda_handler = "app.lambda_handler.handler"
+# Dominio opcional. El certificado debe existir en us-east-1 y cubrir el dominio.
+# domain_name = "production.example.com"
+# certificate_arn = "arn:aws:acm:us-east-1:111111111111:certificate/REPLACE"
+# route53_zone_id = "REPLACE_EXISTING_ZONE_ID"
