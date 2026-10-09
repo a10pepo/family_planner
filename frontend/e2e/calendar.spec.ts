@@ -46,8 +46,8 @@ test("daily demo has four faces and persistent categorized events", async ({
   await expect(page.getByText("LA FAMILIA", { exact: true })).toHaveCount(0);
   await expect(page.locator(".sidebar")).toHaveCSS("width", "76px");
   await expect(
-    page.locator(".sidebar").getByRole("button", { name: /evento/i }),
-  ).toHaveCount(0);
+    page.locator(".sidebar").getByRole("button", { name: "Eventos" }),
+  ).toHaveCount(1);
   await expect(page.locator(".view-badge.selected")).toHaveText("Día");
   if (process.env.EXPECT_PERSISTENCE === "1") {
     await expect(
