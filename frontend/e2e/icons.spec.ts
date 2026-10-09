@@ -122,8 +122,11 @@ test("uploaded icon is shared by tasks, notices and events and survives restart"
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await event.scrollIntoViewIfNeeded();
-  await expect(event.locator("img.custom-symbol")).toBeInViewport();
+  const mobileEvent = page.locator(".mobile-day-calendar .fc-event", {
+    hasText: "Evento icono de prueba",
+  });
+  await expect(mobileEvent).toBeVisible();
+  await expect(mobileEvent.locator("img.custom-symbol")).toBeInViewport();
   await page.screenshot({
     path: "test-results/icons-mobile.png",
     fullPage: true,

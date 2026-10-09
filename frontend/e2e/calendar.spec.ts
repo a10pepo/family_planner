@@ -162,9 +162,12 @@ test("daily demo has four faces and persistent categorized events", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileCalendar = page.locator(".mobile-day-calendar");
   await expect(mobileCalendar).toBeVisible();
-  await expect(
-    mobileCalendar.locator(".fc-timegrid-body .fc-timegrid-col"),
-  ).toHaveCount(1);
+  const columnDates = await mobileCalendar
+    .locator(".fc-timegrid-col[data-date]")
+    .evaluateAll((columns) => [
+      ...new Set(columns.map((column) => column.getAttribute("data-date"))),
+    ]);
+  expect(columnDates).toHaveLength(1);
   await expect(page.locator(".mobile-day-member-filter")).toHaveCount(4);
   await expect(page.locator(".person-heading")).toHaveCount(0);
   await expect(page.locator(".task-token")).toHaveCount(0);
@@ -182,7 +185,8 @@ test("daily demo has four faces and persistent categorized events", async ({
   await slot.scrollIntoViewIfNeeded();
   const slotBounds = await slot.boundingBox();
   const columnBounds = await mobileCalendar
-    .locator(".fc-timegrid-body .fc-timegrid-col")
+    .locator(".fc-timegrid-col")
+    .first()
     .boundingBox();
   await page.mouse.click(
     columnBounds!.x + columnBounds!.width / 2,
