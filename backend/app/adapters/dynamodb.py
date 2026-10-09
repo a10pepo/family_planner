@@ -345,9 +345,7 @@ class DynamoDailyRepository:
 
     def save_task(self, task: Task) -> Task:
         if len(task.member_ids) > 99:
-            raise InvalidInput(
-                "Una tarea no puede asignarse a más de 99 integrantes en AWS."
-            )
+            raise InvalidInput("Una tarea no puede asignarse a más de 99 integrantes en AWS.")
         previous = self.access.get(FAMILY_PK, f"TASK#{task.id}")
         item = {
             "pk": FAMILY_PK,
@@ -384,9 +382,7 @@ class DynamoDailyRepository:
                         "Key": _serialize({"pk": FAMILY_PK, "sk": f"MEMBER#{member_id}"}),
                         "ConditionExpression": "attribute_exists(pk) AND #active = :active",
                         "ExpressionAttributeNames": {"#active": "active"},
-                        "ExpressionAttributeValues": _serialize(
-                            {":active": not retained_archived}
-                        ),
+                        "ExpressionAttributeValues": _serialize({":active": not retained_archived}),
                     }
                 }
             )
@@ -396,9 +392,7 @@ class DynamoDailyRepository:
                     "TableName": self.access.table.name,
                     "Item": _serialize(item),
                     "ConditionExpression": (
-                        "attribute_not_exists(pk)"
-                        if previous is None
-                        else "attribute_exists(pk)"
+                        "attribute_not_exists(pk)" if previous is None else "attribute_exists(pk)"
                     ),
                 }
             }
