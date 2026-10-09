@@ -29,7 +29,7 @@ export function MemberHeading({
           role="group"
           aria-label={`Tareas de ${name}`}
           style={{
-            gridTemplateRows: `repeat(${Math.max(3, Math.ceil(tasks.length / 2))}, 68px)`,
+            gridTemplateRows: `repeat(${Math.max(2, Math.ceil(tasks.length / 2))}, 68px)`,
           }}
         >
           {tasks.map((item) => (

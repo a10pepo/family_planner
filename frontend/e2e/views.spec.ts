@@ -24,7 +24,7 @@ test("large portraits and vertical routines accompany a moving current-time line
   const picture = await portrait.boundingBox();
   const first = await routines.nth(0).boundingBox();
   const second = await routines.nth(1).boundingBox();
-  expect(first!.width).toBe(64);
+  expect(first!.width).toBe(68);
   expect(first!.x + first!.width).toBeLessThan(picture!.x);
   expect(second!.y).toBeGreaterThan(first!.y);
   const line = page.locator(".current-time-line");
@@ -121,11 +121,11 @@ test("week filters, global all-day events and confirmed profile archive persist"
       .startOf("day")
       .plus({ hours: 12 });
     await page
-      .getByLabel("Inicio", { exact: true })
-      .fill(begins.toFormat("yyyy-MM-dd'T'HH:mm"));
+      .getByLabel("Hora de inicio", { exact: true })
+      .fill(begins.toFormat("HH:mm"));
     await page
-      .getByLabel("Fin", { exact: true })
-      .fill(begins.plus({ hours: 1 }).toFormat("yyyy-MM-dd'T'HH:mm"));
+      .getByLabel("Hora de fin", { exact: true })
+      .fill(begins.plus({ hours: 1 }).toFormat("HH:mm"));
     await page
       .getByRole("button", { name: "Guardar evento", exact: true })
       .click();
