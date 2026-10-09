@@ -18,6 +18,8 @@ docker run --rm -it --user "$(id -u):$(id -g)" \
 
 El asistente pide usuario y contraseña, genera credenciales locales para los servicios y crea `.env` y `.local/family-realm.json`, excluidos de Git. No sobrescribe una configuración existente. La contraseña familiar debe tener al menos 12 caracteres. Si ya tienes Python 3.12 o posterior, también puedes ejecutar `python3 scripts/setup.py`.
 
+Para una instalación nueva que quieras probar desde una tablet en la misma red, pasa la IPv4 privada del ordenador: `python3 scripts/setup.py --lan-host 192.168.1.25`. Sustituye la dirección de ejemplo por la de tu equipo. La aplicación usará esa dirección para OAuth y escuchará en la red local. Sin esta opción, solo escucha en `127.0.0.1`.
+
 Construye y arranca los servicios:
 
 ```bash
@@ -26,6 +28,20 @@ docker compose ps
 ```
 
 Abre [http://localhost:8080](http://localhost:8080). La primera vez, Keycloak puede tardar uno o dos minutos en arrancar. Pulsa **Entrar al calendario** e introduce la cuenta familiar. Si aparece el mensaje de arranque, pulsa **Volver a intentar** cuando el proveedor esté disponible.
+
+### Probar desde una tablet en la misma red
+
+La instalación local usa HTTP y no está pensada para exponerse a internet. No reenvíes el puerto 8080 en el router. Usa una red doméstica de confianza.
+
+En una instalación nueva, ejecuta el asistente con `--lan-host` como se indica arriba. En una instalación ya configurada:
+
+1. Averigua la IPv4 privada del ordenador (en macOS, normalmente puedes verla en **Ajustes del Sistema → Wi-Fi → Detalles**).
+2. En `.env`, cambia `APP_ORIGIN` a `http://<IP-del-ordenador>:8080` y añade `APP_BIND_ADDRESS=0.0.0.0`.
+3. En Keycloak Admin, abre `http://localhost:8080/auth/admin/master/console/`, selecciona el realm `family` y ve a **Clients → family-planner → Settings**. Añade `http://<IP-del-ordenador>:8080/` y `http://<IP-del-ordenador>:8080/api/docs/oauth2-redirect` a **Valid redirect URIs**, y `http://<IP-del-ordenador>:8080` a **Web origins**. Guarda los cambios. No uses comodines.
+4. Ejecuta `docker compose up -d` para aplicar la configuración. Si el firewall del ordenador pregunta, permite conexiones en la red privada.
+5. En la tablet, abre `http://<IP-del-ordenador>:8080` conectada a la misma red Wi-Fi.
+
+Para volver al acceso solo desde el ordenador, restaura `APP_ORIGIN=http://localhost:8080` y `APP_BIND_ADDRESS=127.0.0.1` en `.env`, y ejecuta de nuevo `docker compose up -d`. El origen adicional puede quedarse registrado en el cliente Keycloak; elimínalo desde **Clients → family-planner → Settings** si ya no lo necesitas.
 
 1. Añade los integrantes desde el icono de personas del menú lateral.
 2. Toca una hora en la columna de la persona, selecciona un intervalo o pulsa el «+» de esa columna para añadir un evento.
