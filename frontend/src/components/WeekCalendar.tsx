@@ -138,10 +138,16 @@ export function WeekCalendar({
           eventos.
         </p>
       )}
-      <div className={`week-viewport ${calendarMode === "day" ? "mobile-day-viewport" : ""}`}>
+      <div
+        className={`week-viewport ${calendarMode === "day" ? "mobile-day-viewport" : ""}`}
+      >
         <div
           className={`week-calendar ${calendarMode === "day" ? "mobile-day-calendar-grid" : ""}`}
-          aria-label={calendarMode === "day" ? "Eventos del día" : "Semana de lunes a domingo"}
+          aria-label={
+            calendarMode === "day"
+              ? "Eventos del día"
+              : "Semana de lunes a domingo"
+          }
           onScrollCapture={(event) => {
             const target = event.target as HTMLElement;
             if (target.classList.contains("fc-scroller-liquid-absolute"))
@@ -154,7 +160,9 @@ export function WeekCalendar({
             locale={es}
             timeZone={zone}
             initialDate={start}
-            initialView={calendarMode === "day" ? "timeGridDay" : "timeGridWeek"}
+            initialView={
+              calendarMode === "day" ? "timeGridDay" : "timeGridWeek"
+            }
             firstDay={1}
             weekends
             headerToolbar={false}

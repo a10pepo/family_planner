@@ -838,7 +838,9 @@ export default function App({
                     now={now}
                     members={members}
                     events={events}
-                    familyEvents={familyEvents.filter((event) => event.day === day)}
+                    familyEvents={familyEvents.filter(
+                      (event) => event.day === day,
+                    )}
                     hidden={hiddenMembers}
                     toggle={(id) =>
                       setHiddenMembers((previous) =>
