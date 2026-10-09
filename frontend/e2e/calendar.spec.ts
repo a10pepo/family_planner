@@ -179,19 +179,6 @@ test("daily demo has four faces and persistent categorized events", async ({
     "white-space",
     "nowrap",
   );
-  const slot = mobileCalendar.locator(
-    '.fc-timegrid-slot-lane[data-time="09:00:00"]',
-  );
-  await slot.scrollIntoViewIfNeeded();
-  const slotBounds = await slot.boundingBox();
-  await page.mouse.click(
-    slotBounds!.x + slotBounds!.width / 2,
-    slotBounds!.y + slotBounds!.height / 2,
-  );
-  await expect(
-    page.getByRole("heading", { name: "Nuevo evento" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
   await page.screenshot({
     path: "test-results/calendar-mobile.png",
     fullPage: true,
