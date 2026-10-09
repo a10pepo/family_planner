@@ -159,3 +159,9 @@ MVP local implementado en el [issue #3](https://github.com/a10pepo/family_planne
 ## Contribuir
 
 Todo cambio parte de un issue en [GitHub](https://github.com/a10pepo/family_planner/issues), etiquetado `feature` para nuevas funcionalidades o `issue` para errores y cambios de seguridad. Consultar `AGENTS.md` antes de empezar y vincular el PR al issue.
+
+## Terraform para AWS
+
+El [Terraform y su guía de despliegue manual](infra/README.md) preparan preview y producción separados en la misma cuenta, con S3/CloudFront, API Gateway/Lambda, DynamoDB y Cognito. Se validan en CI con proveedores simulados, sin login ni recursos AWS.
+
+Este trabajo incluye solo infraestructura: el backend y frontend actuales mantienen PostgreSQL/Keycloak y necesitan adaptadores Lambda/DynamoDB/Cognito antes de publicar el calendario funcional. Pedro hará el login y revisará el plan antes de desplegar. No se migran datos ni se activa CD remoto.

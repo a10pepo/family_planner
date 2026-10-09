@@ -1,0 +1,8 @@
+bucket = "family-planner-111111111111-terraform-state"
+key = "preview/terraform.tfstate"
+region = "eu-west-1"
+allowed_account_ids = ["111111111111"]
+encrypt = true
+use_lockfile = true
+# Perfil AWS opcional; nunca pegar claves aquí.
+# profile = "family-planner"

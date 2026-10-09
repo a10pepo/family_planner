@@ -67,7 +67,7 @@ Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/ap
 - La configuración debe suministrarse desde el entorno. Publicar solo ejemplos sin secretos.
 - Las pruebas y el desarrollo local no necesitan cuenta de AWS ni recursos facturables.
 - Evitar dependencias directas de AWS en el negocio. Aislar mediante adaptadores las integraciones que se aprueben más adelante.
-- No decidir ahora un servicio concreto de AWS, provisionar infraestructura ni activar un despliegue remoto.
+- Pedro ha elegido S3/CloudFront, DynamoDB, Lambda y Cognito con preview y producción en la misma cuenta (issue #13). El alcance autorizado ahora es preparar Terraform y pruebas simuladas; no iniciar sesión, provisionar ni activar despliegue remoto. Véase [infra/README.md](../infra/README.md). La adaptación del código y la migración siguen pendientes.
 - Cada propuesta de despliegue debe especificar entorno, recursos, permisos, costes estimados, secretos, migraciones y procedimiento de reversión antes de su aprobación.
 
 ## 7. CI/CD y controles de merge

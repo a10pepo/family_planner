@@ -14,3 +14,14 @@ dist/
 playwright-report/
 test-results/
 .DS_Store
+
+# Terraform: conservar ejemplos y lockfiles; nunca estados, planes ni credenciales.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+backend.hcl
+crash.log
+crash.*.log

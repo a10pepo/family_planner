@@ -77,8 +77,14 @@ El downgrade borra exclusivamente `family_all_day_events` y `members.active`; pi
 - Eventos compartidos con horario, recurrencias y vista mensual si se aprueba su alcance.
 - Cambiar el integrante asignado a un evento, reasignación y gestión avanzada de perfiles.
 - Configuración para la pantalla de la nevera por red doméstica y despliegue público, incluyendo HTTPS y OAuth para su URL real.
-- Destino de despliegue AWS, estimación de costes y seguridad para acceso público.
+- Adaptación y puesta en marcha en AWS, revisión del coste real y seguridad para acceso público.
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
 
 Los cambios de datos posteriores siguen requiriendo consulta. Los requisitos de versiones futuras no se incorporan automáticamente al MVP por aparecer en la referencia UI inicial.
+
+## Infraestructura AWS (issue #13)
+
+Pedro eligió S3/CloudFront para la web, DynamoDB para los datos, Lambda para la API y Cognito para el acceso, con preview y producción separados en una misma cuenta. Después limitó esta entrega: «no quiero que inicies sesión solo crea el terraform yo haré el login antes de desplegar».
+
+Se prepara únicamente Terraform, documentación y CI con proveedores simulados. No se consulta la cuenta ni se crean recursos; tampoco se adapta el código, transforma el esquema lógico o importa información familiar. La API actual depende de PostgreSQL y el cliente OAuth de Keycloak. El ZIP Lambda y el frontend compatibles con DynamoDB/Cognito, revisión del plan/costes/seguridad y login manual de Pedro son requisitos previos al despliegue funcional. Los detalles están en [aws-proposal.md](aws-proposal.md) e [infra/README.md](../infra/README.md).
