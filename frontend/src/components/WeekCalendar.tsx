@@ -28,6 +28,7 @@ export function WeekCalendar({
   move,
   cancelOccurrence,
   busy,
+  calendarMode = "week",
 }: {
   date: DateTime;
   zone: string;
@@ -43,9 +44,13 @@ export function WeekCalendar({
   move: (info: EventDropArg | EventResizeDoneArg) => void;
   cancelOccurrence: (event: CalendarEvent) => void;
   busy: boolean;
+  calendarMode?: "day" | "week";
 }) {
   const visible = members.filter((member) => !hidden.includes(member.id));
-  const start = date.startOf("week").toISODate()!;
+  const start =
+    calendarMode === "day"
+      ? date.toISODate()!
+      : date.startOf("week").toISODate()!;
   const appointments = useMemo(
     () =>
       events.filter((event) =>
@@ -101,18 +106,18 @@ export function WeekCalendar({
   const scroll = useRef(7 * 56);
   // Refresh FullCalendar when its feed changes; its option updates can retain
   // the previous array. Capture the scroll so edits and filters keep the hour.
-  const calendarKey = `${start}-${JSON.stringify(calendarEvents)}`;
+  const calendarKey = `${calendarMode}-${start}-${JSON.stringify(calendarEvents)}`;
   return (
     <>
       <div
-        className="week-member-filters"
+        className={`week-member-filters ${calendarMode === "day" ? "mobile-day-member-filters" : ""}`}
         role="group"
-        aria-label="Integrantes visibles en la semana"
+        aria-label={`Integrantes visibles ${calendarMode === "day" ? "en el día" : "en la semana"}`}
       >
         {members.map((member) => (
           <button
             key={member.id}
-            className={`week-member-filter ${hidden.includes(member.id) ? "hidden-member" : ""}`}
+            className={`week-member-filter ${calendarMode === "day" ? "mobile-day-member-filter" : ""} ${hidden.includes(member.id) ? "hidden-member" : ""}`}
             aria-pressed={!hidden.includes(member.id)}
             aria-label={`Mostrar eventos de ${member.name}`}
             title={`${hidden.includes(member.id) ? "Mostrar" : "Ocultar"} eventos de ${member.name}`}
@@ -133,10 +138,16 @@ export function WeekCalendar({
           eventos.
         </p>
       )}
-      <div className="week-viewport">
+      <div
+        className={`week-viewport ${calendarMode === "day" ? "mobile-day-viewport" : ""}`}
+      >
         <div
-          className="week-calendar"
-          aria-label="Semana de lunes a domingo"
+          className={`week-calendar ${calendarMode === "day" ? "mobile-day-calendar-grid" : ""}`}
+          aria-label={
+            calendarMode === "day"
+              ? "Eventos del día"
+              : "Semana de lunes a domingo"
+          }
           onScrollCapture={(event) => {
             const target = event.target as HTMLElement;
             if (target.classList.contains("fc-scroller-liquid-absolute"))
@@ -149,7 +160,9 @@ export function WeekCalendar({
             locale={es}
             timeZone={zone}
             initialDate={start}
-            initialView="timeGridWeek"
+            initialView={
+              calendarMode === "day" ? "timeGridDay" : "timeGridWeek"
+            }
             firstDay={1}
             weekends
             headerToolbar={false}

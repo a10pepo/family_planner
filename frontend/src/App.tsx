@@ -373,6 +373,18 @@ export default function App({
   config: AppConfig;
 }) {
   const [authenticated, setAuthenticated] = useState(!!auth.authenticated);
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 760px)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const api = useMemo(() => new Api(auth), [auth]);
   const [customIcons, setCustomIcons] = useState<CustomIcon[]>([]);
   const [allMembers, setMembers] = useState<Member[]>([]);
@@ -682,20 +694,25 @@ export default function App({
             >
               <header className="calendar-toolbar">
                 <div className="calendar-period">
-                  <span className="month-label">
+                  <span className="month-label calendar-month-desktop">
                     {date.setLocale("es").toFormat("LLLL yyyy")}
                   </span>
-                  <h1>
+                  <h1 className="calendar-date-desktop">
                     {calendarMode === "day"
                       ? date.setLocale("es").toFormat("cccc, d 'de' LLLL")
                       : `${rangeStart.setLocale("es").toFormat("d LLL")} — ${rangeEnd.minus({ days: 1 }).setLocale("es").toFormat("d LLL yyyy")}`}
                   </h1>
+                  <h1 className="calendar-date-mobile">
+                    {date.setLocale("es").toFormat("ccc, d LLL yyyy")}
+                  </h1>
                 </div>
-                <FamilyEvents
-                  events={familyEvents.filter((event) => event.day === day)}
-                  add={() => setFamilyEditor({ day })}
-                  edit={(event) => setFamilyEditor({ day: event.day, event })}
-                />
+                <div className="family-events-toolbar">
+                  <FamilyEvents
+                    events={familyEvents.filter((event) => event.day === day)}
+                    add={() => setFamilyEditor({ day })}
+                    edit={(event) => setFamilyEditor({ day: event.day, event })}
+                  />
+                </div>
                 <div className="calendar-controls">
                   <button
                     className="secondary"
@@ -824,7 +841,44 @@ export default function App({
                   busy={moving || !!editor || !!familyEditor}
                 />
               )}
-              {!!members.length && calendarMode === "day" && (
+              {!!members.length && calendarMode === "day" && isMobile && (
+                <div className="mobile-day-calendar">
+                  <WeekCalendar
+                    calendarMode="day"
+                    date={date}
+                    zone={config.timezone}
+                    now={now}
+                    members={members}
+                    events={events}
+                    familyEvents={familyEvents.filter(
+                      (event) => event.day === day,
+                    )}
+                    hidden={hiddenMembers}
+                    toggle={(id) =>
+                      setHiddenMembers((previous) =>
+                        previous.includes(id)
+                          ? previous.filter((item) => item !== id)
+                          : [...previous, id],
+                      )
+                    }
+                    addEvent={addEvent}
+                    editEvent={(event) =>
+                      setEditor({
+                        event,
+                        start: event.starts_at,
+                        end: event.ends_at,
+                      })
+                    }
+                    editFamilyEvent={(day, event) =>
+                      setFamilyEditor({ day, event })
+                    }
+                    move={move}
+                    cancelOccurrence={cancelOccurrence}
+                    busy={moving || !!editor || !!familyEditor}
+                  />
+                </div>
+              )}
+              {!!members.length && calendarMode === "day" && !isMobile && (
                 <div className="day-viewport" ref={viewport}>
                   <div
                     className="day-surface"

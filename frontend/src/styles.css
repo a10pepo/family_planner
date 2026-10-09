@@ -244,6 +244,13 @@ p {
   font-weight: 600;
   text-transform: capitalize;
 }
+.calendar-date-mobile,
+.mobile-day-calendar {
+  display: none;
+}
+.family-events-toolbar {
+  display: contents;
+}
 .calendar-controls {
   display: flex;
   align-items: center;
@@ -687,15 +694,38 @@ legend {
     padding: 18px 14px;
     flex-wrap: wrap;
     gap: 14px;
+    align-items: center;
   }
   .calendar-controls {
     gap: 10px;
   }
   .calendar-period {
-    width: 100%;
+    width: auto;
+    min-width: 0;
+    flex: 1;
   }
-  .calendar-period h1 {
-    font-size: 20px;
+  .calendar-date-desktop,
+  .calendar-month-desktop {
+    display: none;
+  }
+  .calendar-period .calendar-date-mobile {
+    display: block;
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.25;
+    letter-spacing: -0.35px;
+    white-space: nowrap;
+  }
+  .family-events-toolbar {
+    display: flex;
+    order: 3;
+    flex-basis: 100%;
+  }
+  .family-event-strip {
+    flex-basis: 100%;
+  }
+  .family-events-toolbar .daily-add {
+    display: none;
   }
   .day-viewport {
     max-height: calc(100dvh - 335px);
@@ -1315,5 +1345,48 @@ legend {
   }
   .week-calendar {
     height: max(420px, calc(100dvh - 500px));
+  }
+  .mobile-day-calendar {
+    display: block;
+  }
+  .day-viewport {
+    display: none;
+  }
+  .mobile-day-calendar .week-member-filters {
+    gap: 14px;
+    padding: 0 14px 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mobile-day-calendar .week-member-filters::-webkit-scrollbar {
+    display: none;
+  }
+  .mobile-day-calendar .mobile-day-member-filter {
+    min-width: 54px;
+    min-height: 58px;
+    gap: 3px;
+    padding: 5px 7px;
+    font-size: 10px;
+  }
+  .mobile-day-calendar .mobile-day-member-filter .face-avatar {
+    width: 38px;
+    height: 38px;
+  }
+  .mobile-day-viewport {
+    overflow: hidden;
+  }
+  .mobile-day-calendar .mobile-day-calendar-grid {
+    min-width: 0;
+    width: 100%;
+    height: max(420px, calc(100dvh - 425px));
+  }
+  .mobile-day-calendar .mobile-day-calendar-grid .fc-scrollgrid {
+    width: 100% !important;
+  }
+  .mobile-day-calendar .mobile-day-calendar-grid .fc-col-header {
+    display: none;
+  }
+  .mobile-day-calendar .week-event-content {
+    padding-right: 26px;
   }
 }

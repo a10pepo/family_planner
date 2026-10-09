@@ -160,22 +160,25 @@ test("daily demo has four faces and persistent categorized events", async ({
   await page.reload();
   await expect(event).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".person-heading")).toHaveCount(4);
+  const mobileCalendar = page.locator(".mobile-day-calendar");
+  await expect(mobileCalendar).toBeVisible();
+  const columnDates = await mobileCalendar
+    .locator(".fc-timegrid-col[data-date]")
+    .evaluateAll((columns) => [
+      ...new Set(columns.map((column) => column.getAttribute("data-date"))),
+    ]);
+  expect(columnDates).toHaveLength(1);
+  await expect(page.locator(".mobile-day-member-filter")).toHaveCount(4);
+  await expect(page.locator(".person-heading")).toHaveCount(0);
+  await expect(page.locator(".task-token")).toHaveCount(0);
   await expect(page.locator(".sidebar")).toHaveCSS("width", "60px");
-  await page.locator(".day-viewport").evaluate((element) => {
-    element.scrollLeft = element.scrollWidth;
-  });
   await expect(
-    page.locator(".hour-label").filter({ hasText: /^09:00$/ }),
-  ).toBeInViewport();
-  await expect(
-    page.getByRole("button", { name: "Añadir evento para Lucía" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Añadir evento para Lucía" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Nuevo evento" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+    page.getByRole("button", { name: "Añadir evento familiar de todo el día" }),
+  ).toBeHidden();
+  await expect(page.locator(".calendar-date-mobile")).toHaveCSS(
+    "white-space",
+    "nowrap",
+  );
   await page.screenshot({
     path: "test-results/calendar-mobile.png",
     fullPage: true,
