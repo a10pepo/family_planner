@@ -34,6 +34,10 @@ import { MemberHeading } from "./components/MemberHeading";
 import { CurrentTime, useCurrentTime } from "./components/CurrentTime";
 import { WeekCalendar } from "./components/WeekCalendar";
 import { FamilyEvents, FamilyEventForm } from "./components/FamilyEvents";
+import {
+  EventOccurrenceForm,
+  EventSeriesPanel,
+} from "./components/EventSeriesPanel";
 
 const colors = [
   "#dcebe2",
@@ -385,9 +389,9 @@ export default function App({
   } | null>(null);
   const now = useCurrentTime(config.timezone);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [view, setView] = useState<"calendar" | "settings" | "tasks">(
-    "calendar",
-  );
+  const [view, setView] = useState<
+    "calendar" | "settings" | "tasks" | "events"
+  >("calendar");
   const [notices, setNotices] = useState<Notice[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
@@ -418,6 +422,8 @@ export default function App({
   const [moving, setMoving] = useState(false);
   const [memberForm, setMemberForm] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [occurrenceEditor, setOccurrenceEditor] =
+    useState<CalendarEvent | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -501,6 +507,10 @@ export default function App({
     }
   }
 
+  function cancelOccurrence(event: CalendarEvent) {
+    setOccurrenceEditor(event);
+  }
+
   async function complete(occurrence: Occurrence) {
     setCompleting(`${occurrence.task_id}-${occurrence.member_id}`);
     setError("");
@@ -578,6 +588,15 @@ export default function App({
               <Icon name="calendar" />
             </button>
             <button
+              className={`rail-button ${view === "events" ? "active" : ""}`}
+              aria-label="Eventos"
+              title="Eventos"
+              aria-current={view === "events" ? "page" : undefined}
+              onClick={() => setView("events")}
+            >
+              <Icon name="repeat" />
+            </button>
+            <button
               className={`rail-button ${view === "tasks" ? "active" : ""}`}
               aria-label="Tareas"
               title="Tareas"
@@ -640,6 +659,15 @@ export default function App({
               members={members}
               api={api}
               day={day}
+              saved={() => setRefresh((value) => value + 1)}
+            />
+          )}
+          {view === "events" && (
+            <EventSeriesPanel
+              api={api}
+              members={members}
+              zone={config.timezone}
+              savedKey={refresh}
               saved={() => setRefresh((value) => value + 1)}
             />
           )}
@@ -792,6 +820,7 @@ export default function App({
                     setFamilyEditor({ day, event })
                   }
                   move={move}
+                  cancelOccurrence={cancelOccurrence}
                   busy={moving || !!editor || !!familyEditor}
                 />
               )}
@@ -880,7 +909,12 @@ export default function App({
                                 extendedProps: {
                                   category: event.category,
                                   custom_icon_id: event.custom_icon_id,
+                                  recurring_series_id:
+                                    event.recurring_series_id,
+                                  occurrence_date: event.occurrence_date,
+                                  occurrence_time: event.occurrence_time,
                                 },
+                                editable: !event.recurring_series_id,
                                 borderColor: categories[event.category].color,
                               }))}
                             dateClick={(info) =>
@@ -899,6 +933,16 @@ export default function App({
                             eventDrop={move}
                             eventResize={move}
                             eventClick={(info) => {
+                              const seriesId = info.event.extendedProps
+                                .recurring_series_id as string | undefined;
+                              if (seriesId) {
+                                const occurrence = events.find(
+                                  (event) => event.id === info.event.id,
+                                );
+                                if (occurrence)
+                                  void cancelOccurrence(occurrence);
+                                return;
+                              }
                               const event = events.find(
                                 (event) => event.id === info.event.id,
                               );
@@ -991,6 +1035,18 @@ export default function App({
             close={() => setFamilyEditor(null)}
             saved={() => {
               setFamilyEditor(null);
+              setRefresh((value) => value + 1);
+            }}
+          />
+        )}
+        {occurrenceEditor && (
+          <EventOccurrenceForm
+            api={api}
+            event={occurrenceEditor}
+            zone={config.timezone}
+            close={() => setOccurrenceEditor(null)}
+            saved={() => {
+              setOccurrenceEditor(null);
               setRefresh((value) => value + 1);
             }}
           />

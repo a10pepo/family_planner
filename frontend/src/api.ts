@@ -15,6 +15,9 @@ export type TaskInput = components["schemas"]["TaskInput"];
 export type Occurrence = components["schemas"]["OccurrenceOutput"];
 export type MemberUpdate = components["schemas"]["MemberUpdate"];
 export type EventUpdate = components["schemas"]["EventUpdate"];
+export type EventSeries = components["schemas"]["SeriesOutput"];
+export type EventSeriesInput = components["schemas"]["SeriesInput"];
+export type EventExceptionInput = components["schemas"]["ExceptionInput"];
 
 export class Api {
   constructor(private auth: Keycloak) {}
@@ -166,5 +169,42 @@ export class Api {
   }
   deleteEvent(id: string) {
     return this.request<void>(`/events/${id}`, { method: "DELETE" });
+  }
+  eventSeries() {
+    return this.request<EventSeries[]>("/event-series");
+  }
+  addEventSeries(data: EventSeriesInput) {
+    return this.request<EventSeries>("/event-series", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  updateEventSeries(id: string, data: EventSeriesInput) {
+    return this.request<EventSeries>(`/event-series/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+  deleteEventSeries(id: string) {
+    return this.request<void>(`/event-series/${id}`, { method: "DELETE" });
+  }
+  saveEventException(id: string, data: EventExceptionInput) {
+    return this.request(`/event-series/${id}/exceptions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  deleteEventException(
+    id: string,
+    occurrenceDate: string,
+    occurrenceTime: string,
+  ) {
+    const query = new URLSearchParams({
+      occurrence_date: occurrenceDate,
+      occurrence_time: occurrenceTime,
+    });
+    return this.request<void>(`/event-series/${id}/exceptions?${query}`, {
+      method: "DELETE",
+    });
   }
 }

@@ -74,7 +74,7 @@ El downgrade borra exclusivamente `family_all_day_events` y `members.active`; pi
 ## Próximas versiones
 
 - Seguimiento y progresión histórica de las rutinas.
-- Eventos compartidos con horario, recurrencias y vista mensual si se aprueba su alcance.
+- Eventos compartidos con horario y vista mensual si se aprueba su alcance.
 - Cambiar el integrante asignado a un evento, reasignación y gestión avanzada de perfiles.
 - Configuración para la pantalla de la nevera por red doméstica y despliegue público, incluyendo HTTPS y OAuth para su URL real.
 - Adaptación y puesta en marcha en AWS, revisión del coste real y seguridad para acceso público.
@@ -82,6 +82,14 @@ El downgrade borra exclusivamente `family_all_day_events` y `members.active`; pi
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
 
 Los cambios de datos posteriores siguen requiriendo consulta. Los requisitos de versiones futuras no se incorporan automáticamente al MVP por aparecer en la referencia UI inicial.
+
+## Eventos recurrentes (issue #18)
+
+Pedro aprobó el 9 de octubre de 2026 añadir series recurrentes y excepciones, manteniendo intactos los eventos puntuales existentes. La migración aditiva `006_recurring_events` incorpora `event_series` y `event_exceptions`; la expansión es por rango consultado y no crea filas por cada fecha futura. La reversión elimina las series y sus excepciones, sin cambiar integrantes ni eventos puntuales.
+
+Una serie guarda integrante, título, fecha y hora local de inicio, duración, zona IANA, frecuencia diaria/semanal/mensual, intervalo, días semanales opcionales, categoría e icono opcional. El final se expresa como nunca, fecha inclusiva o cantidad total de ocurrencias. Para series semanales sin días se usa el día de inicio. En la frecuencia mensual se repite el mismo número de día y se omiten los meses que no lo contienen. La hora de pared se mantiene en la zona configurada a través de cambios DST; el intervalo de duración se suma a cada inicio local.
+
+Una excepción se identifica por serie, fecha local de inicio original y hora local de inicio original. Puede cancelar esa ocurrencia o sobrescribir hora, duración, título, categoría e icono. Editar la serie cambia su regla; eliminarla elimina también sus excepciones. El calendario consulta y expande únicamente el rango visible, y no permite arrastrar una ocurrencia recurrente como si fuera un evento puntual.
 
 ## Infraestructura AWS (issue #13)
 

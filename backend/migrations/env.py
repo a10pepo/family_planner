@@ -4,6 +4,7 @@ from alembic import context
 from app.adapters import (
     daily,  # noqa: F401 -- register daily models in migration metadata
     family,  # noqa: F401 -- register family models in migration metadata
+    recurrence,  # noqa: F401 -- register recurrence models in migration metadata
 )
 from app.adapters.database import Base
 from sqlalchemy import create_engine, pool

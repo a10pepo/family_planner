@@ -26,6 +26,9 @@ El backend verifica firma RS256, caducidad, emisor, audiencia `family-api` y rol
 | POST | `/api/v1/events` | Alta con integrante, título, inicio, fin y categoría; devuelve 201. |
 | PUT | `/api/v1/events/{id}` | Cambiar título, fecha, hora, duración y categoría; mantiene el integrante. |
 | DELETE | `/api/v1/events/{id}` | Elimina un evento; devuelve 204. |
+| GET / POST | `/api/v1/event-series` | Lista las series recurrentes activas / crea una serie. El alta devuelve 201. |
+| PUT / DELETE | `/api/v1/event-series/{id}` | Actualiza la regla completa / elimina la serie y sus excepciones (204). |
+| POST / DELETE | `/api/v1/event-series/{id}/exceptions` | Guarda o quita una excepción identificada por la fecha y hora local originales de una ocurrencia. |
 | GET / POST | `/api/v1/notices` | Listar por `day=YYYY-MM-DD` / crear aviso para integrante y fecha (201). |
 | PUT / DELETE | `/api/v1/notices/{id}` | Editar fecha, título e icono / eliminar (204). |
 | GET / POST | `/api/v1/tasks` | Listar rutinas activas / crear con título, icono, frecuencia, fecha inicial e integrantes (201). |
@@ -36,6 +39,14 @@ El backend verifica firma RS256, caducidad, emisor, audiencia `family-api` y rol
 Todas las operaciones de integrantes, eventos, avisos y tareas requieren un token válido. Los identificadores son UUID. Las fechas de los eventos deben incluir desplazamiento UTC; la persistencia usa PostgreSQL `timestamptz`. El intervalo es de inicio incluido y final excluido, con eventos que se solapan incluidos aunque empiecen antes. El fin siempre debe ser posterior al inicio. Un evento puede cruzar la medianoche o un cambio horario.
 
 Los errores usan `detail`: 401 para acceso ausente o inválido, 403 para cuenta sin rol, 404 para entidad inexistente, 422 para datos inválidos y 503 si un servicio necesario no está disponible. La respuesta de validación 422 puede contener una lista de errores de campos.
+
+## Eventos recurrentes
+
+`GET /events` combina eventos puntuales con las ocurrencias de series que se solapan con el intervalo solicitado. Cada ocurrencia devuelve un `id` derivado, `recurring_series_id`, `occurrence_date` y `occurrence_time`; estos dos últimos campos identifican el inicio local original, incluso cuando la excepción cambia la hora. Las ocurrencias se calculan por rango y no se persisten como eventos puntuales.
+
+Una serie contiene `member_id`, `title`, `start_date`, `start_time`, `duration_minutes`, `timezone` (nombre IANA), `frequency` (`daily`, `weekly` o `monthly`), `interval`, `weekdays` (0 lunes a 6 domingo), `end_mode` (`never`, `date` o `count`), `end_date`, `occurrence_count`, `category` y `custom_icon_id`. Solo se envía el límite correspondiente a `end_mode`. El máximo del intervalo es 365, la duración hasta 10080 minutos y el conteo hasta 10000. Las series semanales sin días seleccionados toman el día de la fecha inicial; mensual repite el mismo número de día y omite meses sin él.
+
+Una excepción puede cancelar una ocurrencia (`cancelled`) o sobrescribir `override_start_time`, `override_duration_minutes`, `override_title`, `override_category` y el icono (`has_icon_override`, `override_custom_icon_id`). En hora local inexistente por el salto de primavera se omite la ocurrencia; en la hora repetida de otoño se usa la primera aparición. El calendario no permite arrastrar una ocurrencia recurrente. Al pulsarla ofrece cancelar solo esa fecha; la serie se modifica desde Eventos.
 
 ## Categorías
 
