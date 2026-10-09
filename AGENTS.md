@@ -30,7 +30,7 @@
 
 ## Trabajo basado en issues de GitHub
 
-- En este proyecto se usa GitHub Issues; no Jira CPT.
+- El seguimiento de este repositorio se realiza exclusivamente mediante GitHub Issues. No crear, abrir ni solicitar tickets en Jira (incluido CPT): CPT corresponde a otro proyecto.
 - Antes de cualquier desarrollo o cambio del repositorio, localizar un issue que cubra el trabajo o crearlo. No implementar trabajo sin issue.
 - Usar la etiqueta `issue` para errores o cambios de seguridad y `feature` para nuevas funcionalidades. La preparación inicial del repositorio se registra como `feature`.
 - Cada issue debe explicar el problema u objetivo, el alcance y criterios de aceptación verificables. No mezclar mejoras ajenas al issue.
