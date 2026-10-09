@@ -373,6 +373,18 @@ export default function App({
   config: AppConfig;
 }) {
   const [authenticated, setAuthenticated] = useState(!!auth.authenticated);
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 760px)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const api = useMemo(() => new Api(auth), [auth]);
   const [customIcons, setCustomIcons] = useState<CustomIcon[]>([]);
   const [allMembers, setMembers] = useState<Member[]>([]);
@@ -829,7 +841,7 @@ export default function App({
                   busy={moving || !!editor || !!familyEditor}
                 />
               )}
-              {!!members.length && calendarMode === "day" && (
+              {!!members.length && calendarMode === "day" && isMobile && (
                 <div className="mobile-day-calendar">
                   <WeekCalendar
                     calendarMode="day"
@@ -866,7 +878,7 @@ export default function App({
                   />
                 </div>
               )}
-              {!!members.length && calendarMode === "day" && (
+              {!!members.length && calendarMode === "day" && !isMobile && (
                 <div className="day-viewport" ref={viewport}>
                   <div
                     className="day-surface"

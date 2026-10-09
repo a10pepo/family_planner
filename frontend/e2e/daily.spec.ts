@@ -151,17 +151,20 @@ test("profiles, day notices and independent recurring tasks survive reload and r
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator(".day-viewport").evaluate((element) => {
-    element.scrollLeft = element.scrollWidth;
-  });
-  await expect(lucia).toBeInViewport();
-  const bounds = await lucia.boundingBox();
+  const mobileFilter = page
+    .locator(".mobile-day-member-filter")
+    .filter({ hasText: "Lucía" });
+  await expect(page.locator(".mobile-day-calendar")).toBeVisible();
+  await expect(page.locator(".task-token")).toHaveCount(0);
+  await expect(mobileFilter).toBeInViewport();
+  await expect(mobileFilter).toHaveAttribute("aria-pressed", "true");
+  const bounds = await mobileFilter.boundingBox();
   expect(bounds!.width).toBeGreaterThanOrEqual(44);
   expect(bounds!.height).toBeGreaterThanOrEqual(44);
-  await lucia.click();
-  await expect(lucia).toHaveAttribute("aria-pressed", "false");
-  await lucia.click();
-  await expect(lucia).toHaveAttribute("aria-pressed", "true");
+  await mobileFilter.click();
+  await expect(mobileFilter).toHaveAttribute("aria-pressed", "false");
+  await mobileFilter.click();
+  await expect(mobileFilter).toHaveAttribute("aria-pressed", "true");
   await page.screenshot({
     path: "test-results/daily-features-mobile.png",
     fullPage: true,

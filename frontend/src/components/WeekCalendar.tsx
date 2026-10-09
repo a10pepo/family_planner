@@ -119,7 +119,7 @@ export function WeekCalendar({
             key={member.id}
             className={`week-member-filter ${calendarMode === "day" ? "mobile-day-member-filter" : ""} ${hidden.includes(member.id) ? "hidden-member" : ""}`}
             aria-pressed={!hidden.includes(member.id)}
-            aria-label={`${hidden.includes(member.id) ? "Mostrar" : "Ocultar"} eventos de ${member.name}`}
+            aria-label={`Mostrar eventos de ${member.name}`}
             title={`${hidden.includes(member.id) ? "Mostrar" : "Ocultar"} eventos de ${member.name}`}
             onClick={() => toggle(member.id)}
           >
