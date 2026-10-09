@@ -38,6 +38,60 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/event-series": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Series */
+    get: operations["list_series_api_v1_event_series_get"];
+    put?: never;
+    /** Create Series */
+    post: operations["create_series_api_v1_event_series_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/event-series/{series_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Series */
+    put: operations["update_series_api_v1_event_series__series_id__put"];
+    post?: never;
+    /** Delete Series */
+    delete: operations["delete_series_api_v1_event_series__series_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/event-series/{series_id}/exceptions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Save Exception */
+    post: operations["save_exception_api_v1_event_series__series_id__exceptions_post"];
+    /** Remove Exception */
+    delete: operations["remove_exception_api_v1_event_series__series_id__exceptions_delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/events": {
     parameters: {
       query?: never;
@@ -311,6 +365,11 @@ export interface components {
        */
       member_id: string;
     };
+    /**
+     * EndMode
+     * @enum {string}
+     */
+    EndMode: "never" | "date" | "count";
     /** EventInput */
     EventInput: {
       /** @default other */
@@ -356,6 +415,12 @@ export interface components {
        * Format: uuid
        */
       member_id: string;
+      /** Occurrence Date */
+      occurrence_date?: string | null;
+      /** Occurrence Time */
+      occurrence_time?: string | null;
+      /** Recurring Series Id */
+      recurring_series_id?: string | null;
       /**
        * Starts At
        * Format: date-time
@@ -381,6 +446,75 @@ export interface components {
       starts_at: string;
       /** Title */
       title: string;
+    };
+    /** ExceptionInput */
+    ExceptionInput: {
+      /**
+       * Cancelled
+       * @default false
+       */
+      cancelled: boolean;
+      /**
+       * Has Icon Override
+       * @default false
+       */
+      has_icon_override: boolean;
+      /**
+       * Occurrence Date
+       * Format: date
+       */
+      occurrence_date: string;
+      /**
+       * Occurrence Time
+       * Format: time
+       */
+      occurrence_time: string;
+      override_category?: components["schemas"]["Category"] | null;
+      /** Override Custom Icon Id */
+      override_custom_icon_id?: string | null;
+      /** Override Duration Minutes */
+      override_duration_minutes?: number | null;
+      /** Override Start Time */
+      override_start_time?: string | null;
+      /** Override Title */
+      override_title?: string | null;
+    };
+    /** ExceptionOutput */
+    ExceptionOutput: {
+      /**
+       * Cancelled
+       * @default false
+       */
+      cancelled: boolean;
+      /**
+       * Has Icon Override
+       * @default false
+       */
+      has_icon_override: boolean;
+      /**
+       * Occurrence Date
+       * Format: date
+       */
+      occurrence_date: string;
+      /**
+       * Occurrence Time
+       * Format: time
+       */
+      occurrence_time: string;
+      override_category?: components["schemas"]["Category"] | null;
+      /** Override Custom Icon Id */
+      override_custom_icon_id?: string | null;
+      /** Override Duration Minutes */
+      override_duration_minutes?: number | null;
+      /** Override Start Time */
+      override_start_time?: string | null;
+      /** Override Title */
+      override_title?: string | null;
+      /**
+       * Series Id
+       * Format: uuid
+       */
+      series_id: string;
     };
     /** FamilyEventInput */
     FamilyEventInput: {
@@ -420,11 +554,6 @@ export interface components {
      * @enum {string}
      */
     FamilyIcon: "birthday" | "celebration" | "trip" | "other";
-    /**
-     * Frequency
-     * @enum {string}
-     */
-    Frequency: "daily" | "once";
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -569,6 +698,89 @@ export interface components {
       /** Title */
       title: string;
     };
+    /** SeriesInput */
+    SeriesInput: {
+      /** @default other */
+      category: components["schemas"]["Category"];
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** End Date */
+      end_date?: string | null;
+      /** @default never */
+      end_mode: components["schemas"]["EndMode"];
+      frequency: components["schemas"]["app__domain__recurrence__Frequency"];
+      /** Interval */
+      interval: number;
+      /**
+       * Member Id
+       * Format: uuid
+       */
+      member_id: string;
+      /** Occurrence Count */
+      occurrence_count?: number | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Time
+       * Format: time
+       */
+      start_time: string;
+      /** Timezone */
+      timezone: string;
+      /** Title */
+      title: string;
+      /** Weekdays */
+      weekdays?: number[];
+    };
+    /** SeriesOutput */
+    SeriesOutput: {
+      /** @default other */
+      category: components["schemas"]["Category"];
+      /** Custom Icon Id */
+      custom_icon_id?: string | null;
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** End Date */
+      end_date?: string | null;
+      /** @default never */
+      end_mode: components["schemas"]["EndMode"];
+      frequency: components["schemas"]["app__domain__recurrence__Frequency"];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Interval */
+      interval: number;
+      /**
+       * Member Id
+       * Format: uuid
+       */
+      member_id: string;
+      /** Occurrence Count */
+      occurrence_count?: number | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Time
+       * Format: time
+       */
+      start_time: string;
+      /** Timezone */
+      timezone: string;
+      /** Title */
+      title: string;
+      /** Weekdays */
+      weekdays?: number[];
+    };
     /**
      * TaskIcon
      * @enum {string}
@@ -579,7 +791,7 @@ export interface components {
       /** Custom Icon Id */
       custom_icon_id?: string | null;
       /** @default daily */
-      frequency: components["schemas"]["Frequency"];
+      frequency: components["schemas"]["app__domain__daily__Frequency"];
       /** @default other */
       icon: components["schemas"]["TaskIcon"];
       /** Member Ids */
@@ -599,7 +811,7 @@ export interface components {
       /** Custom Icon Id */
       custom_icon_id?: string | null;
       /** @default daily */
-      frequency: components["schemas"]["Frequency"];
+      frequency: components["schemas"]["app__domain__daily__Frequency"];
       /** @default other */
       icon: components["schemas"]["TaskIcon"];
       /**
@@ -630,6 +842,16 @@ export interface components {
       /** Error Type */
       type: string;
     };
+    /**
+     * Frequency
+     * @enum {string}
+     */
+    app__domain__daily__Frequency: "daily" | "once";
+    /**
+     * Frequency
+     * @enum {string}
+     */
+    app__domain__recurrence__Frequency: "daily" | "weekly" | "monthly";
   };
   responses: never;
   parameters: never;
@@ -675,6 +897,201 @@ export interface operations {
         };
         content: {
           "application/json": unknown;
+        };
+      };
+    };
+  };
+  list_series_api_v1_event_series_get: {
+    parameters: {
+      query?: {
+        member_id?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SeriesOutput"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_series_api_v1_event_series_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SeriesInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SeriesOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_series_api_v1_event_series__series_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        series_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SeriesInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SeriesOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_series_api_v1_event_series__series_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        series_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  save_exception_api_v1_event_series__series_id__exceptions_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        series_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ExceptionInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExceptionOutput"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  remove_exception_api_v1_event_series__series_id__exceptions_delete: {
+    parameters: {
+      query: {
+        occurrence_date: string;
+        occurrence_time: string;
+      };
+      header?: never;
+      path: {
+        series_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

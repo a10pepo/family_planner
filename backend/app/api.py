@@ -1,6 +1,7 @@
 import os
 from collections.abc import Iterator
 from dataclasses import asdict
+from datetime import date, time
 from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -15,10 +16,13 @@ from sqlalchemy.orm import Session
 from app.adapters.database import SqlCalendarRepository, make_engine
 from app.adapters.oauth import OAuthVerifier
 from app.adapters.photos import normalize_photo
+from app.adapters.recurrence import SqlRecurrenceRepository
 from app.api_daily import install_daily_routes
 from app.api_family import install_family_routes
 from app.api_icons import install_icon_routes
+from app.api_recurrence import install_recurrence_routes
 from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
+from app.domain.recurrence import expand_series
 
 
 class MemberInput(BaseModel):
@@ -55,6 +59,9 @@ class EventInput(EventUpdate):
 
 class EventOutput(EventInput):
     id: UUID
+    recurring_series_id: UUID | None = None
+    occurrence_date: date | None = None
+    occurrence_time: time | None = None
 
 
 def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
@@ -176,7 +183,11 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
         service: use_calendar,
         member_id: UUID | None = None,
     ):
-        return [asdict(event) for event in service.list_events(start, end, member_id)]
+        punctual = service.list_events(start, end, member_id)
+        recurring = SqlRecurrenceRepository(service.repository.session)
+        for series in recurring.series(member_id):
+            punctual.extend(expand_series(series, start, end, recurring.exceptions(series.id)))
+        return [asdict(event) for event in sorted(punctual, key=lambda item: item.starts_at)]
 
     @app.post(
         "/api/v1/events",
@@ -224,4 +235,5 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
     install_daily_routes(app, engine, guarded)
     install_icon_routes(app, engine, guarded)
     install_family_routes(app, engine, guarded)
+    install_recurrence_routes(app, guarded, use_calendar)
     return app

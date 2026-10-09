@@ -38,6 +38,15 @@
         "title": "CompletionInput",
         "type": "object"
       },
+      "EndMode": {
+        "enum": [
+          "never",
+          "date",
+          "count"
+        ],
+        "title": "EndMode",
+        "type": "string"
+      },
       "EventInput": {
         "additionalProperties": false,
         "properties": {
@@ -122,6 +131,42 @@
             "title": "Member Id",
             "type": "string"
           },
+          "occurrence_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Date"
+          },
+          "occurrence_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Time"
+          },
+          "recurring_series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurring Series Id"
+          },
           "starts_at": {
             "format": "date-time",
             "title": "Starts At",
@@ -192,6 +237,194 @@
           "ends_at"
         ],
         "title": "EventUpdate",
+        "type": "object"
+      },
+      "ExceptionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "cancelled": {
+            "default": false,
+            "title": "Cancelled",
+            "type": "boolean"
+          },
+          "has_icon_override": {
+            "default": false,
+            "title": "Has Icon Override",
+            "type": "boolean"
+          },
+          "occurrence_date": {
+            "format": "date",
+            "title": "Occurrence Date",
+            "type": "string"
+          },
+          "occurrence_time": {
+            "format": "time",
+            "title": "Occurrence Time",
+            "type": "string"
+          },
+          "override_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "override_custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Custom Icon Id"
+          },
+          "override_duration_minutes": {
+            "anyOf": [
+              {
+                "maximum": 10080.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Duration Minutes"
+          },
+          "override_start_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Start Time"
+          },
+          "override_title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Title"
+          }
+        },
+        "required": [
+          "occurrence_date",
+          "occurrence_time"
+        ],
+        "title": "ExceptionInput",
+        "type": "object"
+      },
+      "ExceptionOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "cancelled": {
+            "default": false,
+            "title": "Cancelled",
+            "type": "boolean"
+          },
+          "has_icon_override": {
+            "default": false,
+            "title": "Has Icon Override",
+            "type": "boolean"
+          },
+          "occurrence_date": {
+            "format": "date",
+            "title": "Occurrence Date",
+            "type": "string"
+          },
+          "occurrence_time": {
+            "format": "time",
+            "title": "Occurrence Time",
+            "type": "string"
+          },
+          "override_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "override_custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Custom Icon Id"
+          },
+          "override_duration_minutes": {
+            "anyOf": [
+              {
+                "maximum": 10080.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Duration Minutes"
+          },
+          "override_start_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Start Time"
+          },
+          "override_title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Title"
+          },
+          "series_id": {
+            "format": "uuid",
+            "title": "Series Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "occurrence_date",
+          "occurrence_time",
+          "series_id"
+        ],
+        "title": "ExceptionOutput",
         "type": "object"
       },
       "FamilyEventInput": {
@@ -284,14 +517,6 @@
           "other"
         ],
         "title": "FamilyIcon",
-        "type": "string"
-      },
-      "Frequency": {
-        "enum": [
-          "daily",
-          "once"
-        ],
-        "title": "Frequency",
         "type": "string"
       },
       "HTTPValidationError": {
@@ -647,6 +872,236 @@
         "title": "OccurrenceOutput",
         "type": "object"
       },
+      "SeriesInput": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "default": "other"
+          },
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
+          "duration_minutes": {
+            "maximum": 10080.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "end_mode": {
+            "$ref": "#/components/schemas/EndMode",
+            "default": "never"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/app__domain__recurrence__Frequency"
+          },
+          "interval": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Interval",
+            "type": "integer"
+          },
+          "member_id": {
+            "format": "uuid",
+            "title": "Member Id",
+            "type": "string"
+          },
+          "occurrence_count": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Count"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "title": "Weekdays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "member_id",
+          "title",
+          "start_date",
+          "start_time",
+          "duration_minutes",
+          "timezone",
+          "frequency",
+          "interval"
+        ],
+        "title": "SeriesInput",
+        "type": "object"
+      },
+      "SeriesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "default": "other"
+          },
+          "custom_icon_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Icon Id"
+          },
+          "duration_minutes": {
+            "maximum": 10080.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "end_mode": {
+            "$ref": "#/components/schemas/EndMode",
+            "default": "never"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/app__domain__recurrence__Frequency"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interval": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Interval",
+            "type": "integer"
+          },
+          "member_id": {
+            "format": "uuid",
+            "title": "Member Id",
+            "type": "string"
+          },
+          "occurrence_count": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Count"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "title": "Weekdays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "member_id",
+          "title",
+          "start_date",
+          "start_time",
+          "duration_minutes",
+          "timezone",
+          "frequency",
+          "interval",
+          "id"
+        ],
+        "title": "SeriesOutput",
+        "type": "object"
+      },
       "TaskIcon": {
         "enum": [
           "tooth",
@@ -673,7 +1128,7 @@
             "title": "Custom Icon Id"
           },
           "frequency": {
-            "$ref": "#/components/schemas/Frequency",
+            "$ref": "#/components/schemas/app__domain__daily__Frequency",
             "default": "daily"
           },
           "icon": {
@@ -730,7 +1185,7 @@
             "title": "Custom Icon Id"
           },
           "frequency": {
-            "$ref": "#/components/schemas/Frequency",
+            "$ref": "#/components/schemas/app__domain__daily__Frequency",
             "default": "daily"
           },
           "icon": {
@@ -813,6 +1268,23 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "app__domain__daily__Frequency": {
+        "enum": [
+          "daily",
+          "once"
+        ],
+        "title": "Frequency",
+        "type": "string"
+      },
+      "app__domain__recurrence__Frequency": {
+        "enum": [
+          "daily",
+          "weekly",
+          "monthly"
+        ],
+        "title": "Frequency",
+        "type": "string"
       }
     },
     "securitySchemes": {
@@ -869,6 +1341,323 @@
         "summary": "Config",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/api/v1/event-series": {
+      "get": {
+        "operationId": "list_series_api_v1_event_series_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "member_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Member Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SeriesOutput"
+                  },
+                  "title": "Response List Series Api V1 Event Series Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "List Series",
+        "tags": [
+          "events"
+        ]
+      },
+      "post": {
+        "operationId": "create_series_api_v1_event_series_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "Create Series",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v1/event-series/{series_id}": {
+      "delete": {
+        "operationId": "delete_series_api_v1_event_series__series_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "Delete Series",
+        "tags": [
+          "events"
+        ]
+      },
+      "put": {
+        "operationId": "update_series_api_v1_event_series__series_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "Update Series",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v1/event-series/{series_id}/exceptions": {
+      "delete": {
+        "operationId": "remove_exception_api_v1_event_series__series_id__exceptions_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "occurrence_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Occurrence Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "occurrence_time",
+            "required": true,
+            "schema": {
+              "format": "time",
+              "title": "Occurrence Time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "Remove Exception",
+        "tags": [
+          "events"
+        ]
+      },
+      "post": {
+        "operationId": "save_exception_api_v1_event_series__series_id__exceptions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExceptionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2AuthorizationCodeBearer": []
+          }
+        ],
+        "summary": "Save Exception",
+        "tags": [
+          "events"
         ]
       }
     },

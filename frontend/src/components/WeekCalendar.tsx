@@ -26,6 +26,7 @@ export function WeekCalendar({
   editEvent,
   editFamilyEvent,
   move,
+  cancelOccurrence,
   busy,
 }: {
   date: DateTime;
@@ -40,6 +41,7 @@ export function WeekCalendar({
   editEvent: (event: CalendarEvent) => void;
   editFamilyEvent: (day: string, event?: FamilyEvent) => void;
   move: (info: EventDropArg | EventResizeDoneArg) => void;
+  cancelOccurrence: (event: CalendarEvent) => void;
   busy: boolean;
 }) {
   const visible = members.filter((member) => !hidden.includes(member.id));
@@ -69,7 +71,11 @@ export function WeekCalendar({
           category: event.category,
           member_id: event.member_id,
           custom_icon_id: event.custom_icon_id,
+          recurring_series_id: event.recurring_series_id,
+          occurrence_date: event.occurrence_date,
+          occurrence_time: event.occurrence_time,
         },
+        editable: !event.recurring_series_id,
       })),
       ...familyEvents.map((event) => ({
         id: `family-${event.id}`,
@@ -199,6 +205,13 @@ export function WeekCalendar({
                 );
                 if (family) editFamilyEvent(family.day, family);
               } else {
+                if (info.event.extendedProps.recurring_series_id) {
+                  const occurrence = events.find(
+                    (event) => event.id === info.event.id,
+                  );
+                  if (occurrence) cancelOccurrence(occurrence);
+                  return;
+                }
                 const event = events.find(
                   (event) => event.id === info.event.id,
                 );

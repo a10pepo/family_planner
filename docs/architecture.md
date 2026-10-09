@@ -43,6 +43,7 @@ Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/ap
 - Una cuenta familiar autentica el acceso; los integrantes son perfiles seleccionables.
 - Un evento es un elemento situado en el calendario. Una tarea es una rutina diaria que puede completarse. No tratarlos como sinónimos.
 - Las tareas se expanden por fecha en el dominio; no crear eventos con horario por cada repetición. Guardar las marcas por tarea/integrante/fecha y archivar sin borrarlas. Los avisos de día completo no tienen horario.
+- Las series de eventos se expanden al consultar rangos, en la zona IANA local de cada serie; los eventos puntuales existentes permanecen en `events`. Identificar excepciones por serie y fecha/hora local original. No materializar ocurrencias futuras.
 - Validar y reducir fotos en el adaptador del backend; el dominio recibe la imagen normalizada. No confiar en la conversión del navegador.
 - El catálogo de iconos es común a eventos, avisos y tareas, con referencias opcionales validadas en el dominio y en PostgreSQL. No guardar imágenes repetidas en cada actividad ni quitar el catálogo al archivar una rutina.
 - Archivar un integrante conserva todos sus datos y oculta sus actividades y marcas en las consultas normales. Restaurarlo recupera las mismas identidades y asignaciones; no usar borrado en cascada. Los eventos familiares de día completo no dependen de un integrante y usan fechas locales, sin conversión a instantes UTC. Los filtros semanales afectan solo a la presentación.

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID, uuid4
@@ -46,6 +46,9 @@ class Event:
     ends_at: datetime
     category: Category = Category.OTHER
     custom_icon_id: UUID | None = None
+    recurring_series_id: UUID | None = None
+    occurrence_date: date | None = None
+    occurrence_time: time | None = None
 
 
 class CalendarRepository(Protocol):

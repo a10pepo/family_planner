@@ -14,7 +14,7 @@ Decisiones de Pedro Nieto del 7 de octubre de 2026, implementadas en los issues 
 
 La vista por defecto es **Día**. Cada columna corresponde a un integrante y muestra su foto o cara ilustrada ampliada, nombre y apodo sobre sus eventos. Las rutinas tienen iconos grandes a la izquierda de la cara, en una cuadrícula vertical que admite varias filas; tocarlos marca o desmarca la tarea. Se elimina el título «Nuestro calendario» y los rótulos como «LA FAMILIA». La fecha, **Hoy** y las flechas permiten navegar entre días.
 
-El menú izquierdo es estrecho y contiene únicamente iconos, con nombres accesibles para lectores de pantalla: calendario, Tareas, Configuración (engranaje), añadir integrante y cerrar sesión. Los eventos se añaden tocando una hora o seleccionando un intervalo en la columna correspondiente. El «+» de la cabecera ofrece la misma acción para teclado y pantalla táctil.
+El menú izquierdo es estrecho y contiene únicamente iconos, con nombres accesibles para lectores de pantalla: calendario, Eventos recurrentes, Tareas, Configuración (engranaje), añadir integrante y cerrar sesión. Los eventos puntuales se añaden tocando una hora o seleccionando un intervalo en la columna correspondiente. El «+» de la cabecera ofrece la misma acción para teclado y pantalla táctil. Eventos permite crear y administrar series recurrentes.
 
 Las tarjetas muestran horario, título con letra más grande e icono de categoría, aprovechando el ancho disponible. El nombre de categoría se conserva en la leyenda, tooltip y descripción accesible; no aparece dentro de la tarjeta. El color depende de la categoría, con una paleta pastel:
 
@@ -59,6 +59,12 @@ Semana muestra lunes a domingo, con una columna por día que reúne los eventos 
 Configuración permite retirar un integrante tras una confirmación que explica el archivo. Desaparece su columna y dejan de mostrarse sus actividades y ocurrencias; se conservan perfil, eventos, avisos, asignaciones y marcas. Se puede restaurar desde Integrantes archivados. Se admite retirar todos los integrantes; los eventos familiares siguen disponibles.
 
 Pedro aprobó el esquema de eventos familiares y archivo con restauración, y confirmó que los filtros semanales afectan a eventos con horario, sin mostrar rutinas.
+
+## Eventos recurrentes (issue #18)
+
+El menú Eventos permite crear, editar y eliminar series recurrentes por integrante. Cada serie conserva título, hora local de inicio, duración, zona horaria, categoría e icono; la repetición puede ser diaria, semanal (uno o varios días) o mensual en el mismo número de día del mes. Se configura un intervalo y se puede finalizar sin límite, en una fecha o después de un número de ocurrencias. Los meses sin el día configurado se omiten. Una repetición semanal sin días explícitos toma el día de inicio.
+
+El calendario calcula las ocurrencias al consultar el rango visible y conserva la hora local configurada al cambiar entre horario de verano e invierno. No materializa eventos futuros. Desde el calendario se puede cancelar una ocurrencia sin afectar al resto de la serie. Las excepciones también pueden cambiar hora, duración, título, categoría o icono. Al eliminar una serie se eliminan sus excepciones; los eventos puntuales existentes no se modifican.
 
 ## Versiones posteriores
 
