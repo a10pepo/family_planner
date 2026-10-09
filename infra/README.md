@@ -37,6 +37,20 @@ Los `.tftest.hcl` utilizan `mock_provider "aws"`, incluso en los casos `command 
 
 Los pasos siguientes sí requieren que **Pedro haya iniciado sesión por su cuenta** con AWS CLI y revisado seguridad, coste y plan. No se ejecutan desde CI. Usa credenciales temporales mediante un perfil local; nunca añadas claves o contraseñas a `.tfvars`, código o GitHub. Sustituye los ejemplos `111111111111` y elige la región antes de continuar. Los proveedores rechazan una cuenta distinta a `aws_account_id`.
 
+### Atajos con Make
+
+Desde la raíz del repositorio, una vez configurados los archivos efectivos y los artefactos compatibles:
+
+```sh
+make bootstrap
+make deploy preview
+make deploy production
+```
+
+`make bootstrap` crea el estado remoto inicial solo después de mostrar el plan y pedir `APPLY bootstrap`. Para desplegar, cada comando comprueba la sesión AWS activa contra `aws_account_id`, la configuración del backend y los artefactos; sube el ZIP de Lambda con versión inmutable, genera y muestra el plan, y solo aplica si escribes exactamente `APPLY preview` o `APPLY production`. Después publica la web y solicita una invalidación de CloudFront. Puedes seleccionar un perfil ya autenticado con `AWS_PROFILE=nombre make deploy preview`; el comando no inicia sesión ni solicita credenciales.
+
+Los artefactos predeterminados son `build/aws/api-compatible.zip` y `build/aws/frontend-compatible/dist/`. Si están en otras rutas, pásalas como variables: `make deploy preview LAMBDA_ZIP=/ruta/api.zip FRONTEND_DIST=/ruta/dist`. Prepara primero `infra/bootstrap/terraform.tfvars`, su estado local, y los `backend.hcl` y `terraform.tfvars` de cada entorno; consulta los pasos siguientes. El ZIP Lambda y la web tienen que ser compatibles con la infraestructura descrita aquí. **Hoy la aplicación del repositorio todavía no genera esos artefactos ni es compatible con Lambda/Cognito**, por lo que estos comandos no convierten ni compilan automáticamente la aplicación actual. Si cancelas después de subir el ZIP, queda una versión adicional en el bucket de artefactos.
+
 ### 1. Bootstrap
 
 Desde la raíz del repositorio:
