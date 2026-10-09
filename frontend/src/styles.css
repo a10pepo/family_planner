@@ -988,12 +988,13 @@ legend {
 .person-heading .task-strip {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 64px;
+  grid-auto-columns: 68px;
   width: max-content;
   min-height: 0;
-  max-height: 274px;
-  overflow-y: auto;
-  gap: 6px;
+  max-height: none;
+  overflow: visible;
+  scrollbar-width: none;
+  gap: 8px 12px;
   padding: 0;
   align-content: center;
 }
@@ -1001,14 +1002,15 @@ legend {
   display: none;
 }
 .person-heading .task-token {
-  width: 64px;
-  height: 64px;
+  width: 68px;
+  height: 68px;
   border-radius: 16px;
+  touch-action: manipulation;
 }
 .person-heading .task-token > .icon,
 .person-heading .task-token > .custom-symbol {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
 }
 .person-heading .task-tick {
   width: 23px;
@@ -1019,7 +1021,25 @@ legend {
   height: 14px;
 }
 .person-heading .notice-strip {
+  width: calc(100% + 16px);
+  min-height: 56px;
+  margin-left: -8px;
   margin-top: auto;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: #edf1f8;
+  gap: 8px;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+.person-heading .notice-token {
+  background: #dfe7f3;
+  color: #64758f;
+  border-radius: 12px;
+}
+.person-heading .daily-add {
+  border-color: #cad5e5;
+  color: #64758f;
 }
 .day-columns {
   position: relative;

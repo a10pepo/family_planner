@@ -173,8 +173,8 @@ function EventForm({
       members[0]?.id ??
       "",
   );
-  const [start, setStart] = useState(localInput(editor.start, zone));
-  const [end, setEnd] = useState(localInput(editor.end, zone));
+  const [start, setStart] = useState(localInput(editor.start, zone).slice(11));
+  const [end, setEnd] = useState(localInput(editor.end, zone).slice(11));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -183,8 +183,13 @@ function EventForm({
     setBusy(true);
     setError("");
     try {
-      const starts_at = fromLocalInput(start, zone),
-        ends_at = fromLocalInput(end, zone);
+      const day = localInput(editor.start, zone).slice(0, 10);
+      const endDay =
+        end < start
+          ? DateTime.fromISO(day, { zone }).plus({ days: 1 }).toISODate()!
+          : day;
+      const starts_at = fromLocalInput(`${day}T${start}`, zone),
+        ends_at = fromLocalInput(`${endDay}T${end}`, zone);
       if (Date.parse(ends_at) <= Date.parse(starts_at))
         throw new Error("El final debe ser posterior al inicio.");
       const data = {
@@ -223,6 +228,28 @@ function EventForm({
       busy={busy}
     >
       <form onSubmit={submit}>
+        <div className="date-fields">
+          <label>
+            Hora de inicio
+            <input
+              type="time"
+              required
+              value={start}
+              disabled={busy}
+              onChange={(event) => setStart(event.target.value)}
+            />
+          </label>
+          <label>
+            Hora de fin
+            <input
+              type="time"
+              required
+              value={end}
+              disabled={busy}
+              onChange={(event) => setEnd(event.target.value)}
+            />
+          </label>
+        </div>
         <label>
           Título
           <input
@@ -266,42 +293,20 @@ function EventForm({
           </select>
         </label>
         <fieldset disabled={busy}>
-          <legend>Icono del evento</legend>
+          <legend>Icono</legend>
           <IconPicker
             options={categories}
             builtin={category}
             selected={customIcon}
             busy={busy}
             setBusy={setBusy}
+            allowUpload={false}
             onChange={(value, custom) => {
               setCategory(value as Category);
               setCustomIcon(custom);
             }}
           />
         </fieldset>
-        <div className="date-fields">
-          <label>
-            Inicio
-            <input
-              type="datetime-local"
-              required
-              value={start}
-              disabled={busy}
-              onChange={(event) => setStart(event.target.value)}
-            />
-          </label>
-          <label>
-            Fin
-            <input
-              type="datetime-local"
-              required
-              value={end}
-              disabled={busy}
-              onChange={(event) => setEnd(event.target.value)}
-            />
-          </label>
-        </div>
-        <p className="muted small">Hora de la familia · {zone}</p>
         {error && (
           <p className="error" role="alert">
             {error}
@@ -542,7 +547,7 @@ export default function App({
     );
 
   const gridStyle = {
-    gridTemplateColumns: `56px repeat(${Math.max(members.length, 1)}, minmax(280px, 1fr))`,
+    gridTemplateColumns: `56px repeat(${Math.max(members.length, 1)}, minmax(296px, 1fr))`,
   };
   return (
     <IconCatalog.Provider
@@ -794,7 +799,7 @@ export default function App({
                 <div className="day-viewport" ref={viewport}>
                   <div
                     className="day-surface"
-                    style={{ minWidth: 56 + members.length * 280 }}
+                    style={{ minWidth: 56 + members.length * 296 }}
                   >
                     <div className="family-headings" style={gridStyle}>
                       <div className="time-heading" aria-hidden="true">
