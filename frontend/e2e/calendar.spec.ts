@@ -100,11 +100,11 @@ test("daily demo has four faces and persistent categorized events", async ({
     .startOf("day")
     .plus({ hours: 12 });
   await page
-    .getByLabel("Inicio", { exact: true })
-    .fill(start.toFormat("yyyy-MM-dd'T'HH:mm"));
+    .getByLabel("Hora de inicio", { exact: true })
+    .fill(start.toFormat("HH:mm"));
   await page
-    .getByLabel("Fin", { exact: true })
-    .fill(start.plus({ hours: 1 }).toFormat("yyyy-MM-dd'T'HH:mm"));
+    .getByLabel("Hora de fin", { exact: true })
+    .fill(start.plus({ hours: 1 }).toFormat("HH:mm"));
   await page
     .getByRole("combobox", { name: "Categoría", exact: true })
     .selectOption("friends");

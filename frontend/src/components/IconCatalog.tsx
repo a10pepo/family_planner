@@ -37,6 +37,7 @@ export function IconPicker({
   onChange,
   busy,
   setBusy,
+  allowUpload = true,
 }: {
   options: Record<string, { label: string; icon: IconName }>;
   builtin: string;
@@ -44,6 +45,7 @@ export function IconPicker({
   onChange: (builtin: string, selected: string | null, label: string) => void;
   busy: boolean;
   setBusy: (busy: boolean) => void;
+  allowUpload?: boolean;
 }) {
   const library = useContext(IconCatalog);
   const file = useRef<HTMLInputElement>(null);
@@ -82,70 +84,72 @@ export function IconPicker({
           </button>
         ))}
       </div>
-      <div className="icon-upload">
-        <label>
-          Nombre del nuevo icono
-          <input
-            value={name}
-            maxLength={80}
+      {allowUpload && (
+        <div className="icon-upload">
+          <label>
+            Nombre del nuevo icono
+            <input
+              value={name}
+              maxLength={80}
+              disabled={busy}
+              placeholder="Se usa el nombre del fichero"
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="secondary"
             disabled={busy}
-            placeholder="Se usa el nombre del fichero"
-            onChange={(event) => setName(event.target.value)}
+            onClick={() => file.current?.click()}
+          >
+            Subir icono
+          </button>
+          <input
+            type="file"
+            hidden
+            ref={file}
+            aria-label="Archivo del icono"
+            accept="image/png,image/jpeg,image/webp"
+            disabled={busy}
+            onChange={async (event) => {
+              const input = event.currentTarget,
+                selectedFile = input.files?.[0];
+              if (!selectedFile) return;
+              setBusy(true);
+              setError("");
+              try {
+                const image = await prepareIcon(selectedFile);
+                const title =
+                  (
+                    name.trim() || selectedFile.name.replace(/\.[^.]+$/, "")
+                  ).slice(0, 80) || "Icono";
+                const icon = await library.api.addIcon(title, image);
+                library.added(icon);
+                onChange(builtin, icon.id, icon.name);
+                setName("");
+              } catch (error) {
+                setError(
+                  error instanceof Error
+                    ? error.message
+                    : "No se pudo subir el icono.",
+                );
+              } finally {
+                input.value = "";
+                setBusy(false);
+              }
+            }}
           />
-        </label>
-        <button
-          type="button"
-          className="secondary"
-          disabled={busy}
-          onClick={() => file.current?.click()}
-        >
-          Subir icono
-        </button>
-        <input
-          type="file"
-          hidden
-          ref={file}
-          aria-label="Archivo del icono"
-          accept="image/png,image/jpeg,image/webp"
-          disabled={busy}
-          onChange={async (event) => {
-            const input = event.currentTarget,
-              selectedFile = input.files?.[0];
-            if (!selectedFile) return;
-            setBusy(true);
-            setError("");
-            try {
-              const image = await prepareIcon(selectedFile);
-              const title =
-                (
-                  name.trim() || selectedFile.name.replace(/\.[^.]+$/, "")
-                ).slice(0, 80) || "Icono";
-              const icon = await library.api.addIcon(title, image);
-              library.added(icon);
-              onChange(builtin, icon.id, icon.name);
-              setName("");
-            } catch (error) {
-              setError(
-                error instanceof Error
-                  ? error.message
-                  : "No se pudo subir el icono.",
-              );
-            } finally {
-              input.value = "";
-              setBusy(false);
-            }
-          }}
-        />
-        <p className="small muted">
-          JPG, PNG o WebP, hasta 5 MB. Una vez subido estará disponible en
-          tareas, avisos y eventos.
-        </p>
-        {error && (
-          <p role="alert" className="error">
-            {error}
+          <p className="small muted">
+            JPG, PNG o WebP, hasta 5 MB. Una vez subido estará disponible en
+            tareas, avisos y eventos.
           </p>
-        )}
-      </div>
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
     </>
   );
 }
