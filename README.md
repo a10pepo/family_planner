@@ -162,6 +162,6 @@ Todo cambio parte de un issue en [GitHub](https://github.com/a10pepo/family_plan
 
 ## Terraform para AWS
 
-El [Terraform y su guía de despliegue manual](infra/README.md) preparan preview y producción separados en la misma cuenta, con S3/CloudFront, API Gateway/Lambda, DynamoDB y Cognito. Se validan en CI con proveedores simulados, sin login ni recursos AWS.
+El [runtime AWS y su guía de despliegue](infra/README.md) usan S3/CloudFront, API Gateway/Lambda, DynamoDB y Cognito. Docker local mantiene PostgreSQL y Keycloak para que el desarrollo no dependa de AWS. Make construye los artefactos y prepara el bootstrap desde el perfil AWS CLI activo; muestra planes y pide confirmación explícita antes de aplicar cambios.
 
-Este trabajo incluye solo infraestructura: el backend y frontend actuales mantienen PostgreSQL/Keycloak y necesitan adaptadores Lambda/DynamoDB/Cognito antes de publicar el calendario funcional. Pedro hará el login y revisará el plan antes de desplegar. No se migran datos ni se activa CD remoto.
+Preview y producción usan tablas separadas. Producción empieza vacía; no se migran datos locales ni se activa CD remoto. Revisa siempre el plan y los costes antes de confirmar el despliegue.

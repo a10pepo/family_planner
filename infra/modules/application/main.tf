@@ -1,11 +1,12 @@
 locals {
-  prefix      = "${var.project}-${var.environment}"
-  bucket_name = "${local.prefix}-${var.aws_account_id}-web"
-  issuer      = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.family.id}"
-  site_url    = "https://${var.domain_name != null ? var.domain_name : aws_cloudfront_distribution.frontend.domain_name}"
-  login_host  = "${aws_cognito_user_pool_domain.family.domain}.auth.${var.aws_region}.amazoncognito.com"
-  scope       = "${aws_cognito_resource_server.api.identifier}/access"
-  production  = var.environment == "production"
+  prefix       = "${var.project}-${var.environment}"
+  bucket_name  = "${local.prefix}-${var.aws_account_id}-web"
+  issuer       = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.family.id}"
+  site_url     = "https://${var.domain_name != null ? var.domain_name : aws_cloudfront_distribution.frontend.domain_name}"
+  login_host   = "${aws_cognito_user_pool_domain.family.domain}.auth.${var.aws_region}.amazoncognito.com"
+  scope        = "${aws_cognito_resource_server.api.identifier}/access"
+  cognito_base = "https://${local.login_host}"
+  production   = var.environment == "production"
 }
 
 resource "aws_dynamodb_table" "calendar" {
@@ -21,6 +22,46 @@ resource "aws_dynamodb_table" "calendar" {
   attribute {
     name = "sk"
     type = "S"
+  }
+  attribute {
+    name = "gsi1pk"
+    type = "S"
+  }
+  attribute {
+    name = "gsi1sk"
+    type = "S"
+  }
+  attribute {
+    name = "gsi2pk"
+    type = "S"
+  }
+  attribute {
+    name = "gsi2sk"
+    type = "S"
+  }
+  global_secondary_index {
+    name            = "by-calendar-end"
+    hash_key        = "gsi1pk"
+    range_key       = "gsi1sk"
+    projection_type = "ALL"
+  }
+  global_secondary_index {
+    name            = "by-day"
+    hash_key        = "gsi1pk"
+    range_key       = "gsi1sk"
+    projection_type = "ALL"
+  }
+  global_secondary_index {
+    name            = "by-member"
+    hash_key        = "gsi2pk"
+    range_key       = "gsi2sk"
+    projection_type = "ALL"
+  }
+  global_secondary_index {
+    name            = "by-completion-day"
+    hash_key        = "gsi2pk"
+    range_key       = "gsi2sk"
+    projection_type = "ALL"
   }
   server_side_encryption { enabled = true }
   point_in_time_recovery { enabled = local.production }
@@ -53,8 +94,8 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Sid      = "CalendarOnly"
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:DescribeTable", "dynamodb:ConditionCheckItem"]
-        Resource = aws_dynamodb_table.calendar.arn
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:DescribeTable", "dynamodb:ConditionCheckItem", "dynamodb:TransactWriteItems"]
+        Resource = [aws_dynamodb_table.calendar.arn, "${aws_dynamodb_table.calendar.arn}/index/*"]
       },
       {
         Sid      = "OwnLogsOnly"
@@ -80,16 +121,21 @@ resource "aws_lambda_function" "api" {
   timeout           = 15
   environment {
     variables = {
-      APP_ENVIRONMENT      = var.environment
-      APP_ORIGIN           = local.site_url
-      STORAGE_BACKEND      = "dynamodb"
-      DYNAMODB_TABLE       = aws_dynamodb_table.calendar.name
-      FAMILY_TIMEZONE      = var.family_timezone
-      OAUTH_PROVIDER       = "cognito"
-      OAUTH_ISSUER         = local.issuer
-      OAUTH_CLIENT_ID      = aws_cognito_user_pool_client.web.id
-      OAUTH_REQUIRED_SCOPE = local.scope
-      OAUTH_REQUIRED_GROUP = aws_cognito_user_group.family.name
+      APP_ENVIRONMENT              = var.environment
+      APP_ORIGIN                   = local.site_url
+      STORAGE_BACKEND              = "dynamodb"
+      DYNAMODB_TABLE               = aws_dynamodb_table.calendar.name
+      FAMILY_TIMEZONE              = var.family_timezone
+      OAUTH_PROVIDER               = "cognito"
+      OAUTH_ISSUER                 = local.issuer
+      OAUTH_JWKS_URL               = "${local.issuer}/.well-known/jwks.json"
+      OAUTH_CLIENT_ID              = aws_cognito_user_pool_client.web.id
+      OAUTH_REQUIRED_SCOPE         = local.scope
+      OAUTH_REQUIRED_GROUP         = aws_cognito_user_group.family.name
+      OAUTH_SCOPES                 = "openid email profile ${local.scope}"
+      OAUTH_AUTHORIZATION_ENDPOINT = "${local.cognito_base}/oauth2/authorize"
+      OAUTH_TOKEN_ENDPOINT         = "${local.cognito_base}/oauth2/token"
+      OAUTH_LOGOUT_ENDPOINT        = "${local.cognito_base}/logout"
     }
   }
   depends_on = [aws_iam_role_policy.lambda, aws_cloudwatch_log_group.lambda]

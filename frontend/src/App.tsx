@@ -6,7 +6,7 @@ import luxonPlugin from "@fullcalendar/luxon3";
 import es from "@fullcalendar/core/locales/es";
 import type { EventDropArg } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
-import type Keycloak from "keycloak-js";
+import type { AuthClient } from "./auth";
 import { DateTime } from "luxon";
 import {
   Api,
@@ -369,7 +369,7 @@ export default function App({
   auth,
   config,
 }: {
-  auth: Keycloak;
+  auth: AuthClient;
   config: AppConfig;
 }) {
   const [authenticated, setAuthenticated] = useState(!!auth.authenticated);
