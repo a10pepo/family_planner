@@ -184,13 +184,9 @@ test("daily demo has four faces and persistent categorized events", async ({
   );
   await slot.scrollIntoViewIfNeeded();
   const slotBounds = await slot.boundingBox();
-  const columnBounds = await mobileCalendar
-    .locator(".fc-timegrid-col")
-    .first()
-    .boundingBox();
   await page.mouse.click(
-    columnBounds!.x + columnBounds!.width / 2,
-    slotBounds!.y + 8,
+    slotBounds!.x + slotBounds!.width / 2,
+    slotBounds!.y + slotBounds!.height / 2,
   );
   await expect(
     page.getByRole("heading", { name: "Nuevo evento" }),
