@@ -18,7 +18,7 @@ Fuente: respuestas de Pedro Nieto del 7 de octubre de 2026. Configuración inici
 | Movimiento | Cambia fecha y hora conservando integrante; formulario y redimensionado permiten cambiar duración. |
 | Idiomas | Interfaz y documentación en español; código en inglés. Valor inicial adoptado en este MVP. |
 | Zona | Europe/Madrid configurable; instantes persistidos con zona horaria. |
-| Ejecución | Docker Compose; por defecto solo se expone localhost:8080. La opción explícita `--lan-host` permite probar desde la red doméstica con una IPv4 privada. |
+| Ejecución | Docker Compose; por defecto solo se expone localhost:8080. `scripts/configure_lan_tls.py` permite pruebas HTTPS en la red doméstica conservando PKCE. |
 | Calidad | CI con arquitectura, contrato, formato, tipos, pruebas, Docker y OAuth real. |
 | Entrega | Imágenes validadas como artefacto tras merge a main; despliegue público y merge automático pendientes. |
 | Seguimiento | Issues de GitHub con etiquetas feature o issue. |
@@ -93,7 +93,7 @@ Una excepción se identifica por serie, fecha local de inicio original y hora lo
 
 ## Acceso desde la red doméstica (issue #25)
 
-Pedro solicitó habilitar el acceso desde una tablet en la misma red doméstica para probar la aplicación. La publicación del puerto sigue limitada a `127.0.0.1` por defecto. La opción explícita `scripts/setup.py --lan-host <IPv4 privada>` configura el origen de aplicación y OAuth con esa dirección, y enlaza el puerto a las interfaces de red del equipo. Para una instalación existente, README documenta la actualización manual del origen y del cliente Keycloak sin borrar su volumen. El alcance es HTTP en la LAN de confianza; no configura acceso público, router, DNS ni HTTPS.
+Pedro solicitó habilitar el acceso desde una tablet en la misma red doméstica para probar la aplicación, y aprobó HTTPS local al descubrir que PKCE no puede usar Web Crypto desde una dirección HTTP privada. La publicación del puerto 8080 sigue limitada a `127.0.0.1`; `scripts/configure_lan_tls.py` configura un certificado local para la IPv4 elegida, actualiza el origen del cliente Keycloak sin borrar su volumen y `compose.lan-tls.yaml` publica HTTPS en el puerto 8443. Pedro instala y confía manualmente en la tablet la CA pública; la clave privada de CA queda en `.local`. No configura acceso público, router ni DNS.
 
 ## Infraestructura AWS (issue #13)
 

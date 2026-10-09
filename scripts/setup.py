@@ -2,7 +2,6 @@
 
 import argparse
 import getpass
-import ipaddress
 import json
 import os
 import secrets
@@ -11,26 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def prepare(test: bool = False, lan_host: str | None = None) -> None:
+def prepare(test: bool = False) -> None:
     env_path = ROOT / ".env"
     realm_path = ROOT / ".local" / "family-realm.json"
     if env_path.exists() or realm_path.exists():
         raise SystemExit("Ya existe configuración local. No se sobrescriben credenciales.")
-    if lan_host is not None:
-        try:
-            address = ipaddress.ip_address(lan_host)
-        except ValueError as exc:
-            raise SystemExit(
-                "--lan-host debe ser una dirección IPv4 privada de la red local."
-            ) from exc
-        if (
-            not isinstance(address, ipaddress.IPv4Address)
-            or not address.is_private
-            or address.is_loopback
-            or address.is_link_local
-        ):
-            raise SystemExit("--lan-host debe ser una dirección IPv4 privada de la red local.")
-        lan_host = str(address)
     if test:
         username, password = "test-family", "Fictional-test-password-42"
     else:
@@ -40,7 +24,7 @@ def prepare(test: bool = False, lan_host: str | None = None) -> None:
             raise SystemExit("Las contraseñas no coinciden.")
     if not username or len(username) > 80 or len(password) < 12:
         raise SystemExit("Indica un usuario (1–80 caracteres) y una contraseña de al menos 12.")
-    origin = f"http://{lan_host}:8080" if lan_host else "http://localhost:8080"
+    origin = "http://localhost:8080"
     realm = {
         "realm": "family",
         "enabled": True,
@@ -112,7 +96,6 @@ def prepare(test: bool = False, lan_host: str | None = None) -> None:
         "KC_ADMIN_USERNAME": "local-admin",
         "KC_ADMIN_PASSWORD": secrets.token_urlsafe(32),
         "APP_ORIGIN": origin,
-        "APP_BIND_ADDRESS": "0.0.0.0" if lan_host else "127.0.0.1",
         "FAMILY_TIMEZONE": "Europe/Madrid",
         "DEMO_MODE": "1" if test else "0",
     }
@@ -130,9 +113,5 @@ if __name__ == "__main__":
     parser.add_argument(
         "--demo", action="store_true", help="Crear la demo local con cuatro perfiles ilustrados."
     )
-    parser.add_argument(
-        "--lan-host",
-        help="Configurar acceso desde la LAN usando la IPv4 privada de este equipo.",
-    )
     args = parser.parse_args()
-    prepare(args.test or args.demo, args.lan_host)
+    prepare(args.test or args.demo)

@@ -1,0 +1,8 @@
+services:
+  frontend:
+    ports:
+      - "${LAN_BIND_ADDRESS:?Run scripts/configure_lan_tls.py first}:${LAN_TLS_PORT:?Run scripts/configure_lan_tls.py first}:8443"
+    volumes:
+      - ./.local/lan-server.crt:/etc/nginx/certs/lan-server.crt:ro
+      - ./.local/lan-server.key:/etc/nginx/certs/lan-server.key:ro
+      - ./frontend/nginx.lan-tls.conf:/etc/nginx/conf.d/lan-tls.conf:ro

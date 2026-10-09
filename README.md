@@ -18,8 +18,6 @@ docker run --rm -it --user "$(id -u):$(id -g)" \
 
 El asistente pide usuario y contraseña, genera credenciales locales para los servicios y crea `.env` y `.local/family-realm.json`, excluidos de Git. No sobrescribe una configuración existente. La contraseña familiar debe tener al menos 12 caracteres. Si ya tienes Python 3.12 o posterior, también puedes ejecutar `python3 scripts/setup.py`.
 
-Para una instalación nueva que quieras probar desde una tablet en la misma red, pasa la IPv4 privada del ordenador: `python3 scripts/setup.py --lan-host 192.168.1.25`. Sustituye la dirección de ejemplo por la de tu equipo. La aplicación usará esa dirección para OAuth y escuchará en la red local. Sin esta opción, solo escucha en `127.0.0.1`.
-
 Construye y arranca los servicios:
 
 ```bash
@@ -31,17 +29,20 @@ Abre [http://localhost:8080](http://localhost:8080). La primera vez, Keycloak pu
 
 ### Probar desde una tablet en la misma red
 
-La instalación local usa HTTP y no está pensada para exponerse a internet. No reenvíes el puerto 8080 en el router. Usa una red doméstica de confianza.
+La app usa PKCE y necesita un contexto seguro para generar el reto criptográfico. Para la tablet, configura HTTPS local; el modo normal sigue limitado a `http://localhost:8080`. No reenvíes puertos en el router.
 
-En una instalación nueva, ejecuta el asistente con `--lan-host` como se indica arriba. En una instalación ya configurada:
+Con la instalación local ya arrancada, averigua la IPv4 privada del ordenador (en macOS, normalmente aparece en **Ajustes del Sistema → Wi-Fi → Detalles**) y ejecuta:
 
-1. Averigua la IPv4 privada del ordenador (en macOS, normalmente puedes verla en **Ajustes del Sistema → Wi-Fi → Detalles**).
-2. En `.env`, cambia `APP_ORIGIN` a `http://<IP-del-ordenador>:8080` y añade `APP_BIND_ADDRESS=0.0.0.0`.
-3. En Keycloak Admin, abre `http://localhost:8080/auth/admin/master/console/`, selecciona el realm `family` y ve a **Clients → family-planner → Settings**. Añade `http://<IP-del-ordenador>:8080/` y `http://<IP-del-ordenador>:8080/api/docs/oauth2-redirect` a **Valid redirect URIs**, y `http://<IP-del-ordenador>:8080` a **Web origins**. Guarda los cambios. No uses comodines.
-4. Ejecuta `docker compose up -d` para aplicar la configuración. Si el firewall del ordenador pregunta, permite conexiones en la red privada.
-5. En la tablet, abre `http://<IP-del-ordenador>:8080` conectada a la misma red Wi-Fi.
+```bash
+python3 scripts/configure_lan_tls.py --host 192.168.1.25
+docker compose -f compose.yaml -f compose.lan-tls.yaml up -d
+```
 
-Para volver al acceso solo desde el ordenador, restaura `APP_ORIGIN=http://localhost:8080` y `APP_BIND_ADDRESS=127.0.0.1` en `.env`, y ejecuta de nuevo `docker compose up -d`. El origen adicional puede quedarse registrado en el cliente Keycloak; elimínalo desde **Clients → family-planner → Settings** si ya no lo necesitas.
+Sustituye la IP de ejemplo. El asistente genera una CA local y un certificado para esa IP en `.local`, actualiza el origen exacto del cliente Keycloak y conserva PKCE. La clave privada de la CA no sale de `.local` ni se añade a Git. El puerto 8080 vuelve a quedar limitado a este ordenador; HTTPS se publica en el 8443.
+
+Instala y confía en la tablet el certificado público `.local/lan-ca.crt` (puedes transferirlo desde el ordenador, por ejemplo por AirDrop). En iPad, después de instalar el perfil, habilita la confianza completa desde **Ajustes → General → Información → Ajustes de confianza de certificados**. En Android, instálalo como certificado de CA desde los ajustes de seguridad; los nombres de menú pueden variar. No continúes si el navegador muestra una advertencia de certificado. Después abre `https://<IP-del-ordenador>:8443` en la misma red Wi-Fi. Mientras HTTPS esté configurado, usa el comando con `compose.lan-tls.yaml` también al volver a arrancar los servicios.
+
+Para volver al modo normal, restaura `APP_ORIGIN=http://localhost:8080` en `.env` y ejecuta `docker compose up -d` sin el archivo `compose.lan-tls.yaml`. También puedes retirar de la tablet la CA local desde sus ajustes de certificados.
 
 1. Añade los integrantes desde el icono de personas del menú lateral.
 2. Toca una hora en la columna de la persona, selecciona un intervalo o pulsa el «+» de esa columna para añadir un evento.
@@ -90,7 +91,7 @@ Los volúmenes `calendar-data` e `identity-data` conservan actividades y cuenta 
 
 Keycloak importa la cuenta solo cuando crea el realm por primera vez. Editar el archivo de importación después no cambia la contraseña existente. Para cambiarla o recuperar acceso, usa la consola local [Keycloak Admin](http://localhost:8080/auth/admin/master/console/) con `KC_ADMIN_USERNAME` y `KC_ADMIN_PASSWORD` de `.env`; selecciona el realm `family`, el usuario familiar y la pestaña **Credentials**. No hace falta borrar el volumen para cambiar una contraseña.
 
-La configuración incluida se limita al equipo local (`127.0.0.1`); Keycloak usa su modo de desarrollo. La configuración para acceder desde la pantalla de la nevera por la red doméstica o para un despliegue público queda para un issue posterior. El cliente y la base de datos no exponen puertos adicionales. `.local/family-realm.json` contiene la contraseña inicial para importar la cuenta: conserva estos archivos fuera de Git.
+La configuración normal se limita al equipo local (`127.0.0.1`); Keycloak usa su modo de desarrollo. Para pruebas domésticas, `scripts/configure_lan_tls.py` activa un frontend HTTPS aparte y actualiza el origen OAuth. No se publican el backend ni la base de datos. `.local/family-realm.json` contiene la contraseña inicial para importar la cuenta: conserva estos archivos fuera de Git.
 
 ## Pruebas y desarrollo
 

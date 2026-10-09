@@ -58,7 +58,7 @@ Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/ap
 - No incluir contraseñas o secretos en el frontend ni en control de versiones. Las variables de configuración que recibe el navegador son públicas.
 - No persistir contraseñas en texto plano ni crear credenciales predeterminadas utilizables fuera de pruebas.
 - No registrar secretos, credenciales o detalles personales innecesarios.
-- OAuth local autorizado por Pedro: Keycloak con cuenta familiar, Authorization Code + PKCE, tokens solo en memoria y validación en el backend. La duración y cierre de sesión y la recuperación de acceso se documentan en `docs/api.md` y README. Por defecto, Compose solo publica el frontend en loopback. El modo `--lan-host` permite pruebas HTTP en una red doméstica de confianza; no es configuración para internet. El despliegue público requiere revisar la configuración.
+- OAuth local autorizado por Pedro: Keycloak con cuenta familiar, Authorization Code + PKCE, tokens solo en memoria y validación en el backend. La duración y cierre de sesión y la recuperación de acceso se documentan en `docs/api.md` y README. Por defecto, Compose solo publica el frontend en loopback. Para pruebas domésticas, `scripts/configure_lan_tls.py` configura HTTPS con una CA local confiada manualmente en la tablet; no es configuración para internet. El despliegue público requiere revisar la configuración.
 - Al desplegar, revisar transporte cifrado, cookies o tokens, exposición de servicios y permisos del entorno.
 - Cualquier cambio con riesgo de seguridad requiere consulta previa, incluso si su objetivo es corregir una vulnerabilidad.
 
