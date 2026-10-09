@@ -10,6 +10,8 @@ FRONTEND_DIST=${FRONTEND_DIST:-build/aws/frontend-compatible/dist}
 usage() {
   printf '%s\n' \
     'Usage: make bootstrap' \
+    '       make plan preview' \
+    '       make plan production' \
     '       make deploy preview' \
     '       make deploy production'
 }
@@ -69,6 +71,53 @@ temporary_plan_dir() {
   mktemp -d "${TMPDIR:-/tmp}/family-planner-aws-plan.XXXXXX"
 }
 
+check_environment() {
+  environment=$1
+  environment_dir="$ROOT/infra/environments/$environment"
+  variables_file="$environment_dir/terraform.tfvars"
+  backend_file="$environment_dir/backend.hcl"
+
+  require_file "$BOOTSTRAP_VARS"
+  require_file "$BOOTSTRAP_DIR/terraform.tfstate"
+  require_file "$backend_file"
+  require_file "$variables_file"
+  check_account "$variables_file"
+
+  state_bucket=$(terraform -chdir="$BOOTSTRAP_DIR" output -raw state_bucket)
+  backend_bucket=$(read_tfvar bucket "$backend_file")
+  backend_key=$(read_tfvar key "$backend_file")
+  backend_region=$(read_tfvar region "$backend_file")
+  configured_region=$(read_tfvar aws_region "$variables_file")
+  [ "$backend_bucket" = "$state_bucket" ] ||
+    fail "El bucket de $backend_file no coincide con el bucket de estado del bootstrap ($state_bucket)."
+  [ "$backend_key" = "$environment/terraform.tfstate" ] ||
+    fail "Usa la clave de estado $environment/terraform.tfstate en $backend_file."
+  [ -n "$backend_region" ] && [ "$backend_region" = "$configured_region" ] ||
+    fail "La región de $backend_file debe coincidir con aws_region en $variables_file."
+}
+
+plan() {
+  [ "$#" -eq 1 ] || { usage >&2; exit 2; }
+  environment=$1
+  case "$environment" in
+    preview|production) ;;
+    *) usage >&2; exit 2 ;;
+  esac
+
+  for tool in aws terraform; do
+    command -v "$tool" >/dev/null 2>&1 || fail "No se encuentra '$tool' en PATH."
+  done
+  check_environment "$environment"
+
+  environment_dir="$ROOT/infra/environments/$environment"
+  plan_dir=$(temporary_plan_dir)
+  trap 'rm -rf "$plan_dir"' 0 HUP INT TERM
+  terraform -chdir="$environment_dir" init -input=false -backend-config=backend.hcl
+  terraform -chdir="$environment_dir" plan -input=false -out="$plan_dir/$environment.tfplan"
+  terraform -chdir="$environment_dir" show -no-color "$plan_dir/$environment.tfplan"
+  printf '\nPlan de %s mostrado; no se aplicaron cambios.\n' "$environment"
+}
+
 bootstrap() {
   require_tools
   require_file "$BOOTSTRAP_VARS"
@@ -93,33 +142,15 @@ deploy() {
   esac
 
   require_tools
-  require_file "$BOOTSTRAP_VARS"
-  require_file "$BOOTSTRAP_DIR/terraform.tfstate"
-  require_file "$ROOT/infra/environments/$environment/backend.hcl"
-  require_file "$ROOT/infra/environments/$environment/terraform.tfvars"
   require_file "$API_ZIP"
   require_file "$FRONTEND_DIST/index.html"
 
   environment_dir="$ROOT/infra/environments/$environment"
-  variables_file="$environment_dir/terraform.tfvars"
-  backend_file="$environment_dir/backend.hcl"
-  check_account "$variables_file"
+  check_environment "$environment"
 
-  state_bucket=$(terraform -chdir="$BOOTSTRAP_DIR" output -raw state_bucket)
   artifact_buckets=$(terraform -chdir="$BOOTSTRAP_DIR" output -json artifact_buckets)
   artifact_bucket=$(printf '%s' "$artifact_buckets" | python3 -c \
     'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$environment")
-
-  backend_bucket=$(read_tfvar bucket "$backend_file")
-  backend_key=$(read_tfvar key "$backend_file")
-  backend_region=$(read_tfvar region "$backend_file")
-  configured_region=$(read_tfvar aws_region "$variables_file")
-  [ "$backend_bucket" = "$state_bucket" ] ||
-    fail "El bucket de $backend_file no coincide con el bucket de estado del bootstrap ($state_bucket)."
-  [ "$backend_key" = "$environment/terraform.tfstate" ] ||
-    fail "Usa la clave de estado $environment/terraform.tfstate en $backend_file."
-  [ -n "$backend_region" ] && [ "$backend_region" = "$configured_region" ] ||
-    fail "La región de $backend_file debe coincidir con aws_region en $variables_file."
 
   printf 'Subiendo el artefacto Lambda versionado a %s/%s/...\n' \
     "$artifact_bucket" "$environment"
@@ -171,6 +202,10 @@ case "${1:-}" in
   deploy)
     shift
     deploy "$@"
+    ;;
+  plan)
+    shift
+    plan "$@"
     ;;
   *)
     usage >&2

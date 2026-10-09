@@ -43,13 +43,15 @@ Desde la raíz del repositorio, una vez configurados los archivos efectivos y lo
 
 ```sh
 make bootstrap
+make plan preview
+make plan production
 make deploy preview
 make deploy production
 ```
 
-`make bootstrap` crea el estado remoto inicial solo después de mostrar el plan y pedir `APPLY bootstrap`. Para desplegar, cada comando comprueba la sesión AWS activa contra `aws_account_id`, la configuración del backend y los artefactos; sube el ZIP de Lambda con versión inmutable, genera y muestra el plan, y solo aplica si escribes exactamente `APPLY preview` o `APPLY production`. Después publica la web y solicita una invalidación de CloudFront. Puedes seleccionar un perfil ya autenticado con `AWS_PROFILE=nombre make deploy preview`; el comando no inicia sesión ni solicita credenciales.
+`make bootstrap` crea el estado remoto inicial solo después de mostrar el plan y pedir `APPLY bootstrap`. Los targets `make plan <entorno>` validan cuenta y backend, inicializan Terraform y muestran el plan usando los valores ya guardados en el `terraform.tfvars` de ese entorno; no suben ZIPs ni aplican cambios. Para desplegar, cada comando comprueba la sesión AWS activa contra `aws_account_id`, la configuración del backend y los artefactos; sube el ZIP de Lambda con versión inmutable, genera y muestra el plan, y solo aplica si escribes exactamente `APPLY preview` o `APPLY production`. Después publica la web y solicita una invalidación de CloudFront. Puedes seleccionar un perfil ya autenticado con `AWS_PROFILE=nombre make plan preview` o `AWS_PROFILE=nombre make deploy preview`; los comandos no inician sesión ni solicitan credenciales.
 
-Los artefactos predeterminados son `build/aws/api-compatible.zip` y `build/aws/frontend-compatible/dist/`. Si están en otras rutas, pásalas como variables: `make deploy preview LAMBDA_ZIP=/ruta/api.zip FRONTEND_DIST=/ruta/dist`. Prepara primero `infra/bootstrap/terraform.tfvars`, su estado local, y los `backend.hcl` y `terraform.tfvars` de cada entorno; consulta los pasos siguientes. El ZIP Lambda y la web tienen que ser compatibles con la infraestructura descrita aquí. **Hoy la aplicación del repositorio todavía no genera esos artefactos ni es compatible con Lambda/Cognito**, por lo que estos comandos no convierten ni compilan automáticamente la aplicación actual. Si cancelas después de subir el ZIP, queda una versión adicional en el bucket de artefactos.
+Los artefactos predeterminados para `deploy` son `build/aws/api-compatible.zip` y `build/aws/frontend-compatible/dist/`. Si están en otras rutas, pásalas como variables: `make deploy preview LAMBDA_ZIP=/ruta/api.zip FRONTEND_DIST=/ruta/dist`. `plan` usa los valores de artefacto de `terraform.tfvars` y, por ello, requiere referencias válidas de bucket, clave, versión y hash; no necesita tener el ZIP local. Prepara primero `infra/bootstrap/terraform.tfvars`, su estado local, y los `backend.hcl` y `terraform.tfvars` de cada entorno; consulta los pasos siguientes. El ZIP Lambda y la web tienen que ser compatibles con la infraestructura descrita aquí. **Hoy la aplicación del repositorio todavía no genera esos artefactos ni es compatible con Lambda/Cognito**, por lo que estos comandos no convierten ni compilan automáticamente la aplicación actual. Si cancelas un `deploy` después de subir el ZIP, queda una versión adicional en el bucket de artefactos.
 
 ### 1. Bootstrap
 
