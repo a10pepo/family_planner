@@ -27,17 +27,34 @@ cp -R "$ROOT/backend/app" "$LAMBDA_OUT/app"
 )
 rm -rf "$LAMBDA_OUT"
 
+frontend_container=
+docker_config_tmp=
+if [ -z "${DOCKER_CONFIG:-}" ]; then
+  if [ -z "${DOCKER_HOST:-}" ]; then
+    docker_context=${DOCKER_CONTEXT:-$(docker context show)}
+    DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}' "$docker_context")
+    export DOCKER_HOST
+    unset DOCKER_CONTEXT
+  fi
+  docker_config_tmp=$(mktemp -d "${TMPDIR:-/tmp}/family-planner-docker.XXXXXX")
+  printf '{"auths":{}}\n' > "$docker_config_tmp/config.json"
+  DOCKER_CONFIG=$docker_config_tmp
+  export DOCKER_CONFIG
+fi
+cleanup() {
+  if [ -n "${frontend_container:-}" ]; then docker rm -f "$frontend_container" >/dev/null 2>&1 || true; fi
+  if [ -n "${docker_config_tmp:-}" ]; then rm -rf "$docker_config_tmp"; fi
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
 docker build --target build -f "$ROOT/frontend/Dockerfile" \
   -t "$FRONTEND_BUILDER_IMAGE" "$ROOT"
 frontend_container=$(docker create "$FRONTEND_BUILDER_IMAGE")
-cleanup() {
-  if [ -n "${frontend_container:-}" ]; then docker rm -f "$frontend_container" >/dev/null 2>&1 || true; fi
-}
-trap cleanup EXIT HUP INT TERM
 rm -rf "$FRONTEND_OUT"
 mkdir -p "$FRONTEND_OUT"
 docker cp "$frontend_container:/app/dist/." "$FRONTEND_OUT"
 cleanup
 frontend_container=
+docker_config_tmp=
 trap - EXIT HUP INT TERM
 printf 'Artefactos listos:\n  %s\n  %s\n' "$OUT/api-compatible.zip" "$FRONTEND_OUT/index.html"
