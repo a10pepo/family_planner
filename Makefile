@@ -1,6 +1,7 @@
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEPLOY_ENV := $(filter preview production,$(MAKECMDGOALS))
 AWS_REGION ?= eu-west-1
+TERRAFORM_VERSION ?= 1.16.5
 
 LAMBDA_ZIP ?= $(ROOT)/build/aws/api-compatible.zip
 FRONTEND_DIST ?= $(ROOT)/build/aws/frontend-compatible/dist
@@ -14,20 +15,24 @@ help:
 	  'make plan production    Show the configured production Terraform plan' \
 	  'make deploy preview     Deploy the configured preview artifacts and infrastructure' \
 	  'make deploy production  Deploy the configured production artifacts and infrastructure' \
-	  'The build uses Python 3, pip and npm; no AWS login is started.'
+	  'Make selects Terraform $(TERRAFORM_VERSION) locally and builds the frontend with Node 24 in Docker.' \
+	  'No AWS login is started.'
 
 build-aws:
 	@AWS_BUILD_DIR="$(ROOT)/build/aws" sh "$(ROOT)/scripts/build_aws.sh"
 
 bootstrap:
-	@AWS_REGION="$(AWS_REGION)" sh "$(ROOT)/scripts/deploy_aws.sh" bootstrap
+	@TERRAFORM_VERSION="$(TERRAFORM_VERSION)" AWS_REGION="$(AWS_REGION)" \
+	  sh "$(ROOT)/scripts/run_aws_with_terraform.sh" bootstrap
 
 plan:
-	@AWS_REGION="$(AWS_REGION)" sh "$(ROOT)/scripts/deploy_aws.sh" plan $(DEPLOY_ENV)
+	@TERRAFORM_VERSION="$(TERRAFORM_VERSION)" AWS_REGION="$(AWS_REGION)" \
+	  sh "$(ROOT)/scripts/run_aws_with_terraform.sh" plan $(DEPLOY_ENV)
 
 deploy:
-	@AWS_REGION="$(AWS_REGION)" LAMBDA_ZIP="$(LAMBDA_ZIP)" FRONTEND_DIST="$(FRONTEND_DIST)" \
-	  sh "$(ROOT)/scripts/deploy_aws.sh" deploy $(DEPLOY_ENV)
+	@TERRAFORM_VERSION="$(TERRAFORM_VERSION)" AWS_REGION="$(AWS_REGION)" \
+	  LAMBDA_ZIP="$(LAMBDA_ZIP)" FRONTEND_DIST="$(FRONTEND_DIST)" \
+	  sh "$(ROOT)/scripts/run_aws_with_terraform.sh" deploy $(DEPLOY_ENV)
 
 preview production:
 	@case " $(MAKECMDGOALS) " in \

@@ -41,7 +41,7 @@ require_file() {
 }
 
 require_tools() {
-  for tool in aws terraform openssl python3 npm; do
+  for tool in aws openssl python3; do
     command -v "$tool" >/dev/null 2>&1 || fail "No se encuentra '$tool' en PATH."
   done
 }
@@ -72,8 +72,8 @@ EOF
     fail "$BOOTSTRAP_VARS usa la región $bootstrap_region, pero el perfil/comando selecciona $region."
   project=$(read_tfvar project "$BOOTSTRAP_VARS")
   project=${project:-family-planner}
-  for environment in preview production; do
-    environment_dir="$ROOT/infra/environments/$environment"
+  for config_environment in preview production; do
+    environment_dir="$ROOT/infra/environments/$config_environment"
     mkdir -p "$environment_dir"
     variables_file="$environment_dir/terraform.tfvars"
     backend_file="$environment_dir/backend.hcl"
@@ -88,7 +88,7 @@ EOF
     if [ ! -f "$backend_file" ]; then
       {
         printf 'bucket       = "%s"\n' "$bucket"
-        printf 'key          = "%s/terraform.tfstate"\n' "$environment"
+        printf 'key          = "%s/terraform.tfstate"\n' "$config_environment"
         printf 'region       = "%s"\n' "$region"
         printf 'allowed_account_ids = ["%s"]\n' "$account"
         printf 'encrypt      = true\nuse_lockfile = true\n'

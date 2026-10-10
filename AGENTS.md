@@ -75,7 +75,7 @@ Pedro aprobó «Sí, eventos familiares y archivo con restauración» y «Sí, f
 - Pruebas del arranque y utilidades: `pytest -q scripts/tests`.
 - Arquitectura y contrato: `python scripts/check_architecture.py`; `python scripts/export_openapi.py --check`; `npm --prefix frontend run api:check`.
 - Frontend: `npm --prefix frontend ci`; `npm --prefix frontend run format:check`; `npm --prefix frontend run lint`; `npm --prefix frontend test`; `npm --prefix frontend run build`.
-- Artefactos AWS: `make build-aws`; los targets `make plan preview|production` y `make deploy preview|production` usan el perfil AWS activo, construyen los artefactos y solicitan confirmaciones explícitas para bootstrap y apply.
+- Artefactos AWS: `make build-aws`; Node 24 se ejecuta dentro del constructor Docker. `make bootstrap`, `make plan preview|production` y `make deploy preview|production` descargan Terraform 1.16.5 verificado a la caché local `build/tools` y usan el perfil AWS activo, sin cambiar herramientas globales; solicitan confirmación explícita para bootstrap y apply.
 - Navegador: `npm --prefix frontend run test:e2e`, solo contra una instancia aislada con configuración ficticia `scripts/setup.py --test`; no ejecutar sobre datos familiares reales.
 - Node 24 y Python 3.12 o posterior para controles fuera de Docker. El README incluye los comandos completos.
 
