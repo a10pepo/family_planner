@@ -3,6 +3,11 @@
 .env.*
 .venv
 .local
+infra
+build
+.codex
+**/.terraform
+**/terraform.tfstate*
 **/node_modules
 **/dist
 **/__pycache__

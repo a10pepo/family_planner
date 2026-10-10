@@ -51,7 +51,7 @@ make deploy preview
 make deploy production
 ```
 
-`make plan <entorno>` y `make deploy <entorno>` construyen primero el paquete Lambda para Linux x86_64/Python 3.12 con pip y el frontend con npm. El Makefile obtiene el ID de cuenta de `aws sts get-caller-identity`, usa `AWS_PROFILE` cuando se establezca y crea los archivos locales ignorados de Terraform si faltan. La región predeterminada es `eu-west-1`; se puede cambiar con `AWS_REGION=...`.
+`make plan <entorno>` y `make deploy <entorno>` preparan Terraform 1.16.5 en la caché local `build/tools` sin reemplazar el Terraform global. También construyen el paquete Lambda para Linux x86_64/Python 3.12 con pip y el frontend con Node 24 dentro del constructor Docker de `frontend/Dockerfile`; Node/npm locales no intervienen. Se necesita Docker, Python 3 y pip. El Makefile obtiene el ID de cuenta de `aws sts get-caller-identity`, usa `AWS_PROFILE` cuando se establezca y crea los archivos locales ignorados de Terraform si faltan. La región predeterminada es `eu-west-1`; se puede cambiar con `AWS_REGION=...`.
 
 Ambos comandos comprueban el bootstrap. Si no existe el estado local y tampoco existe el bucket de estado, muestran el plan de los buckets del bootstrap y exigen escribir `APPLY bootstrap` antes de crearlos. Si el bucket ya existe pero falta el estado local, se detienen para evitar recrear o adoptar recursos sin estado. `make plan` sube el ZIP versionado necesario para planificar Lambda y muestra el plan del entorno; no aplica recursos. `make deploy` muestra el plan y solo lo aplica al escribir exactamente `APPLY preview` o `APPLY production`; después publica la web y solicita una invalidación de CloudFront.
 
@@ -61,23 +61,19 @@ El paquete Lambda predeterminado queda en `build/aws/api-compatible.zip`; la web
 
 ### 1. Bootstrap
 
-Desde la raíz del repositorio:
+Desde la raíz del repositorio, el target Make prepara Terraform 1.16.5 en la caché local y toma la cuenta/región de la sesión AWS activa:
 
 ```sh
-cp infra/bootstrap/terraform.tfvars.example infra/bootstrap/terraform.tfvars
-# Editar terraform.tfvars: cuenta y región.
-terraform -chdir=infra/bootstrap init
-terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
-# Revisar recursos y cuenta del plan antes de aplicarlo.
-terraform -chdir=infra/bootstrap apply bootstrap.tfplan
-terraform -chdir=infra/bootstrap output
+make bootstrap
 ```
+
+Para ejecutar Terraform manualmente fuera de Make, el operador debe seleccionar una versión compatible (1.10 o posterior) por su cuenta.
 
 El bootstrap usa **estado local** porque el bucket remoto aún no existe. Conserva una copia segura de `infra/bootstrap/terraform.tfstate` y sus backups; no se sincroniza solo con S3. Estado, configuración efectiva y planes están excluidos de Git, pero deben protegerse en el equipo. No ejecutar el bootstrap desde otra carpeta o equipo sin recuperar su estado: intentaría crear buckets que ya existen.
 
 ### 2. Construir artefactos
 
-`make build-aws` descarga ruedas binarias para Linux x86_64/Python 3.12, empaqueta `app.lambda_handler.handler` y compila React. El handler valida tokens Cognito de tipo access, cliente, alcance y grupo. El frontend realiza Authorization Code + PKCE y mantiene los tokens en memoria. No se incluyen contraseñas, secretos ni datos familiares.
+`make build-aws` descarga ruedas binarias para Linux x86_64/Python 3.12, empaqueta `app.lambda_handler.handler` y compila React con Node 24 usando Docker. El handler valida tokens Cognito de tipo access, cliente, alcance y grupo. El frontend realiza Authorization Code + PKCE y mantiene los tokens en memoria. No se incluyen contraseñas, secretos ni datos familiares.
 
 Ejemplo de carga manual del paquete generado:
 

@@ -41,7 +41,7 @@ require_file() {
 }
 
 require_tools() {
-  for tool in aws terraform openssl python3 npm; do
+  for tool in aws openssl python3; do
     command -v "$tool" >/dev/null 2>&1 || fail "No se encuentra '$tool' en PATH."
   done
 }

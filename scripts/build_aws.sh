@@ -5,9 +5,10 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 OUT=${AWS_BUILD_DIR:-"$ROOT/build/aws"}
 LAMBDA_OUT="$OUT/lambda"
 FRONTEND_OUT="$OUT/frontend-compatible/dist"
+FRONTEND_BUILDER_IMAGE=${FRONTEND_BUILDER_IMAGE:-family-planner-aws-frontend-builder:node24}
 
 command -v python3 >/dev/null 2>&1 || { printf '%s\n' "Error: Python 3 y pip no están disponibles." >&2; exit 1; }
-command -v npm >/dev/null 2>&1 || { printf '%s\n' "Error: npm no está disponible." >&2; exit 1; }
+command -v docker >/dev/null 2>&1 || { printf '%s\n' "Error: Docker no está disponible para compilar el frontend con Node 24." >&2; exit 1; }
 
 rm -rf "$LAMBDA_OUT"
 mkdir -p "$LAMBDA_OUT"
@@ -26,9 +27,17 @@ cp -R "$ROOT/backend/app" "$LAMBDA_OUT/app"
 )
 rm -rf "$LAMBDA_OUT"
 
-npm --prefix "$ROOT/frontend" ci
-npm --prefix "$ROOT/frontend" run build
-mkdir -p "$(dirname "$FRONTEND_OUT")"
+docker build --target build -f "$ROOT/frontend/Dockerfile" \
+  -t "$FRONTEND_BUILDER_IMAGE" "$ROOT"
+frontend_container=$(docker create "$FRONTEND_BUILDER_IMAGE")
+cleanup() {
+  if [ -n "${frontend_container:-}" ]; then docker rm -f "$frontend_container" >/dev/null 2>&1 || true; fi
+}
+trap cleanup EXIT HUP INT TERM
 rm -rf "$FRONTEND_OUT"
-cp -R "$ROOT/frontend/dist" "$FRONTEND_OUT"
+mkdir -p "$FRONTEND_OUT"
+docker cp "$frontend_container:/app/dist/." "$FRONTEND_OUT"
+cleanup
+frontend_container=
+trap - EXIT HUP INT TERM
 printf 'Artefactos listos:\n  %s\n  %s\n' "$OUT/api-compatible.zip" "$FRONTEND_OUT/index.html"
