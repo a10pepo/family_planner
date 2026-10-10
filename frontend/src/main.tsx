@@ -13,7 +13,8 @@ root.render(
 
 initializeAuth()
   .then(({ auth, config }) => root.render(<App auth={auth} config={config} />))
-  .catch(() =>
+  .catch((error: unknown) => {
+    console.error("No se pudo inicializar Family Planner.", error);
     root.render(
       <main className="welcome">
         <div className="brand-mark">◷</div>
@@ -23,5 +24,5 @@ initializeAuth()
           Volver a intentar
         </button>
       </main>,
-    ),
-  );
+    );
+  });

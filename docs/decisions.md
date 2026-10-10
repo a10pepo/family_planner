@@ -18,7 +18,7 @@ Fuente: respuestas de Pedro Nieto del 7 de octubre de 2026. Configuración inici
 | Movimiento | Cambia fecha y hora conservando integrante; formulario y redimensionado permiten cambiar duración. |
 | Idiomas | Interfaz y documentación en español; código en inglés. Valor inicial adoptado en este MVP. |
 | Zona | Europe/Madrid configurable; instantes persistidos con zona horaria. |
-| Ejecución | Docker Compose; solo se expone localhost:8080. |
+| Ejecución | Docker Compose; por defecto solo se expone localhost:8080. `scripts/configure_lan_tls.py` permite pruebas HTTPS en la red doméstica conservando PKCE. |
 | Calidad | CI con arquitectura, contrato, formato, tipos, pruebas, Docker y OAuth real. |
 | Entrega | Imágenes validadas como artefacto tras merge a main; despliegue público y merge automático pendientes. |
 | Seguimiento | Issues de GitHub con etiquetas feature o issue. |
@@ -90,6 +90,10 @@ Pedro aprobó el 9 de octubre de 2026 añadir series recurrentes y excepciones, 
 Una serie guarda integrante, título, fecha y hora local de inicio, duración, zona IANA, frecuencia diaria/semanal/mensual, intervalo, días semanales opcionales, categoría e icono opcional. El final se expresa como nunca, fecha inclusiva o cantidad total de ocurrencias. Para series semanales sin días se usa el día de inicio. En la frecuencia mensual se repite el mismo número de día y se omiten los meses que no lo contienen. La hora de pared se mantiene en la zona configurada a través de cambios DST; el intervalo de duración se suma a cada inicio local.
 
 Una excepción se identifica por serie, fecha local de inicio original y hora local de inicio original. Puede cancelar esa ocurrencia o sobrescribir hora, duración, título, categoría e icono. Editar la serie cambia su regla; eliminarla elimina también sus excepciones. El calendario consulta y expande únicamente el rango visible, y no permite arrastrar una ocurrencia recurrente como si fuera un evento puntual.
+
+## Acceso desde la red doméstica (issue #25)
+
+Pedro solicitó habilitar el acceso desde una tablet en la misma red doméstica para probar la aplicación, y aprobó HTTPS local al descubrir que PKCE no puede usar Web Crypto desde una dirección HTTP privada. La publicación del puerto 8080 sigue limitada a `127.0.0.1`; `scripts/configure_lan_tls.py` configura un certificado local para la IPv4 elegida, actualiza el origen del cliente Keycloak sin borrar su volumen y `compose.lan-tls.yaml` publica HTTPS en el puerto 8443. Pedro instala y confía manualmente en la tablet la CA pública; la clave privada de CA queda en `.local`. No configura acceso público, router ni DNS.
 
 ## Infraestructura AWS (issue #13)
 

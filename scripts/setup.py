@@ -102,7 +102,7 @@ def prepare(test: bool = False) -> None:
     env_path.write_text("\n".join(f"{key}={value}" for key, value in values.items()) + "\n")
     os.chmod(env_path, 0o600)
     print("Configuración creada. Ejecuta: docker compose up --build -d")
-    print("Accede a http://localhost:8080 con la cuenta familiar que has configurado.")
+    print(f"Accede a {origin} con la cuenta familiar que has configurado.")
 
 
 if __name__ == "__main__":
