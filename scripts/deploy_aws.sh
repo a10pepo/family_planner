@@ -14,7 +14,8 @@ usage() {
     '       make plan preview' \
     '       make plan production' \
     '       make deploy preview' \
-    '       make deploy production'
+    '       make deploy production' \
+    '       make destroy preview'
 }
 
 fail() {
@@ -281,6 +282,107 @@ deploy() {
   terraform -chdir="$environment_dir" output -raw site_url
 }
 
+delete_versioned_objects() {
+  bucket=$1
+  prefix=$2
+  printf 'Eliminando versiones y marcadores de borrado bajo s3://%s/%s ...\n' "$bucket" "$prefix"
+  python3 - "$bucket" "$prefix" <<'PY'
+import json
+import subprocess
+import sys
+
+bucket = sys.argv[1]
+prefix = sys.argv[2]
+command = ["aws", "s3api", "list-object-versions", "--bucket", bucket, "--output", "json"]
+if prefix:
+    command.extend(["--prefix", prefix])
+listed = subprocess.run(
+    command,
+    check=True, capture_output=True, text=True,
+)
+response = json.loads(listed.stdout)
+objects = []
+for section in ("Versions", "DeleteMarkers"):
+    objects.extend(
+        {"Key": item["Key"], "VersionId": item["VersionId"]}
+        for item in response.get(section, [])
+        if item["Key"].startswith(prefix)
+    )
+
+for offset in range(0, len(objects), 1000):
+    batch = objects[offset:offset + 1000]
+    result = subprocess.run(
+        ["aws", "s3api", "delete-objects", "--bucket", bucket,
+         "--delete", json.dumps({"Objects": batch, "Quiet": False})],
+        check=True, capture_output=True, text=True,
+    )
+    deleted = json.loads(result.stdout).get("Deleted", [])
+    if len(deleted) != len(batch):
+        raise SystemExit("S3 no confirmó el borrado de todos los artefactos preview.")
+print(f"Versiones y marcadores eliminados: {len(objects)}")
+PY
+}
+
+delete_preview_artifacts() {
+  project=$(read_tfvar project "$BOOTSTRAP_VARS")
+  project=${project:-family-planner}
+  account=$(read_tfvar aws_account_id "$BOOTSTRAP_VARS")
+  expected_bucket="$project-preview-$account-artifacts"
+  artifact_buckets=$(terraform -chdir="$BOOTSTRAP_DIR" output -json artifact_buckets)
+  artifact_bucket=$(printf '%s' "$artifact_buckets" | python3 -c \
+    'import json,sys; print(json.load(sys.stdin)["preview"])')
+  [ "$artifact_bucket" = "$expected_bucket" ] ||
+    fail "El bucket de artefactos preview ($artifact_bucket) no coincide con el nombre esperado ($expected_bucket)."
+  delete_versioned_objects "$artifact_bucket" preview/
+}
+
+destroy() {
+  [ "$#" -eq 1 ] || { usage >&2; exit 2; }
+  environment=$1
+  [ "$environment" = preview ] || fail "Este comando solo permite destruir preview; producción no está habilitada."
+
+  require_tools
+  prepare_config
+  require_file "$BOOTSTRAP_DIR/terraform.tfstate"
+  require_file "$BOOTSTRAP_VARS"
+  check_account "$BOOTSTRAP_VARS"
+  check_environment "$environment"
+
+  environment_dir="$ROOT/infra/environments/$environment"
+  backend_file="$environment_dir/backend.hcl"
+  backend_bucket=$(read_tfvar bucket "$backend_file")
+  backend_key=$(read_tfvar key "$backend_file")
+  aws s3api head-object --bucket "$backend_bucket" --key "$backend_key" >/dev/null 2>&1 ||
+    fail "No existe el estado remoto de preview; no se iniciará un destroy sin estado."
+
+  plan_dir=$(temporary_plan_dir)
+  trap 'rm -rf "$plan_dir"' 0 HUP INT TERM
+  terraform -chdir="$environment_dir" init -input=false -backend-config=backend.hcl
+  project=$(read_tfvar project "$BOOTSTRAP_VARS")
+  project=${project:-family-planner}
+  account=$(read_tfvar aws_account_id "$BOOTSTRAP_VARS")
+  expected_frontend_bucket="$project-preview-$account-web"
+  frontend_bucket=$(terraform -chdir="$environment_dir" output -raw frontend_bucket)
+  [ "$frontend_bucket" = "$expected_frontend_bucket" ] ||
+    fail "El bucket web preview ($frontend_bucket) no coincide con el nombre esperado ($expected_frontend_bucket)."
+  terraform -chdir="$environment_dir" plan -destroy -input=false \
+    -var-file=terraform.tfvars \
+    -var="lambda_artifact_bucket=$project-preview-$account-artifacts" \
+    -var='lambda_artifact_key=preview/destroy-placeholder.zip' \
+    -var='lambda_artifact_version=destroy-placeholder' \
+    -var='lambda_artifact_sha256=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+    -out="$plan_dir/preview-destroy.tfplan"
+  terraform -chdir="$environment_dir" show -no-color "$plan_dir/preview-destroy.tfplan"
+  printf '\nEsto destruye exclusivamente los recursos gestionados por preview. Se conservan el bootstrap, el estado remoto vacío y producción.\n'
+  confirm_plan 'DESTROY preview'
+  delete_versioned_objects "$frontend_bucket" ''
+  terraform -chdir="$environment_dir" apply -input=false "$plan_dir/preview-destroy.tfplan"
+  delete_preview_artifacts
+  trap - 0 HUP INT TERM
+  rm -rf "$plan_dir"
+  printf '\nRecursos y artefactos de preview eliminados. Los buckets compartidos del bootstrap permanecen.\n'
+}
+
 case "${1:-}" in
   bootstrap)
     [ "$#" -eq 1 ] || { usage >&2; exit 2; }
@@ -289,6 +391,10 @@ case "${1:-}" in
   deploy)
     shift
     deploy "$@"
+    ;;
+  destroy)
+    shift
+    destroy "$@"
     ;;
   plan)
     shift
