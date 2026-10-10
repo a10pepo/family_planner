@@ -6,7 +6,7 @@ TERRAFORM_VERSION ?= 1.16.5
 LAMBDA_ZIP ?= $(ROOT)/build/aws/api-compatible.zip
 FRONTEND_DIST ?= $(ROOT)/build/aws/frontend-compatible/dist
 
-.PHONY: help build-aws bootstrap plan deploy preview production
+.PHONY: help build-aws bootstrap plan deploy destroy preview production
 
 help:
 	@printf '%s\n' \
@@ -15,6 +15,7 @@ help:
 	  'make plan production    Show the configured production Terraform plan' \
 	  'make deploy preview     Deploy the configured preview artifacts and infrastructure' \
 	  'make deploy production  Deploy the configured production artifacts and infrastructure' \
+	  'make destroy preview    Destroy preview resources and delete its versioned artifacts' \
 	  'Make selects Terraform $(TERRAFORM_VERSION) locally and builds the frontend with Node 24 in Docker.' \
 	  'No AWS login is started.'
 
@@ -34,8 +35,12 @@ deploy:
 	  LAMBDA_ZIP="$(LAMBDA_ZIP)" FRONTEND_DIST="$(FRONTEND_DIST)" \
 	  sh "$(ROOT)/scripts/run_aws_with_terraform.sh" deploy $(DEPLOY_ENV)
 
+destroy:
+	@TERRAFORM_VERSION="$(TERRAFORM_VERSION)" AWS_REGION="$(AWS_REGION)" \
+	  sh "$(ROOT)/scripts/run_aws_with_terraform.sh" destroy $(DEPLOY_ENV)
+
 preview production:
 	@case " $(MAKECMDGOALS) " in \
-	  *' deploy '*|*' plan '*) ;; \
-	  *) printf '%s\n' 'Use: make plan preview, make plan production, make deploy preview, or make deploy production'; exit 2 ;; \
+	  *' deploy '*|*' plan '*|*' destroy '*) ;; \
+	  *) printf '%s\n' 'Use: make plan preview, make plan production, make deploy preview, make deploy production, or make destroy preview'; exit 2 ;; \
 	esac

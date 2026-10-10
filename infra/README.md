@@ -49,11 +49,14 @@ make plan preview
 make plan production
 make deploy preview
 make deploy production
+make destroy preview
 ```
 
 `make plan <entorno>` y `make deploy <entorno>` preparan Terraform 1.16.5 en la caché local `build/tools` sin reemplazar el Terraform global. También construyen el paquete Lambda para Linux x86_64/Python 3.12 con pip y el frontend con Node 24 dentro del constructor Docker de `frontend/Dockerfile`; Node/npm locales no intervienen. Se necesita Docker, Python 3 y pip. El Makefile obtiene el ID de cuenta de `aws sts get-caller-identity`, usa `AWS_PROFILE` cuando se establezca y crea los archivos locales ignorados de Terraform si faltan. La región predeterminada es `eu-west-1`; se puede cambiar con `AWS_REGION=...`.
 
 Ambos comandos comprueban el bootstrap. Si no existe el estado local y tampoco existe el bucket de estado, muestran el plan de los buckets del bootstrap y exigen escribir `APPLY bootstrap` antes de crearlos. Si el bucket ya existe pero falta el estado local, se detienen para evitar recrear o adoptar recursos sin estado. `make plan` sube el ZIP versionado necesario para planificar Lambda y muestra el plan del entorno; no aplica recursos. `make deploy` muestra el plan y solo lo aplica al escribir exactamente `APPLY preview` o `APPLY production`; después publica la web y solicita una invalidación de CloudFront.
+
+`make destroy preview` requiere el estado remoto de preview y el bootstrap local existente. Muestra un plan de destrucción, pide escribir exactamente `DESTROY preview` y elimina los recursos Terraform de preview, los objetos versionados de su bucket web y los artefactos bajo `preview/`. No construye ni sube artefactos. El bucket de estado compartido, los buckets bootstrap, el estado remoto vacío y todos los recursos de producción permanecen. Este comando no borra recursos que no estén registrados en el estado de Terraform.
 
 Ejemplo con un perfil ya conectado: `AWS_PROFILE=mi-perfil make plan preview`. No se guardan credenciales en los archivos generados. El bootstrap requiere interacción explícita para crear buckets facturables; el despliegue requiere otra confirmación tras revisar su plan.
 
