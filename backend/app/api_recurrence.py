@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.adapters.recurrence import SqlRecurrenceRepository
 from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
 from app.domain.recurrence import (
     EndMode,
@@ -64,7 +63,7 @@ def install_recurrence_routes(app: FastAPI, guarded: list, use_calendar):
         tags=["events"],
     )
     def list_series(service: use_calendar, member_id: UUID | None = None):
-        repo = SqlRecurrenceRepository(service.repository.session)
+        repo = service.recurrence_repository
         return [asdict(series) for series in repo.series(member_id)]
 
     @app.post(
@@ -95,7 +94,7 @@ def install_recurrence_routes(app: FastAPI, guarded: list, use_calendar):
                 data.custom_icon_id,
             )
         )
-        repo = SqlRecurrenceRepository(service.repository.session)
+        repo = service.recurrence_repository
         return asdict(repo.save_series(series))
 
     @app.put(
@@ -105,7 +104,7 @@ def install_recurrence_routes(app: FastAPI, guarded: list, use_calendar):
         tags=["events"],
     )
     def update_series(series_id: UUID, data: SeriesInput, service: use_calendar):
-        repo = SqlRecurrenceRepository(service.repository.session)
+        repo = service.recurrence_repository
         if repo.get_series(series_id) is None:
             raise MissingEntity("No existe la serie recurrente.")
         _validate_references(service, data)
@@ -134,7 +133,7 @@ def install_recurrence_routes(app: FastAPI, guarded: list, use_calendar):
         "/api/v1/event-series/{series_id}", status_code=204, dependencies=guarded, tags=["events"]
     )
     def delete_series(series_id: UUID, service: use_calendar):
-        repo = SqlRecurrenceRepository(service.repository.session)
+        repo = service.recurrence_repository
         if repo.get_series(series_id) is None:
             raise MissingEntity("No existe la serie recurrente.")
         repo.delete_series(series_id)
@@ -147,7 +146,7 @@ def install_recurrence_routes(app: FastAPI, guarded: list, use_calendar):
         tags=["events"],
     )
     def save_exception(series_id: UUID, data: ExceptionInput, service: use_calendar):
-        repo = SqlRecurrenceRepository(service.repository.session)
+        repo = service.recurrence_repository
         series = repo.get_series(series_id)
         if series is None:
             raise MissingEntity("No existe la serie recurrente.")
@@ -190,7 +189,7 @@ def install_recurrence_routes(app: FastAPI, guarded: list, use_calendar):
     def remove_exception(
         series_id: UUID, occurrence_date: date, occurrence_time: time, service: use_calendar
     ):
-        repo = SqlRecurrenceRepository(service.repository.session)
+        repo = service.recurrence_repository
         if repo.get_series(series_id) is None:
             raise MissingEntity("No existe la serie recurrente.")
         repo.delete_exception(series_id, occurrence_date, occurrence_time)

@@ -6,9 +6,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import Session
 
-from app.adapters.family import SqlFamilyRepository
 from app.domain.family import FamilyIcon, FamilyPlanner
 
 
@@ -24,10 +22,10 @@ class FamilyEventOutput(FamilyEventInput):
     id: UUID
 
 
-def install_family_routes(app: FastAPI, engine, guarded):
+def install_family_routes(app: FastAPI, storage, guarded):
     def family() -> Iterator[FamilyPlanner]:
-        with Session(engine) as session, session.begin():
-            yield FamilyPlanner(SqlFamilyRepository(session))
+        with storage.repositories() as repositories:
+            yield FamilyPlanner(repositories.family)
 
     use_family = Annotated[FamilyPlanner, Depends(family)]
 

@@ -75,6 +75,7 @@ Pedro aprobó «Sí, eventos familiares y archivo con restauración» y «Sí, f
 - Pruebas del arranque y utilidades: `pytest -q scripts/tests`.
 - Arquitectura y contrato: `python scripts/check_architecture.py`; `python scripts/export_openapi.py --check`; `npm --prefix frontend run api:check`.
 - Frontend: `npm --prefix frontend ci`; `npm --prefix frontend run format:check`; `npm --prefix frontend run lint`; `npm --prefix frontend test`; `npm --prefix frontend run build`.
+- Artefactos AWS: `make build-aws`; los targets `make plan preview|production` y `make deploy preview|production` usan el perfil AWS activo, construyen los artefactos y solicitan confirmaciones explícitas para bootstrap y apply.
 - Navegador: `npm --prefix frontend run test:e2e`, solo contra una instancia aislada con configuración ficticia `scripts/setup.py --test`; no ejecutar sobre datos familiares reales.
 - Node 24 y Python 3.12 o posterior para controles fuera de Docker. El README incluye los comandos completos.
 
@@ -93,8 +94,9 @@ Pedro aprobó «Sí, eventos familiares y archivo con restauración» y «Sí, f
 
 ## Terraform AWS (issue #13)
 
-- Pedro solicitó S3/CloudFront, DynamoDB, Lambda y Cognito, con preview y producción en la misma cuenta, y precisó: «no quiero que inicies sesión solo crea el terraform yo haré el login antes de desplegar». Esta entrega solo prepara infraestructura; no hacer login, consultar cuentas, ejecutar planes reales/applies ni desplegar por iniciativa propia.
-- Leer [infra/README.md](infra/README.md) y [docs/aws-proposal.md](docs/aws-proposal.md). El backend/frontend actuales conservan PostgreSQL/Keycloak; el handler Lambda, adaptador DynamoDB, cliente Cognito y migración requieren trabajo posterior. No empaquetar el backend actual como Lambda compatible ni declarar el despliegue funcional.
+- Pedro solicitó S3/CloudFront, DynamoDB, Lambda y Cognito, con preview y producción en la misma cuenta. No iniciar sesión por Pedro. Make usa el perfil AWS CLI que ya esté conectado, muestra los planes y exige frases de confirmación antes de crear el bootstrap o aplicar un entorno; no ejecutar esos comandos automáticamente desde una tarea de código.
+- Leer [infra/README.md](infra/README.md) y [docs/aws-proposal.md](docs/aws-proposal.md). Runtime AWS aprobado: Cognito y DynamoDB mediante Lambda; Docker local conserva PostgreSQL y Keycloak. Producción inicia vacía; no se migran datos familiares ni se usa información familiar en preview.
 - `infra/bootstrap/`: buckets privados de estado/artefactos, estado inicial local. `infra/environments/preview/` y `production/`: estados separados con bloqueo S3 nativo. `infra/modules/application/`: recursos compartidos parametrizados, IAM propio por entorno y login sin contraseñas en Terraform. No crear roles de despliegue/CI por iniciativa propia.
+- Pedro aprobó el 9 de octubre de 2026 el runtime AWS con Cognito, Lambda y DynamoDB, incluido el esquema `FAMILY#default`, índices, excepciones y marcas; producción comienza vacía y no se migra información local. Los Makefile generan configuración local desde la sesión AWS CLI y construyen artefactos; el despliegue requiere la confirmación explícita en terminal.
 - Comprobaciones sin sesión: `terraform fmt -check -recursive infra`; en las cuatro raíces, `terraform init -backend=false -input=false -lockfile=readonly` y `terraform validate`; `terraform -chdir=infra/bootstrap test`; `terraform -chdir=infra/modules/application test`; `node --test infra/tests/spa.test.mjs`. Las pruebas utilizan `mock_provider "aws"` y no acceden a recursos AWS. CI usa Terraform 1.16.5 y AWS provider 6.68.0.
 - Nunca añadir estados, planes, claves, contraseñas ni configuración efectiva al repositorio. Conservar ejemplos y lockfiles. No utilizar datos familiares en preview. Los permisos de ejecución limitan el acceso a la tabla propia; administradores y credenciales de despliegue requieren revisión adicional.

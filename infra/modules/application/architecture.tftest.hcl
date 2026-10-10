@@ -58,7 +58,7 @@ run "preview" {
     error_message = "Solo la distribución propia debe leer el sitio y se debe exigir TLS."
   }
   assert {
-    condition     = jsondecode(aws_iam_role_policy.lambda.policy).Statement[0].Resource == aws_dynamodb_table.calendar.arn && !contains(jsondecode(aws_iam_role_policy.lambda.policy).Statement[0].Action, "dynamodb:Scan") && length(jsondecode(aws_iam_role_policy.lambda.policy).Statement) == 2
+    condition     = jsondecode(aws_iam_role_policy.lambda.policy).Statement[0].Resource == [aws_dynamodb_table.calendar.arn, "${aws_dynamodb_table.calendar.arn}/index/*"] && !contains(jsondecode(aws_iam_role_policy.lambda.policy).Statement[0].Action, "dynamodb:Scan") && length(jsondecode(aws_iam_role_policy.lambda.policy).Statement) == 2
     error_message = "Lambda solo debe acceder a su tabla y sus registros."
   }
   assert {

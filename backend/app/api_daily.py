@@ -6,9 +6,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import Session
 
-from app.adapters.daily import SqlDailyRepository
 from app.domain.daily import DailyPlanner, Frequency, NoticeIcon, TaskIcon
 
 
@@ -60,10 +58,10 @@ class OccurrenceOutput(BaseModel):
     custom_icon_id: UUID | None = None
 
 
-def install_daily_routes(app: FastAPI, engine, guarded):
+def install_daily_routes(app: FastAPI, storage, guarded):
     def daily() -> Iterator[DailyPlanner]:
-        with Session(engine) as session, session.begin():
-            yield DailyPlanner(SqlDailyRepository(session))
+        with storage.repositories() as repositories:
+            yield DailyPlanner(repositories.daily)
 
     use_daily = Annotated[DailyPlanner, Depends(daily)]
 

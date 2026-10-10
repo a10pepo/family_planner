@@ -5,9 +5,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import Session
 
-from app.adapters.icons import SqlIconRepository
 from app.adapters.photos import normalize_icon
 from app.domain.icons import IconLibrary
 
@@ -22,10 +20,10 @@ class IconOutput(IconInput):
     id: UUID
 
 
-def install_icon_routes(app: FastAPI, engine, guarded):
+def install_icon_routes(app: FastAPI, storage, guarded):
     def library() -> Iterator[IconLibrary]:
-        with Session(engine) as session, session.begin():
-            yield IconLibrary(SqlIconRepository(session))
+        with storage.repositories() as repositories:
+            yield IconLibrary(repositories.icons)
 
     use_library = Annotated[IconLibrary, Depends(library)]
 

@@ -1,4 +1,4 @@
-import type Keycloak from "keycloak-js";
+import type { AuthClient } from "./auth";
 import type { components } from "./api-schema";
 
 export type CustomIcon = components["schemas"]["IconOutput"];
@@ -20,7 +20,7 @@ export type EventSeriesInput = components["schemas"]["SeriesInput"];
 export type EventExceptionInput = components["schemas"]["ExceptionInput"];
 
 export class Api {
-  constructor(private auth: Keycloak) {}
+  constructor(private auth: AuthClient) {}
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     try {

@@ -1,5 +1,4 @@
 import os
-from collections.abc import Iterator
 from dataclasses import asdict
 from datetime import date, time
 from typing import Annotated
@@ -10,13 +9,10 @@ from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
-from app.adapters.database import SqlCalendarRepository, make_engine
 from app.adapters.oauth import OAuthVerifier
 from app.adapters.photos import normalize_photo
-from app.adapters.recurrence import SqlRecurrenceRepository
+from app.adapters.storage import configured_storage
 from app.api_daily import install_daily_routes
 from app.api_family import install_family_routes
 from app.api_icons import install_icon_routes
@@ -64,22 +60,28 @@ class EventOutput(EventInput):
     occurrence_time: time | None = None
 
 
-def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
+def create_app(database_url: str | None = None, verifier=None, storage=None) -> FastAPI:
     origin = os.getenv("APP_ORIGIN", "http://localhost:8080").rstrip("/")
-    issuer = f"{origin}/auth/realms/family"
+    provider = os.getenv("OAUTH_PROVIDER", "keycloak")
+    issuer = os.getenv("OAUTH_ISSUER", f"{origin}/auth/realms/family")
     zone = os.getenv("FAMILY_TIMEZONE", "Europe/Madrid")
     ZoneInfo(zone)
-    engine = make_engine(database_url or os.environ["DATABASE_URL"])
+    storage = storage or configured_storage(database_url)
     auth = verifier or OAuthVerifier(
         issuer,
-        os.getenv(
-            "OAUTH_JWKS_URL",
-            "http://identity:8080/auth/realms/family/protocol/openid-connect/certs",
-        ),
+        os.getenv("OAUTH_JWKS_URL", f"{issuer}/protocol/openid-connect/certs"),
+        os.getenv("OAUTH_CLIENT_ID", "family-api"),
+        provider=provider,
+        required_group=os.getenv("OAUTH_REQUIRED_GROUP", "family-app"),
+        required_scope=os.getenv("OAUTH_REQUIRED_SCOPE", ""),
     )
+    authorization_url = os.getenv(
+        "OAUTH_AUTHORIZATION_ENDPOINT", f"{issuer}/protocol/openid-connect/auth"
+    )
+    token_url = os.getenv("OAUTH_TOKEN_ENDPOINT", f"{issuer}/protocol/openid-connect/token")
     oauth = OAuth2AuthorizationCodeBearer(
-        authorizationUrl=f"{issuer}/protocol/openid-connect/auth",
-        tokenUrl=f"{issuer}/protocol/openid-connect/token",
+        authorizationUrl=authorization_url,
+        tokenUrl=token_url,
     )
     app = FastAPI(
         title="Family Planner API",
@@ -89,18 +91,21 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
         swagger_ui_oauth2_redirect_url="/api/docs/oauth2-redirect",
         redoc_url=None,
         swagger_ui_init_oauth={
-            "clientId": "family-planner",
+            "clientId": os.getenv("OAUTH_CLIENT_ID", "family-planner"),
             "usePkceWithAuthorizationCodeGrant": True,
         },
     )
-    app.state.engine = engine
+    app.state.storage = storage
+    app.state.engine = getattr(storage, "engine", None)
 
     def authenticated(token: Annotated[str, Depends(oauth)]):
         return auth.verify(token)
 
-    def calendar() -> Iterator[Calendar]:
-        with Session(engine) as session, session.begin():
-            yield Calendar(SqlCalendarRepository(session))
+    def calendar():
+        with storage.repositories() as repositories:
+            service = Calendar(repositories.calendar)
+            service.recurrence_repository = repositories.recurrence
+            yield service
 
     @app.exception_handler(InvalidInput)
     async def invalid_input(_request, exc):
@@ -113,19 +118,30 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
     @app.get("/api/health", tags=["system"])
     def health():
         try:
-            with engine.connect() as connection:
-                connection.execute(text("SELECT 1 FROM members LIMIT 1"))
+            storage.health()
         except Exception as exc:
-            raise HTTPException(503, "La base de datos aún no está disponible.") from exc
+            raise HTTPException(503, "La persistencia aún no está disponible.") from exc
         return {"status": "ok"}
 
     @app.get("/api/v1/config", tags=["system"])
     def config():
+        if provider == "cognito":
+            return {
+                "timezone": zone,
+                "oauth_provider": provider,
+                "issuer": issuer,
+                "authorization_endpoint": authorization_url,
+                "token_endpoint": token_url,
+                "logout_endpoint": os.environ["OAUTH_LOGOUT_ENDPOINT"],
+                "client_id": os.environ["OAUTH_CLIENT_ID"],
+                "scopes": os.environ["OAUTH_SCOPES"].split(),
+            }
         return {
             "timezone": zone,
+            "oauth_provider": provider,
             "oauth_url": f"{origin}/auth",
             "realm": "family",
-            "client_id": "family-planner",
+            "client_id": os.getenv("OAUTH_CLIENT_ID", "family-planner"),
         }
 
     guarded = [Depends(authenticated)]
@@ -184,7 +200,7 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
         member_id: UUID | None = None,
     ):
         punctual = service.list_events(start, end, member_id)
-        recurring = SqlRecurrenceRepository(service.repository.session)
+        recurring = service.recurrence_repository
         for series in recurring.series(member_id):
             punctual.extend(expand_series(series, start, end, recurring.exceptions(series.id)))
         return [asdict(event) for event in sorted(punctual, key=lambda item: item.starts_at)]
@@ -232,8 +248,8 @@ def create_app(database_url: str | None = None, verifier=None) -> FastAPI:
         service.delete_event(event_id)
         return Response(status_code=204)
 
-    install_daily_routes(app, engine, guarded)
-    install_icon_routes(app, engine, guarded)
-    install_family_routes(app, engine, guarded)
+    install_daily_routes(app, storage, guarded)
+    install_icon_routes(app, storage, guarded)
+    install_family_routes(app, storage, guarded)
     install_recurrence_routes(app, guarded, use_calendar)
     return app
