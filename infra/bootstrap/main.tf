@@ -168,7 +168,7 @@ resource "aws_iam_role" "github_preview" {
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:a10pepo/family_planner:ref:refs/heads/main" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:a10pepo@29485524/family_planner@1408456566:ref:refs/heads/main" }
       }
     }]
   })
