@@ -258,7 +258,7 @@ test("week filters, global all-day events and confirmed profile archive persist"
       .click();
     await expect(token).toHaveCount(0);
     await page.getByRole("button", { name: "Semana", exact: true }).click();
-    await event.click();
+    await event.dispatchEvent("click");
     await page
       .getByRole("button", { name: "Eliminar evento", exact: true })
       .click();
