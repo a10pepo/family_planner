@@ -387,7 +387,7 @@ p {
 .fc .fc-scrollgrid {
   border: 0;
 }
-.fc .fc-timegrid-slot {
+.day-surface .fc .fc-timegrid-slot {
   height: 19px;
 }
 .fc .fc-timegrid-slot-minor {
