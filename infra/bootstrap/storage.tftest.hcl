@@ -60,7 +60,7 @@ run "github_preview_role_is_immutable_repository_and_branch_scoped" {
       one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Resource if try(statement.Sid, "") == "ManagePreviewCredentialSecret"]) == "arn:aws:secretsmanager:eu-west-1:111111111111:secret:family-planner-preview/test-account-*",
       one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Resource if try(statement.Sid, "") == "ReadPreviewProviderMetadata"]) == "*"
     ])
-    error_message = "Los permisos de lectura faltantes deben quedar limitados al bucket y secreto de Preview; solo metadatos globales usan Resource *."
+    error_message = "Los permisos de lectura para bucket y secreto deben quedar limitados a Preview; las consultas sin ámbito de recursos deben permanecer en un statement independiente."
   }
 }
 
