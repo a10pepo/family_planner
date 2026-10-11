@@ -4,6 +4,7 @@ import { initializeAuth } from "./auth";
 describe("custom Cognito family access", () => {
   it("uses the public user pool API for registration, verification, login, and recovery", async () => {
     const requests: { url: string; headers: HeadersInit; body: string }[] = [];
+    let signUpUsername = "";
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -28,6 +29,8 @@ describe("custom Cognito family access", () => {
         const target = (init?.headers as Record<string, string>)[
           "X-Amz-Target"
         ];
+        const requestBody = JSON.parse(String(init?.body));
+        if (target?.endsWith("SignUp")) signUpUsername = requestBody.Username;
         const result =
           target?.endsWith("InitiateAuth") &&
           JSON.parse(String(init?.body)).AuthFlow === "USER_PASSWORD_AUTH"
@@ -75,7 +78,8 @@ describe("custom Cognito family access", () => {
       "ForgotPassword",
       "ConfirmForgotPassword",
     ]);
-    expect(requests[2].body).toContain("family@example.com");
+    expect(JSON.parse(requests[1].body).Username).toBe(signUpUsername);
+    expect(JSON.parse(requests[2].body).Username).toBe(signUpUsername);
     expect(requests[3].body).toContain("USER_PASSWORD_AUTH");
     const signUpBody = JSON.parse(requests[0].body);
     expect(signUpBody.Username).toMatch(/^family-[0-9a-f-]{36}$/);

@@ -40,6 +40,7 @@ class CognitoAuth implements AuthClient {
   token?: string;
   onAuthLogout?: () => void;
   private refreshToken?: string;
+  private readonly pendingUsernames = new Map<string, string>();
 
   constructor(private config: AppConfig) {}
 
@@ -76,29 +77,37 @@ class CognitoAuth implements AuthClient {
   }
 
   async signUp(email: string, password: string) {
+    const username = `family-${crypto.randomUUID()}`;
     await this.call("SignUp", {
       ClientId: this.config.client_id,
       // Cognito rejects email-shaped usernames when email is configured as an alias.
-      // Users still sign in and confirm with the email alias.
-      Username: `family-${crypto.randomUUID()}`,
+      Username: username,
       Password: password,
       UserAttributes: [{ Name: "email", Value: email }],
     });
+    this.pendingUsernames.set(email.trim().toLowerCase(), username);
   }
 
   async confirmSignUp(email: string, code: string) {
     await this.call("ConfirmSignUp", {
       ClientId: this.config.client_id,
-      Username: email,
+      Username: this.pendingUsername(email),
       ConfirmationCode: code,
     });
+    this.pendingUsernames.delete(email.trim().toLowerCase());
   }
 
   async resendSignUpCode(email: string) {
     await this.call("ResendConfirmationCode", {
       ClientId: this.config.client_id,
-      Username: email,
+      Username: this.pendingUsername(email),
     });
+  }
+
+  private pendingUsername(email: string) {
+    return (
+      this.pendingUsernames.get(email.trim().toLowerCase()) ?? email.trim()
+    );
   }
 
   async signIn(email: string, password: string) {

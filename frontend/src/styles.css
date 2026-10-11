@@ -229,7 +229,7 @@ p {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 28px 20px;
+  padding: 16px 24px 12px;
   gap: 16px;
 }
 .month-label {
@@ -238,9 +238,9 @@ p {
   text-transform: capitalize;
 }
 .calendar-period h1 {
-  margin: 6px 0 0;
-  font-size: clamp(18px, 2.2vw, 27px);
-  letter-spacing: -0.7px;
+  margin: 3px 0 0;
+  font-size: clamp(17px, 1.7vw, 22px);
+  letter-spacing: -0.5px;
   font-weight: 600;
   text-transform: capitalize;
 }
@@ -285,7 +285,7 @@ p {
   height: 17px;
 }
 .day-viewport {
-  max-height: calc(100dvh - 255px);
+  max-height: calc(100dvh - 130px);
   min-height: 420px;
   overflow: auto;
   overscroll-behavior: contain;
@@ -363,7 +363,7 @@ p {
   background: white;
 }
 .hour-label {
-  height: 56px;
+  height: 38px;
   position: relative;
   text-align: center;
   color: #a1a9b0;
@@ -388,7 +388,7 @@ p {
   border: 0;
 }
 .fc .fc-timegrid-slot {
-  height: 28px;
+  height: 19px;
 }
 .fc .fc-timegrid-slot-minor {
   border-top-style: dotted;
@@ -1124,47 +1124,56 @@ legend {
 
 /* Larger portraits with a vertical routine grid on their left. */
 .person-heading {
-  min-height: 280px;
-  padding: 12px 8px;
-  gap: 10px;
+  min-height: 0;
+  padding: 7px 6px;
+  gap: 4px;
 }
 .member-head-main {
   display: flex;
   width: 100%;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
 }
 .person-heading .person-identity {
   width: 116px;
-  height: auto;
+  height: 128px;
   flex-shrink: 0;
+  gap: 2px;
 }
 .person-heading .face-avatar {
-  width: 116px;
-  height: 116px;
+  width: 80px;
+  height: 80px;
 }
 .person-heading .person-name {
   max-width: 100%;
-  font-size: 17px;
+  font-size: 15px;
 }
 .person-heading .person-nickname {
-  font-size: 13px;
+  font-size: 11px;
 }
 .person-heading .column-add {
-  position: static;
-  margin-top: 2px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: auto;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: 0;
+  z-index: 1;
 }
 .person-heading .task-strip {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 68px;
-  width: max-content;
+  grid-auto-columns: 56px;
+  width: auto;
   min-height: 0;
   max-height: none;
   overflow: visible;
   scrollbar-width: none;
-  gap: 8px 12px;
+  gap: 8px;
   padding: 0;
   align-content: center;
 }
@@ -1172,15 +1181,17 @@ legend {
   display: none;
 }
 .person-heading .task-token {
-  width: 68px;
-  height: 68px;
-  border-radius: 16px;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 14px;
   touch-action: manipulation;
 }
 .person-heading .task-token > .icon,
 .person-heading .task-token > .custom-symbol {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
 }
 .person-heading .task-tick {
   width: 23px;
@@ -1191,9 +1202,9 @@ legend {
   height: 14px;
 }
 .person-heading .notice-strip {
-  width: calc(100% + 16px);
-  min-height: 56px;
-  margin-left: -8px;
+  width: calc(100% + 12px);
+  min-height: 48px;
+  margin-left: -6px;
   margin-top: auto;
   padding: 6px 8px;
   border-radius: 12px;

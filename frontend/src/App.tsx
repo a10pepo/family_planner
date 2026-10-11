@@ -682,7 +682,7 @@ export default function App({
   }, [api, authenticated, day, refresh, rangeStart, rangeEnd]);
 
   useEffect(() => {
-    if (viewport.current) viewport.current.scrollTop = 7 * 56;
+    if (viewport.current) viewport.current.scrollTop = 8 * 38;
   }, [loading, authenticated, day, view]);
 
   function addEvent(memberId: string, start?: string, end?: string) {
