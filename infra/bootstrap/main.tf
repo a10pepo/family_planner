@@ -201,7 +201,7 @@ resource "aws_iam_role_policy" "github_preview" {
       {
         Sid      = "ManagePreviewSiteBucket"
         Effect   = "Allow"
-        Action   = ["s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketAcl", "s3:GetBucketLocation", "s3:GetBucketPolicy", "s3:GetBucketPublicAccessBlock", "s3:GetBucketOwnershipControls", "s3:GetBucketVersioning", "s3:GetEncryptionConfiguration", "s3:GetBucketCORS", "s3:GetBucketWebsite", "s3:PutBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutBucketOwnershipControls", "s3:PutBucketVersioning", "s3:PutEncryptionConfiguration", "s3:DeleteBucketPolicy", "s3:DeleteBucketPublicAccessBlock", "s3:DeleteBucketOwnershipControls", "s3:DeleteBucketVersioning", "s3:DeleteEncryptionConfiguration", "s3:ListBucket"]
+        Action   = ["s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketAcl", "s3:GetBucketLocation", "s3:GetBucketPolicy", "s3:GetBucketPublicAccessBlock", "s3:GetBucketOwnershipControls", "s3:GetBucketVersioning", "s3:GetEncryptionConfiguration", "s3:GetBucketCORS", "s3:GetBucketWebsite", "s3:GetAccelerateConfiguration", "s3:PutBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutBucketOwnershipControls", "s3:PutBucketVersioning", "s3:PutEncryptionConfiguration", "s3:DeleteBucketPolicy", "s3:DeleteBucketPublicAccessBlock", "s3:DeleteBucketOwnershipControls", "s3:DeleteBucketVersioning", "s3:DeleteEncryptionConfiguration", "s3:ListBucket"]
         Resource = "arn:aws:s3:::${var.project}-preview-${var.aws_account_id}-web"
       },
       {
@@ -225,7 +225,7 @@ resource "aws_iam_role_policy" "github_preview" {
       {
         Sid    = "ManagePreviewData"
         Effect = "Allow"
-        Action = ["dynamodb:*", "lambda:*", "logs:*", "cognito-idp:*", "apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE", "cloudfront:CreateInvalidation", "cloudfront:DeleteDistribution", "cloudfront:DeleteOriginAccessControl", "cloudfront:GetDistribution", "cloudfront:GetDistributionConfig", "cloudfront:GetInvalidation", "cloudfront:GetOriginAccessControl", "cloudfront:ListTagsForResource", "cloudfront:TagResource", "cloudfront:UntagResource", "cloudfront:UpdateDistribution", "cloudfront:UpdateOriginAccessControl"]
+        Action = ["dynamodb:*", "lambda:*", "logs:*", "cognito-idp:*", "apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE", "cloudfront:CreateInvalidation", "cloudfront:DeleteDistribution", "cloudfront:DeleteOriginAccessControl", "cloudfront:GetDistribution", "cloudfront:GetDistributionConfig", "cloudfront:GetInvalidation", "cloudfront:GetOriginAccessControl", "cloudfront:TagResource", "cloudfront:UntagResource", "cloudfront:UpdateDistribution", "cloudfront:UpdateOriginAccessControl"]
         Resource = [
           "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project}-preview",
           "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project}-preview/index/*",
@@ -256,6 +256,12 @@ resource "aws_iam_role_policy" "github_preview" {
           "arn:aws:cloudfront::${var.aws_account_id}:origin-request-policy/*",
           "arn:aws:cloudfront::${var.aws_account_id}:response-headers-policy/*"
         ]
+      },
+      {
+        Sid      = "ReadPreviewCloudFrontFunctionTags"
+        Effect   = "Allow"
+        Action   = ["cloudfront:ListTagsForResource"]
+        Resource = "arn:aws:cloudfront::${var.aws_account_id}:function/${var.project}-preview-*"
       },
       {
         Sid      = "CreateTaggedPreviewResources"
