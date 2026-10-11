@@ -53,6 +53,7 @@ run "github_preview_role_is_immutable_repository_and_branch_scoped" {
       contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ManagePreviewSiteBucket"]), "s3:GetBucketCORS"),
       contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ManagePreviewSiteBucket"]), "s3:GetBucketWebsite"),
       contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ManagePreviewSiteBucket"]), "s3:GetAccelerateConfiguration"),
+      contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ManagePreviewSiteBucket"]), "s3:GetBucketRequestPayment"),
       one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Resource if try(statement.Sid, "") == "ManagePreviewSiteBucket"]) == "arn:aws:s3:::family-planner-preview-111111111111-web",
       contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ManagePreviewCredentialSecret"]), "secretsmanager:GetResourcePolicy"),
       contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ReadPreviewProviderMetadata"]), "logs:DescribeLogGroups"),
