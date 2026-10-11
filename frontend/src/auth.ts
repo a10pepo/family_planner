@@ -25,6 +25,7 @@ export interface AuthClient {
   logout(options?: { redirectUri?: string }): void | Promise<void>;
   signUp?(email: string, password: string): Promise<void>;
   confirmSignUp?(email: string, code: string): Promise<void>;
+  resendSignUpCode?(email: string): Promise<void>;
   signIn?(email: string, password: string): Promise<void>;
   forgotPassword?(email: string): Promise<void>;
   confirmForgotPassword?(
@@ -93,6 +94,13 @@ class CognitoAuth implements AuthClient {
     });
   }
 
+  async resendSignUpCode(email: string) {
+    await this.call("ResendConfirmationCode", {
+      ClientId: this.config.client_id,
+      Username: email,
+    });
+  }
+
   async signIn(email: string, password: string) {
     const result = await this.call("InitiateAuth", {
       AuthFlow: "USER_PASSWORD_AUTH",
@@ -151,8 +159,10 @@ class CognitoAuth implements AuthClient {
           "Ya existe una cuenta con este correo. Inicia sesión o recupera la contraseña.",
         UserNotConfirmedException:
           "Confirma tu correo con el código que te enviamos.",
-        CodeMismatchException: "El código no es correcto.",
-        ExpiredCodeException: "El código ha caducado. Solicita uno nuevo.",
+        CodeMismatchException:
+          "El código no es correcto. Usa el código más reciente.",
+        ExpiredCodeException:
+          "El código ha caducado. Pulsa «Enviar un código nuevo».",
         NotAuthorizedException: "Correo o contraseña incorrectos.",
         InvalidPasswordException:
           "La contraseña no cumple los requisitos de seguridad.",

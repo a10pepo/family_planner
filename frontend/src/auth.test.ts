@@ -45,7 +45,8 @@ describe("custom Cognito family access", () => {
 
     const { auth } = await initializeAuth();
     await auth.signUp?.("family@example.com", "A-strong-password-123!");
-    await auth.confirmSignUp?.("family@example.com", "123456");
+    await auth.resendSignUpCode?.("family@example.com");
+    await auth.confirmSignUp?.("family@example.com", "654321");
     await auth.signIn?.("family@example.com", "A-strong-password-123!");
     await auth.forgotPassword?.("family@example.com");
     await auth.confirmForgotPassword?.(
@@ -56,7 +57,7 @@ describe("custom Cognito family access", () => {
 
     expect(auth.authenticated).toBe(true);
     expect(auth.token).toBe("access-token");
-    expect(requests).toHaveLength(5);
+    expect(requests).toHaveLength(6);
     expect(
       requests.every((request) => request.url.endsWith("amazonaws.com/")),
     ).toBe(true);
@@ -68,12 +69,14 @@ describe("custom Cognito family access", () => {
       ),
     ).toEqual([
       "SignUp",
+      "ResendConfirmationCode",
       "ConfirmSignUp",
       "InitiateAuth",
       "ForgotPassword",
       "ConfirmForgotPassword",
     ]);
-    expect(requests[2].body).toContain("USER_PASSWORD_AUTH");
+    expect(requests[2].body).toContain("family@example.com");
+    expect(requests[3].body).toContain("USER_PASSWORD_AUTH");
     const signUpBody = JSON.parse(requests[0].body);
     expect(signUpBody.Username).toMatch(/^family-[0-9a-f-]{36}$/);
     expect(signUpBody.Username).not.toBe("family@example.com");

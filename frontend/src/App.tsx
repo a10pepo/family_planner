@@ -103,6 +103,21 @@ function FamilyAccess({
     }
   }
 
+  async function resendConfirmationCode() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await auth.resendSignUpCode?.(email.trim());
+      setCode("");
+      setNotice("Te enviamos un nuevo código. Usa el último que recibas.");
+    } catch (resendError) {
+      setError(message(resendError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const titles = {
     login: "Entrar en vuestro calendario",
     register: "Crear la cuenta familiar",
@@ -192,6 +207,16 @@ function FamilyAccess({
         </button>
       </form>
       <nav className="access-links" aria-label="Opciones de acceso">
+        {mode === "confirm" && (
+          <button
+            className="text-button"
+            type="button"
+            disabled={busy}
+            onClick={resendConfirmationCode}
+          >
+            Enviar un código nuevo
+          </button>
+        )}
         {mode === "login" && (
           <>
             <button className="text-button" onClick={() => setMode("register")}>
