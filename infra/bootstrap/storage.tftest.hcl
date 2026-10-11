@@ -38,10 +38,10 @@ run "lambda_repositories_are_separated_and_retained" {
   }
 }
 
-run "github_preview_role_is_repository_and_environment_scoped" {
+run "github_preview_role_is_immutable_repository_and_branch_scoped" {
   command = apply
   assert {
-    condition     = aws_iam_role.github_preview.name == "family-planner-preview-github-actions" && jsondecode(aws_iam_role.github_preview.assume_role_policy).Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] == "repo:a10pepo/family_planner:ref:refs/heads/main"
+    condition     = aws_iam_role.github_preview.name == "family-planner-preview-github-actions" && jsondecode(aws_iam_role.github_preview.assume_role_policy).Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] == "repo:a10pepo@29485524/family_planner@1408456566:ref:refs/heads/main"
     error_message = "OIDC debe confiar solo en main del repositorio de Family Planner."
   }
   assert {
