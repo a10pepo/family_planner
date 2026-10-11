@@ -201,7 +201,7 @@ resource "aws_iam_role_policy" "github_preview" {
       {
         Sid      = "ManagePreviewSiteBucket"
         Effect   = "Allow"
-        Action   = ["s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketAcl", "s3:GetBucketLocation", "s3:GetBucketPolicy", "s3:GetBucketPublicAccessBlock", "s3:GetBucketOwnershipControls", "s3:GetBucketVersioning", "s3:GetEncryptionConfiguration", "s3:PutBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutBucketOwnershipControls", "s3:PutBucketVersioning", "s3:PutEncryptionConfiguration", "s3:DeleteBucketPolicy", "s3:DeleteBucketPublicAccessBlock", "s3:DeleteBucketOwnershipControls", "s3:DeleteBucketVersioning", "s3:DeleteEncryptionConfiguration", "s3:ListBucket"]
+        Action   = ["s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketAcl", "s3:GetBucketLocation", "s3:GetBucketPolicy", "s3:GetBucketPublicAccessBlock", "s3:GetBucketOwnershipControls", "s3:GetBucketVersioning", "s3:GetEncryptionConfiguration", "s3:GetBucketCORS", "s3:PutBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutBucketOwnershipControls", "s3:PutBucketVersioning", "s3:PutEncryptionConfiguration", "s3:DeleteBucketPolicy", "s3:DeleteBucketPublicAccessBlock", "s3:DeleteBucketOwnershipControls", "s3:DeleteBucketVersioning", "s3:DeleteEncryptionConfiguration", "s3:ListBucket"]
         Resource = "arn:aws:s3:::${var.project}-preview-${var.aws_account_id}-web"
       },
       {
@@ -219,7 +219,7 @@ resource "aws_iam_role_policy" "github_preview" {
       {
         Sid      = "ManagePreviewCredentialSecret"
         Effect   = "Allow"
-        Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource"]
+        Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:GetResourcePolicy", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource"]
         Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project}-preview/test-account-*"
       },
       {
@@ -238,6 +238,22 @@ resource "aws_iam_role_policy" "github_preview" {
           "arn:aws:cloudfront::${var.aws_account_id}:origin-access-control/*"
         ]
         Condition = { StringEquals = { "aws:ResourceTag/Environment" = "preview" } }
+      },
+      {
+        Sid      = "ReadPreviewProviderMetadata"
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogGroups", "cognito-idp:DescribeUserPoolDomain", "cloudfront:ListCachePolicies", "cloudfront:ListOriginRequestPolicies"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ReadPreviewCloudFrontResources"
+        Effect = "Allow"
+        Action = ["cloudfront:DescribeFunction", "cloudfront:GetOriginAccessControl", "cloudfront:GetCachePolicy"]
+        Resource = [
+          "arn:aws:cloudfront::${var.aws_account_id}:function/${var.project}-preview-*",
+          "arn:aws:cloudfront::${var.aws_account_id}:origin-access-control/*",
+          "arn:aws:cloudfront::${var.aws_account_id}:cache-policy/*"
+        ]
       },
       {
         Sid      = "CreateTaggedPreviewResources"

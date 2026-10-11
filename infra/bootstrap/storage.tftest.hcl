@@ -48,6 +48,20 @@ run "github_preview_role_is_immutable_repository_and_branch_scoped" {
     condition     = jsondecode(aws_iam_role_policy.github_preview.policy).Statement[0].Resource == aws_ecr_repository.lambda["preview"].arn && !contains(jsondecode(aws_iam_role_policy.github_preview.policy).Statement[0].Action, "ecr:BatchDeleteImage")
     error_message = "El rol de CI solo debe publicar imágenes de preview."
   }
+  assert {
+    condition = alltrue([
+      contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ManagePreviewSiteBucket"]), "s3:GetBucketCORS"),
+      contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ManagePreviewCredentialSecret"]), "secretsmanager:GetResourcePolicy"),
+      contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ReadPreviewProviderMetadata"]), "logs:DescribeLogGroups"),
+      contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ReadPreviewProviderMetadata"]), "cognito-idp:DescribeUserPoolDomain"),
+      contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ReadPreviewProviderMetadata"]), "cloudfront:ListCachePolicies"),
+      contains(one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Action if try(statement.Sid, "") == "ReadPreviewCloudFrontResources"]), "cloudfront:GetOriginAccessControl"),
+      one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Resource if try(statement.Sid, "") == "ReadPreviewCloudFrontResources"]) == ["arn:aws:cloudfront::111111111111:function/family-planner-preview-*", "arn:aws:cloudfront::111111111111:origin-access-control/*", "arn:aws:cloudfront::111111111111:cache-policy/*"],
+      one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Resource if try(statement.Sid, "") == "ManagePreviewCredentialSecret"]) == "arn:aws:secretsmanager:eu-west-1:111111111111:secret:family-planner-preview/test-account-*",
+      one([for statement in jsondecode(aws_iam_role_policy.github_preview.policy).Statement : statement.Resource if try(statement.Sid, "") == "ReadPreviewProviderMetadata"]) == "*"
+    ])
+    error_message = "Los permisos de lectura para bucket y secreto deben quedar limitados a Preview; las consultas sin ámbito de recursos deben permanecer en un statement independiente."
+  }
 }
 
 run "reject_project_exceeding_bucket_limit" {
