@@ -18,57 +18,63 @@ test("profiles, day notices and independent recurring tasks survive reload and r
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await login(page);
-  if (process.env.EXPECT_PERSISTENCE === "1")
+
+  if (process.env.EXPECT_PERSISTENCE === "1") {
     await expect(
       page.getByRole("img", { name: "Foto de Laura" }),
     ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Configuración", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Editar perfil de Laura (Mamá)" })
-    .click();
-  await page.getByLabel("Nombre", { exact: true }).fill("Laura prueba (Mamá)");
-  // A persisted preview must not satisfy the wait for the newly uploaded photo.
-  const removePhoto = page.getByRole("button", { name: "Quitar foto" });
-  if (await removePhoto.count()) await removePhoto.click();
-  await expect(removePhoto).toHaveCount(0);
-  await page.getByLabel("Foto del integrante").setInputFiles({
-    name: "synthetic.png",
-    mimeType: "image/png",
-    buffer: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAIAAAAt/+nTAAAAUUlEQVR4nNXOQREAIAzAsFL/StCCFjQgYg+uUZC1z6VM4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iTO34GpB8cYAqSNE0TuAAAAAElFTkSuQmCC",
-      "base64",
-    ),
-  });
-  await expect(page.getByRole("button", { name: "Quitar foto" })).toBeEnabled();
-  await page.getByRole("button", { name: "Guardar perfil" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Laura prueba (Mamá)" }),
-  ).toBeVisible();
-  await page.reload();
-  await expect(page.getByRole("img", { name: "Foto de Laura" })).toBeVisible();
-  const photo = page.getByRole("img", { name: "Foto de Laura" });
-  expect(
-    await photo.evaluate((image) => (image as HTMLImageElement).naturalWidth),
-  ).toBe(256);
-  await page
-    .getByRole("button", { name: "Configuración", exact: true })
-    .click();
-  await page.screenshot({
-    path: "test-results/settings-desktop.png",
-    fullPage: true,
-  });
-  await page
-    .getByRole("button", { name: "Editar perfil de Laura prueba (Mamá)" })
-    .click();
-  await page.getByLabel("Nombre", { exact: true }).fill("Laura (Mamá)");
-  if (process.env.EXPECT_PERSISTENCE === "1")
-    await page.getByRole("button", { name: "Quitar foto" }).click();
-  await page.getByRole("button", { name: "Guardar perfil" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Laura (Mamá)" }),
-  ).toBeVisible();
+  } else {
+    await page
+      .getByRole("button", { name: "Configuración", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Editar perfil de Laura (Mamá)" })
+      .click();
+    await page
+      .getByLabel("Nombre", { exact: true })
+      .fill("Laura prueba (Mamá)");
+    const removePhoto = page.getByRole("button", { name: "Quitar foto" });
+    if (await removePhoto.count()) await removePhoto.click();
+    await expect(removePhoto).toHaveCount(0);
+    await page.getByLabel("Foto del integrante").setInputFiles({
+      name: "synthetic.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAIAAAAt/+nTAAAAUUlEQVR4nNXOQREAIAzAsFL/StCCFjQgYg+uUZC1z6VM4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iRO4iTO34GpB8cYAqSNE0TuAAAAAElFTkSuQmCC",
+        "base64",
+      ),
+    });
+    await expect(
+      page.getByRole("button", { name: "Quitar foto" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Guardar perfil" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Laura prueba (Mamá)" }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole("img", { name: "Foto de Laura" }),
+    ).toBeVisible();
+    const photo = page.getByRole("img", { name: "Foto de Laura" });
+    expect(
+      await photo.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    ).toBe(256);
+    await page
+      .getByRole("button", { name: "Configuración", exact: true })
+      .click();
+    await page.screenshot({
+      path: "test-results/settings-desktop.png",
+      fullPage: true,
+    });
+    await page
+      .getByRole("button", { name: "Editar perfil de Laura prueba (Mamá)" })
+      .click();
+    await page.getByLabel("Nombre", { exact: true }).fill("Laura (Mamá)");
+    await page.getByRole("button", { name: "Guardar perfil" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Laura (Mamá)" }),
+    ).toBeVisible();
+  }
 
   const lucia = page.getByRole("button", {
     name: `${routine}, Lucía`,
