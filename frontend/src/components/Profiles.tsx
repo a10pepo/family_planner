@@ -3,6 +3,7 @@ import { Api, type Member } from "../api";
 import { Avatar } from "../visuals";
 import { preparePhoto } from "../photos";
 import { Dialog } from "./Dialog";
+import { MemberForm, memberColors } from "./MemberForm";
 
 export function Profiles({
   members,
@@ -14,6 +15,7 @@ export function Profiles({
   saved: () => void;
 }) {
   const [editing, setEditing] = useState<Member | null>(null);
+  const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -38,8 +40,13 @@ export function Profiles({
   return (
     <section className="management-panel" aria-label="Configuración">
       <header className="management-heading">
-        <h1>Configuración</h1>
-        <p className="muted">Un nombre y una cara para cada uno.</p>
+        <div>
+          <h1>Configuración</h1>
+          <p className="muted">Un nombre y una cara para cada uno.</p>
+        </div>
+        <button type="button" onClick={() => setAdding(true)}>
+          Añadir integrante
+        </button>
       </header>
       <div className="profile-grid">
         {active.map((member) => (
@@ -73,8 +80,24 @@ export function Profiles({
       </div>
       {!active.length && (
         <p className="empty-note">
-          Añade primero a los integrantes desde el icono de personas.
+          Todavía no hay integrantes. Añade el primero para empezar a organizar
+          el calendario familiar.
         </p>
+      )}
+      {adding && (
+        <MemberForm
+          api={api}
+          initialColor={
+            memberColors.find(
+              (color) => !active.some((member) => member.color === color),
+            ) ?? memberColors[active.length % memberColors.length]
+          }
+          close={() => setAdding(false)}
+          saved={() => {
+            setAdding(false);
+            saved();
+          }}
+        />
       )}
       {!removing && error && (
         <p className="error" role="alert">
