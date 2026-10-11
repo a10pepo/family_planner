@@ -34,7 +34,7 @@ class SqlStorage:
         self._recurrence_repository = SqlRecurrenceRepository
 
     @contextmanager
-    def repositories(self) -> Iterator[RepositoryBundle]:
+    def repositories(self, family_id: str | None = None) -> Iterator[RepositoryBundle]:
         with self._session(self.engine) as session, session.begin():
             yield RepositoryBundle(
                 self._calendar_repository(session),
@@ -64,17 +64,31 @@ class DynamoStorage:
 
         table = boto3.resource("dynamodb", region_name=region_name).Table(table_name)
         self.table = table
-        self.bundle = RepositoryBundle(
-            DynamoCalendarRepository(DynamoAccess(table)),
-            DynamoDailyRepository(DynamoAccess(table)),
-            DynamoFamilyRepository(DynamoAccess(table)),
-            DynamoIconRepository(DynamoAccess(table)),
-            DynamoRecurrenceRepository(DynamoAccess(table)),
+        self.transaction_client = boto3.client("dynamodb", region_name=region_name)
+        self._repository_types = (
+            DynamoAccess,
+            DynamoCalendarRepository,
+            DynamoDailyRepository,
+            DynamoFamilyRepository,
+            DynamoIconRepository,
+            DynamoRecurrenceRepository,
         )
 
     @contextmanager
-    def repositories(self) -> Iterator[RepositoryBundle]:
-        yield self.bundle
+    def repositories(self, family_id: str | None = None) -> Iterator[RepositoryBundle]:
+        if not family_id:
+            raise ValueError("DynamoDB repositories require an authenticated family identifier.")
+        access_type, calendar_type, daily_type, family_type, icon_type, recurrence_type = (
+            self._repository_types
+        )
+        access = access_type(self.table, family_id, self.transaction_client)
+        yield RepositoryBundle(
+            calendar_type(access),
+            daily_type(access),
+            family_type(access),
+            icon_type(access),
+            recurrence_type(access),
+        )
 
     def health(self) -> None:
         self.table.load()

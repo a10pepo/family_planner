@@ -101,8 +101,8 @@ def create_app(database_url: str | None = None, verifier=None, storage=None) -> 
     def authenticated(token: Annotated[str, Depends(oauth)]):
         return auth.verify(token)
 
-    def calendar():
-        with storage.repositories() as repositories:
+    def calendar(claims: Annotated[dict, Depends(authenticated)]):
+        with storage.repositories(claims.get("sub")) as repositories:
             service = Calendar(repositories.calendar)
             service.recurrence_repository = repositories.recurrence
             yield service
@@ -134,6 +134,8 @@ def create_app(database_url: str | None = None, verifier=None, storage=None) -> 
                 "token_endpoint": token_url,
                 "logout_endpoint": os.environ["OAUTH_LOGOUT_ENDPOINT"],
                 "client_id": os.environ["OAUTH_CLIENT_ID"],
+                "user_pool_id": os.environ["OAUTH_USER_POOL_ID"],
+                "aws_region": os.environ["AWS_REGION"],
                 "scopes": os.environ["OAUTH_SCOPES"].split(),
             }
         return {
@@ -248,8 +250,8 @@ def create_app(database_url: str | None = None, verifier=None, storage=None) -> 
         service.delete_event(event_id)
         return Response(status_code=204)
 
-    install_daily_routes(app, storage, guarded)
-    install_icon_routes(app, storage, guarded)
-    install_family_routes(app, storage, guarded)
+    install_daily_routes(app, storage, guarded, authenticated)
+    install_icon_routes(app, storage, guarded, authenticated)
+    install_family_routes(app, storage, guarded, authenticated)
     install_recurrence_routes(app, guarded, use_calendar)
     return app

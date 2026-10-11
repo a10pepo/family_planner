@@ -4,17 +4,17 @@ Este stack despliega la aplicación Family Planner en AWS usando Lambda, DynamoD
 
 ## Recursos y separación
 
-`bootstrap/` prepara un bucket privado de estado y dos buckets privados para ZIPs. `environments/preview/` y `environments/production/` son raíces independientes que reutilizan `modules/application/`. Son dos entornos persistentes, no un entorno por PR.
+`bootstrap/` prepara el bucket privado de estado, conserva dos buckets heredados de artefactos y crea repositorios ECR separados. `environments/preview/` y `environments/production/` son raíces independientes que reutilizan `modules/application/`. Son dos entornos persistentes, no un entorno por PR.
 
-Cada entorno tiene S3 privado para la web, CloudFront con OAC y HTTPS, API Gateway HTTP, Lambda Python 3.12, DynamoDB on-demand, Cognito y sus roles/registros. La Lambda implementa el contrato `/api/v1` mediante la capa de dominio y el adaptador DynamoDB. CloudFront sirve la API por `/api/*` sin caché. Solo `GET /api/health` y `GET /api/v1/config` son públicos; el resto exige JWT Cognito del pool propio, alcance `<proyecto>-<entorno>-api/access` y grupo `family-app`.
+Cada entorno tiene S3 privado para la web, CloudFront con OAC y HTTPS, API Gateway HTTP, Lambda Python 3.12 desde imagen ECR, DynamoDB on-demand, Cognito y sus roles/registros. La Lambda implementa el contrato `/api/v1` mediante la capa de dominio y el adaptador DynamoDB. CloudFront sirve la API por `/api/*` sin caché. Solo `GET /api/health` y `GET /api/v1/config` son públicos; el resto exige un JWT de acceso válido del cliente Cognito del entorno.
 
-La tabla conserva una familia lógica con `PK=FAMILY#default`; sus GSIs indexan eventos por fin, actividad por día, series por integrante y marcas de tareas por día. Las excepciones de series usan `PK=SERIES#id`; las marcas usan `PK=MEMBER#id`. El backend consulta mediante `Query`, sin `Scan`, y usa escrituras condicionadas/transacciones para proteger las referencias activas. La estructura fue aprobada por Pedro el 9 de octubre de 2026; véase [decisiones](../docs/decisions.md).
+Cada registro usa `PK=FAMILY#<sub de Cognito>` y `SK=TIPO#id`; GSIs de día, series y marcas incluyen ese mismo identificador. Las excepciones de series y marcas de tareas también usan la partición familiar. El backend crea repositorios por petición a partir del `sub` del token ya validado, consulta con `Query` y no usa `Scan`. Las escrituras condicionadas/transacciones impiden que una familia referencie integrantes o elementos de otra. Pedro aprobó el cambio el 10 de octubre de 2026; preview empieza vacío y producción no se modifica ni migra.
 
 Las asignaciones a tareas admiten hasta 99 integrantes por escritura: la transacción DynamoDB reserva la operación restante para guardar la tarea junto con los controles de estado de cada perfil.
 
-Los nombres, buckets de artefactos y claves de estado distinguen entorno y cuenta. Los roles de ejecución Lambda solo pueden acceder a su tabla y registros; no tienen acceso a S3 ni a la tabla del otro entorno. Los usuarios Cognito también son independientes. Un administrador o las credenciales de despliegue de la cuenta pueden gestionar ambos entornos: no se crean aquí roles de despliegue ni políticas de aislamiento para administradores. Para automatizar CD habrá que aprobar y configurar esos permisos por separado.
+Las etiquetas de imagen `sha-<commit>` son únicas por commit; Terraform fija el digest inmutable en cada despliegue. Los repositorios escanean las imágenes y retienen las últimas 30 versiones SHA. Los roles de ejecución Lambda solo pueden acceder a su tabla y registros; no tienen acceso a ECR ni a la tabla del otro entorno. Cada familia se registra e inicia sesión desde la pantalla propia usando correo verificado y una cuenta común por familia.
 
-Producción activa recuperación a un momento dado (PITR) y protección contra borrado de DynamoDB, protección de Cognito y 30 días de registros. Preview conserva registros 7 días, sin PITR. Todos los buckets tienen cifrado AES256, bloqueo de acceso público, versionado y rechazo de HTTP. No se vacían automáticamente al destruir; los buckets del bootstrap tienen además `prevent_destroy`.
+Producción activa recuperación a un momento dado (PITR) y protección contra borrado de DynamoDB, protección de Cognito y 30 días de registros. Preview conserva registros 7 días, sin PITR. Todos los buckets tienen cifrado AES256, bloqueo de acceso público, versionado y rechazo de HTTP. No se vacían automáticamente al destruir; los buckets del bootstrap tienen además `prevent_destroy`. `make destroy preview` conserva los repositorios ECR y el rol OIDC del bootstrap. Preview añade un secreto recuperable en Secrets Manager con coste estimado autorizado de 0,40 USD/mes, más solicitudes.
 
 Sin dominio propio se usan las direcciones HTTPS de CloudFront y Cognito. Opcionalmente se acepta un dominio y un certificado ACM **ya existente en us-east-1 y en la misma cuenta**. Solo si también se indica una zona Route53 existente se crean registros A/AAAA. No se crean dominio, zona ni certificado.
 
@@ -41,7 +41,7 @@ Los pasos siguientes sí requieren que **Pedro haya iniciado sesión por su cuen
 
 ### Atajos con Make
 
-Desde la raíz del repositorio, una vez configurados los archivos efectivos y los artefactos compatibles:
+Desde la raíz del repositorio, una vez configurados los archivos locales de Terraform:
 
 ```sh
 make bootstrap
@@ -50,17 +50,18 @@ make plan production
 make deploy preview
 make deploy production
 make destroy preview
+make preview-credentials
 ```
 
-`make plan <entorno>` y `make deploy <entorno>` preparan Terraform 1.16.5 en la caché local `build/tools` sin reemplazar el Terraform global. También construyen el paquete Lambda para Linux x86_64/Python 3.12 con pip y el frontend con Node 24 dentro del constructor Docker de `frontend/Dockerfile`; Node/npm locales no intervienen. Se necesita Docker, Python 3 y pip. El Makefile obtiene el ID de cuenta de `aws sts get-caller-identity`, usa `AWS_PROFILE` cuando se establezca y crea los archivos locales ignorados de Terraform si faltan. La región predeterminada es `eu-west-1`; se puede cambiar con `AWS_REGION=...`.
+`make plan <entorno>` y `make deploy <entorno>` preparan Terraform 1.16.5 en la caché local `build/tools` sin reemplazar el Terraform global. Construyen la imagen Lambda x86_64/Python 3.12 y el frontend con Node 24 dentro de Docker; Node/npm locales no intervienen. Se necesita Docker y AWS CLI. El Makefile obtiene el ID de cuenta de `aws sts get-caller-identity`, usa `AWS_PROFILE` cuando se establezca y crea los archivos locales ignorados de Terraform si faltan. La región predeterminada es `eu-west-1`; se puede cambiar con `AWS_REGION=...`.
 
-Ambos comandos comprueban el bootstrap. Si no existe el estado local y tampoco existe el bucket de estado, muestran el plan de los buckets del bootstrap y exigen escribir `APPLY bootstrap` antes de crearlos. Si el bucket ya existe pero falta el estado local, se detienen para evitar recrear o adoptar recursos sin estado. `make plan` sube el ZIP versionado necesario para planificar Lambda y muestra el plan del entorno; no aplica recursos. `make deploy` muestra el plan y solo lo aplica al escribir exactamente `APPLY preview` o `APPLY production`; después publica la web y solicita una invalidación de CloudFront.
+Ambos comandos comprueban el bootstrap. Si no existe el estado local y tampoco existe el bucket de estado, crean buckets bootstrap privados y los repositorios ECR. Si el bucket ya existe pero falta el estado local, se detienen para evitar recrear o adoptar recursos sin estado. `make plan` publica la imagen SHA en ECR y muestra el plan del entorno; no aplica recursos del entorno. `make deploy preview` publica la imagen, muestra el plan y aplica sin confirmación adicional, según aprobó Pedro. `make deploy production` requiere escribir `APPLY production` después de revisar el plan. Ambos publican la web y solicitan una invalidación de CloudFront.
 
-`make destroy preview` requiere el estado remoto de preview y el bootstrap local existente. Muestra un plan de destrucción, pide escribir exactamente `DESTROY preview` y elimina los recursos Terraform de preview, los objetos versionados de su bucket web y los artefactos bajo `preview/`. No construye ni sube artefactos. El bucket de estado compartido, los buckets bootstrap, el estado remoto vacío y todos los recursos de producción permanecen. Este comando no borra recursos que no estén registrados en el estado de Terraform.
+`make destroy preview` requiere el estado remoto de preview y el bootstrap local existente. Muestra un plan de destrucción, pide escribir exactamente `DESTROY preview` y elimina los recursos Terraform de preview, incluido el secreto de prueba, los objetos versionados de su bucket web y los artefactos bajo `preview/`. No construye ni sube artefactos. El bucket de estado compartido, los buckets bootstrap, el estado remoto vacío y todos los recursos de producción permanecen. Este comando no borra recursos que no estén registrados en el estado de Terraform. `make preview-credentials` recupera y muestra en la terminal local el usuario, correo y contraseña almacenados en Secrets Manager.
 
-Ejemplo con un perfil ya conectado: `AWS_PROFILE=mi-perfil make plan preview`. No se guardan credenciales en los archivos generados. El bootstrap requiere interacción explícita para crear buckets facturables; el despliegue requiere otra confirmación tras revisar su plan.
+Ejemplo con un perfil ya conectado: `AWS_PROFILE=mi-perfil make plan preview`. No se guardan credenciales en los archivos generados.
 
-El paquete Lambda predeterminado queda en `build/aws/api-compatible.zip`; la web se genera en `build/aws/frontend-compatible/dist/`. Para construirlos sin desplegar usa `make build-aws`. El ZIP se carga con una clave y versión S3 inmutables para el plan. Si cancelas un despliegue después de la carga, queda una versión adicional en el bucket de artefactos.
+`make build-aws` construye la imagen Lambda local y genera la web en `build/aws/frontend-compatible/dist/`, sin publicar en AWS.
 
 ### 1. Bootstrap
 
@@ -74,30 +75,20 @@ Para ejecutar Terraform manualmente fuera de Make, el operador debe seleccionar 
 
 El bootstrap usa **estado local** porque el bucket remoto aún no existe. Conserva una copia segura de `infra/bootstrap/terraform.tfstate` y sus backups; no se sincroniza solo con S3. Estado, configuración efectiva y planes están excluidos de Git, pero deben protegerse en el equipo. No ejecutar el bootstrap desde otra carpeta o equipo sin recuperar su estado: intentaría crear buckets que ya existen.
 
-### 2. Construir artefactos
+### 2. Construir imágenes y web
 
-`make build-aws` descarga ruedas binarias para Linux x86_64/Python 3.12, empaqueta `app.lambda_handler.handler` y compila React con Node 24 usando Docker. El handler valida tokens Cognito de tipo access, cliente, alcance y grupo. El frontend realiza Authorization Code + PKCE y mantiene los tokens en memoria. No se incluyen contraseñas, secretos ni datos familiares.
+`make build-aws` construye `backend/Dockerfile.lambda` para Linux x86_64/Python 3.12 y compila React con Node 24 usando Docker. El handler verifica la firma y el emisor del JWT, su tipo `access` y el cliente Cognito del entorno. El frontend registra y confirma el correo, inicia sesión y recupera contraseñas mediante una pantalla propia; los tokens solo viven en memoria. No se incluyen credenciales ni datos familiares en la imagen.
 
-Ejemplo de carga manual del paquete generado:
-
-```sh
-aws s3api put-object \
-  --bucket family-planner-preview-111111111111-artifacts \
-  --key preview/COMMIT.zip \
-  --body /ruta/absoluta/api-compatible.zip
-openssl dgst -sha256 -binary /ruta/absoluta/api-compatible.zip | openssl base64 -A
-```
-
-Guarda el `VersionId` devuelto por S3 y el hash base64. Producción requiere su propio bucket y prefijo `production/`. Terraform exige bucket del mismo entorno, clave con prefijo de entorno, versión inmutable y hash del ZIP; no inspecciona su lógica ni verifica que ese hash corresponda al objeto de S3. La publicación futura deberá comprobarlo y ejecutar sus pruebas antes de crear el plan.
+En los despliegues manuales Make publica `sha-<commit>` en ECR, consulta su digest e introduce la URI inmutable en el plan Terraform. Producción también mueve el alias `latest`; el estado Terraform permanece fijado al digest aplicado para permitir una reversión reproducible.
 
 ### 3. Inicializar y revisar preview
 
 ```sh
 cp infra/environments/preview/backend.hcl.example infra/environments/preview/backend.hcl
 cp infra/environments/preview/terraform.tfvars.example infra/environments/preview/terraform.tfvars
-# Editar ambos archivos: cuenta/región reales, bucket, clave, VersionId y hash.
+# Editar la cuenta y región; `make plan/deploy` publica y resuelve la imagen ECR.
 terraform -chdir=infra/environments/preview init -backend-config=backend.hcl
-terraform -chdir=infra/environments/preview plan -out=preview.tfplan
+terraform -chdir=infra/environments/preview plan -var="lambda_image_uri=URI_ECR_FIJADA_POR_DIGEST" -out=preview.tfplan
 # Revisar el plan y el coste antes de aplicar.
 terraform -chdir=infra/environments/preview apply preview.tfplan
 terraform -chdir=infra/environments/preview output
@@ -119,18 +110,18 @@ aws cloudfront create-invalidation --distribution-id DISTRIBUTION_ID --paths '/*
 
 Solo los archivos con nombre que cambia al cambiar su contenido deben tener caché `immutable`; los demás deben publicarse con `no-cache`. La primera publicación debe incluir todos los archivos; los assets de versiones anteriores se conservan para evitar romper sesiones y permitir reversión. Terraform no publica el contenido web ni invalida caché.
 
-Crea la cuenta familiar desde Cognito, añade esa cuenta al grupo `family-app` y establece/cambia su contraseña fuera de Terraform. No se crean usuarios ni contraseñas en el estado. El registro público está cerrado y la recuperación es administrativa. Preview usará una cuenta y datos ficticios.
+El formulario propio permite registrar la familia con correo, confirmar el código y recuperar acceso. Cada cuenta queda aislada en DynamoDB mediante su `sub` verificado de Cognito. Preview crea una cuenta `test` con datos enteramente ficticios y guarda la contraseña en Secrets Manager, fuera del estado de Terraform. Recupera las credenciales con `make preview-credentials`; no se imprimen en CI. El cargador solo añade datos cuando no existen y se detiene si encuentra perfiles ajenos a la familia ficticia.
 
-Verifica login/logout/renovación, rechazo anónimo, token de preview rechazado en producción, permisos del grupo, CRUD, imágenes, tareas y persistencia antes de dar por activo el servicio. Las pruebas simuladas de este repositorio no sustituyen estas comprobaciones reales.
+Verifica registro/verificación de correo, login/logout/renovación, rechazo anónimo, token de preview rechazado en producción, CRUD, imágenes, tareas y persistencia antes de dar por activo el servicio. Las pruebas simuladas de este repositorio no sustituyen estas comprobaciones reales.
 
 ### 5. Producción
 
-Repite los pasos con `infra/environments/production`, sus ejemplos, ZIP en su bucket y clave `production/terraform.tfstate`; revisa un plan independiente y publica su frontend. Empieza con tabla vacía. Este cambio no crea registros del calendario ni importa PostgreSQL. La migración de datos reales y su reversión requieren una propuesta y autorización específicas.
+Repite los pasos con `infra/environments/production`, la imagen de su repositorio ECR y la clave `production/terraform.tfstate`; revisa un plan independiente y publica su frontend. Empieza con tabla vacía. Este cambio no crea registros del calendario ni importa PostgreSQL. La migración de datos reales y su reversión requieren una propuesta y autorización específicas.
 
 ## Coste, actualización y reversión
 
-Los recursos generan costes al aplicarse. Referencia orientativa para dos entornos domésticos: **2–10 USD/mes** con hasta 100.000 llamadas y 1 GB/mes; no es un presupuesto garantizado ni un límite. PITR, almacenamiento/versiones de ZIPs y web, registros, transferencia, región y consumo compartido de la cuenta afectan al coste. Recalcular con AWS Pricing Calculator antes de aplicar; no se depende de créditos ni de capa gratuita. No hay NAT, RDS, VPC ni concurrencia provisionada. Fuentes y propuesta: [docs/aws-proposal.md](../docs/aws-proposal.md).
+Los recursos generan costes al aplicarse. Referencia orientativa para dos entornos domésticos: **2–10 USD/mes** con hasta 100.000 llamadas y 1 GB/mes; no es un presupuesto garantizado ni un límite. ECR añade unos **0,75–1,50 USD/mes** con 30 imágenes de 250–500 MB antes de deduplicar; Secrets Manager añade aproximadamente **0,40 USD/mes por el secreto de prueba de preview**, más solicitudes. PITR, almacenamiento y versiones web, registros, transferencia, región y consumo compartido de la cuenta afectan al coste. Recalcular con AWS Pricing Calculator antes de aplicar; no se depende de créditos ni de capa gratuita. No hay NAT, RDS, VPC ni concurrencia provisionada. Fuentes y propuesta: [docs/aws-proposal.md](../docs/aws-proposal.md).
 
-Para actualizar Lambda, carga un nuevo ZIP versionado, modifica clave/versión/hash y revisa otro plan. Para revertir, recupera los tres valores de la versión anterior y vuelve a publicar la web compatible de esa versión. Revertir código no revierte datos: DynamoDB requiere copias/PITR y un procedimiento de restauración separado. Restaurar PITR crea otra tabla; no modifica la original automáticamente. No destruir producción como mecanismo de rollback ni desactivar sus protecciones de forma rutinaria.
+Para actualizar Lambda, publica una etiqueta `sha-<commit>`, revisa el plan y despliega el digest inmutable. Producción actualiza además el alias `latest`, pero Terraform registra el digest real. Para revertir, vuelve a aplicar el digest anterior. Revertir código no revierte datos: DynamoDB requiere copias/PITR y un procedimiento de restauración separado. Restaurar PITR crea otra tabla; no modifica la original automáticamente. No destruir producción como mecanismo de rollback ni desactivar sus protecciones de forma rutinaria.
 
-El CD remoto y roles GitHub OIDC permanecen pendientes. El workflow incorpora validación de Terraform sin permisos AWS y mantiene las pruebas y artefactos Docker locales.
+El workflow `CI` publica automáticamente en preview solo después de que pasen los controles de código, integración, navegador y Terraform en `main`. Usa GitHub OIDC; no guarda claves AWS estáticas. Después de `make bootstrap`, configura las variables de repositorio `AWS_ACCOUNT_ID` y `AWS_REGION` en GitHub. Terraform reutiliza el proveedor OIDC GitHub administrado centralmente y crea el rol cuyo trust está limitado a `a10pepo/family_planner` y `main`. Producción sigue siendo manual mediante `make deploy production`.

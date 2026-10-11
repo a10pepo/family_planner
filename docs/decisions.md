@@ -20,7 +20,7 @@ Fuente: respuestas de Pedro Nieto del 7 de octubre de 2026. Configuración inici
 | Zona | Europe/Madrid configurable; instantes persistidos con zona horaria. |
 | Ejecución | Docker Compose; por defecto solo se expone localhost:8080. `scripts/configure_lan_tls.py` permite pruebas HTTPS en la red doméstica conservando PKCE. |
 | Calidad | CI con arquitectura, contrato, formato, tipos, pruebas, Docker y OAuth real. |
-| Entrega | Imágenes validadas como artefacto tras merge a main; despliegue público y merge automático pendientes. |
+| Entrega | CI valida cambios; despliegue AWS autorizado según la propuesta de issue #35. |
 | Seguimiento | Issues de GitHub con etiquetas feature o issue. |
 
 ## Autorización y ajuste de la propuesta
@@ -99,4 +99,8 @@ Pedro solicitó habilitar el acceso desde una tablet en la misma red doméstica 
 
 Pedro eligió S3/CloudFront para la web, DynamoDB para los datos, Lambda para la API y Cognito para el acceso, con preview y producción separados en una misma cuenta. El runtime AWS ya implementa ese destino; Docker local conserva PostgreSQL y Keycloak y no depende de AWS. Los comandos Make usan la sesión AWS CLI activa y no inician sesión.
 
-El 9 de octubre de 2026 Pedro aprobó el esquema DynamoDB: una tabla por entorno; `PK=FAMILY#default` y `SK=TIPO#id` para entidades familiares; GSIs para intervalos de eventos, elementos por día, series por integrante y marcas por día; excepciones con `PK=SERIES#id`; marcas con `PK=MEMBER#id`; escrituras condicionadas/transacciones, sin `Scan`; producción vacía sin migración. Cognito será el proveedor AWS; Keycloak se mantiene solo para Docker local. No se migran datos ni se hace despliegue real en esta implementación. Los detalles están en [aws-proposal.md](aws-proposal.md) e [infra/README.md](../infra/README.md).
+El 9 de octubre de 2026 Pedro aprobó el esquema DynamoDB inicial con `FAMILY#default`. El 10 de octubre aprobó sustituirlo por una partición por cuenta basada en el `sub` verificado de Cognito (`FAMILY#<sub>`), con las claves de índices prefijadas por el mismo identificador. Excepciones y marcas quedan dentro de esa partición. La migración de preview empieza vacía; producción permanece intacta. La API no usa `Scan` y valida escrituras con condiciones/transacciones. Cognito será el proveedor AWS; Keycloak se mantiene para Docker local.
+
+Para el alta familiar AWS, Pedro eligió registro e inicio de sesión propios con correo electrónico verificado. Autorizó una cuenta compartida por familia y un fixture sintético `test` solo en preview. La contraseña se guardará en AWS Secrets Manager para poder recuperarla; se aprobó el coste aproximado de 0,40 USD/mes por secreto, más solicitudes. No se guardará la contraseña en Terraform state, repositorio, CI ni artefactos.
+
+En issue #35 Pedro aprobó imágenes Lambda SHA validadas por CI, despliegue automático a preview tras CI, producción manual mediante `latest` y digest inmutable, OIDC de GitHub y retención de 30 imágenes. `make deploy preview` aplica el plan sin segunda confirmación. Los detalles están en [aws-proposal.md](aws-proposal.md) e [infra/README.md](../infra/README.md).

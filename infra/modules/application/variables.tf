@@ -25,42 +25,12 @@ variable "aws_account_id" {
 
 variable "aws_region" { type = string }
 
-variable "lambda_artifact_bucket" {
+variable "lambda_image_uri" {
   type = string
   validation {
-    condition     = var.lambda_artifact_bucket == "${var.project}-${var.environment}-${var.aws_account_id}-artifacts"
-    error_message = "El ZIP debe estar en el bucket de artefactos del mismo proyecto, entorno y cuenta."
+    condition     = can(regex("^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/${var.project}-${var.environment}(@sha256:[a-f0-9]{64}|:sha-[a-f0-9]{40})$", var.lambda_image_uri))
+    error_message = "Usa una URI inmutable del repositorio ECR del entorno, fijada por digest o por etiqueta SHA."
   }
-}
-
-variable "lambda_artifact_key" {
-  type = string
-  validation {
-    condition     = startswith(var.lambda_artifact_key, "${var.environment}/") && endswith(var.lambda_artifact_key, ".zip")
-    error_message = "La clave del ZIP debe empezar por el entorno y terminar en .zip."
-  }
-}
-
-variable "lambda_artifact_version" {
-  type = string
-  validation {
-    condition     = length(trimspace(var.lambda_artifact_version)) > 0 && var.lambda_artifact_version != "null"
-    error_message = "Indica una versión real del objeto S3; no se despliega un ZIP mutable sin versión."
-  }
-}
-
-variable "lambda_artifact_sha256" {
-  type = string
-  validation {
-    condition     = can(regex("^[A-Za-z0-9+/]{43}=$", var.lambda_artifact_sha256))
-    error_message = "El hash del ZIP debe ser SHA-256 codificado en base64."
-  }
-}
-
-variable "lambda_handler" {
-  type        = string
-  default     = "app.lambda_handler.handler"
-  description = "Entrada del artefacto compatible con API Gateway HTTP payload v2."
 }
 
 variable "family_timezone" {

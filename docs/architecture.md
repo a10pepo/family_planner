@@ -68,7 +68,7 @@ Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/ap
 - La configuración debe suministrarse desde el entorno. Publicar solo ejemplos sin secretos.
 - Las pruebas y el desarrollo local no necesitan cuenta de AWS ni recursos facturables.
 - Evitar dependencias directas de AWS en el negocio. Aislar mediante adaptadores las integraciones que se aprueben más adelante.
-- Pedro ha elegido S3/CloudFront, DynamoDB, Lambda y Cognito con preview y producción en la misma cuenta (issue #13). El alcance autorizado ahora es preparar Terraform y pruebas simuladas; no iniciar sesión, provisionar ni activar despliegue remoto. Véase [infra/README.md](../infra/README.md). La adaptación del código y la migración siguen pendientes.
+- Pedro ha elegido S3/CloudFront, DynamoDB, Lambda y Cognito con preview y producción en la misma cuenta (issue #13). Autorizó el runtime AWS, el aislamiento por `FAMILY#<sub de Cognito>`, el registro familiar con correo verificado, y el despliegue automático a preview después de CI. El entorno preview puede reiniciarse vacío; producción no se migra ni modifica como parte del cambio. Véase [infra/README.md](../infra/README.md).
 - Cada propuesta de despliegue debe especificar entorno, recursos, permisos, costes estimados, secretos, migraciones y procedimiento de reversión antes de su aprobación.
 
 ## 7. CI/CD y controles de merge
@@ -80,7 +80,7 @@ Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/ap
 - Las pruebas no deben depender de AWS, datos de producción ni servicios externos de pago.
 - Exigir CI satisfactoria para mergear a `main` mediante protección de rama. La política de revisión y de merge automático aún está pendiente.
 - Construir artefactos identificables por versión o commit y desplegar únicamente artefactos validados.
-- El destino y el disparador de despliegue están pendientes. No activar publicación de imágenes o despliegue hasta acordarlos y aprobar sus implicaciones de seguridad y coste.
+- Cada commit validado en `main` publica una imagen Lambda ECR identificada por SHA y actualiza preview mediante OIDC; producción requiere promoción manual a `latest` y despliega por digest. Pedro autorizó los permisos de CI, retención de hasta 30 imágenes y el coste ECR estimado en la propuesta AWS.
 - No confundir un workflow de compilación con un despliegue ni un workflow existente con una protección de rama activa.
 
 ## 8. Registro de excepciones

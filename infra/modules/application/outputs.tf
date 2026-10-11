@@ -14,19 +14,25 @@ output "api_url" { value = aws_apigatewayv2_api.api.api_endpoint }
 
 output "cognito_user_pool_id" { value = aws_cognito_user_pool.family.id }
 
+output "preview_test_secret_arn" {
+  value = try(aws_secretsmanager_secret.preview_test_account[0].arn, null)
+}
+
 output "runtime_config" {
   value = {
-    environment            = var.environment
-    timezone               = var.family_timezone
-    api_base_path          = "/api/v1"
-    oauth_provider         = "cognito"
-    issuer                 = local.issuer
-    authorization_endpoint = "https://${local.login_host}/oauth2/authorize"
-    token_endpoint         = "https://${local.login_host}/oauth2/token"
-    logout_endpoint        = "https://${local.login_host}/logout"
-    client_id              = aws_cognito_user_pool_client.web.id
-    scopes                 = ["openid", "email", "profile", local.scope]
-    required_group         = aws_cognito_user_group.family.name
-    redirect_uri           = "${local.site_url}/"
+    environment             = var.environment
+    timezone                = var.family_timezone
+    api_base_path           = "/api/v1"
+    oauth_provider          = "cognito"
+    issuer                  = local.issuer
+    authorization_endpoint  = "https://${local.login_host}/oauth2/authorize"
+    token_endpoint          = "https://${local.login_host}/oauth2/token"
+    logout_endpoint         = "https://${local.login_host}/logout"
+    client_id               = aws_cognito_user_pool_client.web.id
+    user_pool_id            = aws_cognito_user_pool.family.id
+    aws_region              = var.aws_region
+    preview_test_secret_arn = try(aws_secretsmanager_secret.preview_test_account[0].arn, null)
+    scopes                  = ["openid", "email", "profile", local.scope]
+    redirect_uri            = "${local.site_url}/"
   }
 }

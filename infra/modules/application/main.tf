@@ -108,17 +108,13 @@ resource "aws_iam_role_policy" "lambda" {
 }
 
 resource "aws_lambda_function" "api" {
-  function_name     = "${local.prefix}-api"
-  role              = aws_iam_role.lambda.arn
-  runtime           = "python3.12"
-  architectures     = ["x86_64"]
-  handler           = var.lambda_handler
-  s3_bucket         = var.lambda_artifact_bucket
-  s3_key            = var.lambda_artifact_key
-  s3_object_version = var.lambda_artifact_version
-  source_code_hash  = var.lambda_artifact_sha256
-  memory_size       = 512
-  timeout           = 15
+  function_name = "${local.prefix}-api"
+  role          = aws_iam_role.lambda.arn
+  package_type  = "Image"
+  architectures = ["x86_64"]
+  image_uri     = var.lambda_image_uri
+  memory_size   = 512
+  timeout       = 15
   environment {
     variables = {
       APP_ENVIRONMENT              = var.environment
@@ -130,8 +126,9 @@ resource "aws_lambda_function" "api" {
       OAUTH_ISSUER                 = local.issuer
       OAUTH_JWKS_URL               = "${local.issuer}/.well-known/jwks.json"
       OAUTH_CLIENT_ID              = aws_cognito_user_pool_client.web.id
-      OAUTH_REQUIRED_SCOPE         = local.scope
-      OAUTH_REQUIRED_GROUP         = aws_cognito_user_group.family.name
+      OAUTH_USER_POOL_ID           = aws_cognito_user_pool.family.id
+      OAUTH_REQUIRED_SCOPE         = ""
+      OAUTH_REQUIRED_GROUP         = ""
       OAUTH_SCOPES                 = "openid email profile ${local.scope}"
       OAUTH_AUTHORIZATION_ENDPOINT = "${local.cognito_base}/oauth2/authorize"
       OAUTH_TOKEN_ENDPOINT         = "${local.cognito_base}/oauth2/token"
@@ -144,6 +141,7 @@ resource "aws_lambda_function" "api" {
 resource "aws_apigatewayv2_api" "api" {
   name          = "${local.prefix}-api"
   protocol_type = "HTTP"
+  tags          = { Project = var.project, Environment = var.environment }
 }
 
 resource "aws_apigatewayv2_integration" "lambda" {
@@ -166,12 +164,11 @@ resource "aws_apigatewayv2_authorizer" "cognito" {
 }
 
 resource "aws_apigatewayv2_route" "protected" {
-  api_id               = aws_apigatewayv2_api.api.id
-  route_key            = "$default"
-  target               = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-  authorization_type   = "JWT"
-  authorizer_id        = aws_apigatewayv2_authorizer.cognito.id
-  authorization_scopes = [local.scope]
+  api_id             = aws_apigatewayv2_api.api.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_apigatewayv2_route" "public" {
@@ -205,10 +202,12 @@ resource "aws_lambda_permission" "api" {
 }
 
 resource "aws_cognito_user_pool" "family" {
-  name                = local.prefix
-  user_pool_tier      = "LITE"
-  deletion_protection = local.production ? "ACTIVE" : "INACTIVE"
-  admin_create_user_config { allow_admin_create_user_only = true }
+  name                     = local.prefix
+  user_pool_tier           = "LITE"
+  deletion_protection      = local.production ? "ACTIVE" : "INACTIVE"
+  alias_attributes         = ["email"]
+  auto_verified_attributes = ["email"]
+  admin_create_user_config { allow_admin_create_user_only = false }
   password_policy {
     minimum_length                   = 14
     require_lowercase                = true
@@ -219,7 +218,7 @@ resource "aws_cognito_user_pool" "family" {
   }
   account_recovery_setting {
     recovery_mechanism {
-      name     = "admin_only"
+      name     = "verified_email"
       priority = 1
     }
   }
@@ -241,17 +240,12 @@ resource "aws_cognito_resource_server" "api" {
   }
 }
 
-resource "aws_cognito_user_group" "family" {
-  name         = "family-app"
-  description  = "Cuenta familiar autorizada de ${var.environment}"
-  user_pool_id = aws_cognito_user_pool.family.id
-}
-
 resource "aws_cognito_user_pool_client" "web" {
   name                                 = "${local.prefix}-web"
   user_pool_id                         = aws_cognito_user_pool.family.id
   generate_secret                      = false
   supported_identity_providers         = ["COGNITO"]
+  explicit_auth_flows                  = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH"]
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["openid", "email", "profile", local.scope]
@@ -267,5 +261,11 @@ resource "aws_cognito_user_pool_client" "web" {
     id_token      = "minutes"
     refresh_token = "days"
   }
-  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH"]
+}
+
+resource "aws_secretsmanager_secret" "preview_test_account" {
+  count                   = local.production ? 0 : 1
+  name                    = "${local.prefix}/test-account"
+  description             = "Credenciales de la familia sintética de preview."
+  recovery_window_in_days = 0
 }
