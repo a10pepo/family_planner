@@ -77,7 +77,9 @@ class CognitoAuth implements AuthClient {
   async signUp(email: string, password: string) {
     await this.call("SignUp", {
       ClientId: this.config.client_id,
-      Username: email,
+      // Cognito rejects email-shaped usernames when email is configured as an alias.
+      // Users still sign in and confirm with the email alias.
+      Username: `family-${crypto.randomUUID()}`,
       Password: password,
       UserAttributes: [{ Name: "email", Value: email }],
     });
@@ -145,6 +147,8 @@ class CognitoAuth implements AuthClient {
           .at(-1) ?? "";
       const messages: Record<string, string> = {
         UsernameExistsException: "Ya existe una cuenta con este correo.",
+        AliasExistsException:
+          "Ya existe una cuenta con este correo. Inicia sesión o recupera la contraseña.",
         UserNotConfirmedException:
           "Confirma tu correo con el código que te enviamos.",
         CodeMismatchException: "El código no es correcto.",

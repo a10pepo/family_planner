@@ -74,6 +74,12 @@ describe("custom Cognito family access", () => {
       "ConfirmForgotPassword",
     ]);
     expect(requests[2].body).toContain("USER_PASSWORD_AUTH");
+    const signUpBody = JSON.parse(requests[0].body);
+    expect(signUpBody.Username).toMatch(/^family-[0-9a-f-]{36}$/);
+    expect(signUpBody.Username).not.toBe("family@example.com");
+    expect(signUpBody.UserAttributes).toEqual([
+      { Name: "email", Value: "family@example.com" },
+    ]);
     expect(
       requests.some((request) => request.body.includes("client_secret")),
     ).toBe(false);
