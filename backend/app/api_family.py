@@ -22,9 +22,9 @@ class FamilyEventOutput(FamilyEventInput):
     id: UUID
 
 
-def install_family_routes(app: FastAPI, storage, guarded):
-    def family() -> Iterator[FamilyPlanner]:
-        with storage.repositories() as repositories:
+def install_family_routes(app: FastAPI, storage, guarded, authenticated):
+    def family(claims: Annotated[dict, Depends(authenticated)]) -> Iterator[FamilyPlanner]:
+        with storage.repositories(claims.get("sub")) as repositories:
             yield FamilyPlanner(repositories.family)
 
     use_family = Annotated[FamilyPlanner, Depends(family)]

@@ -146,7 +146,7 @@ El asistente `--test` configura únicamente datos ficticios (`test-family` / `Fi
 
 [GitHub Actions](.github/workflows/ci.yml) valida que la PR esté vinculada a un issue etiquetado, comprueba formato, análisis estático, tipos, límites de arquitectura y contrato API, ejecuta pruebas de backend con PostgreSQL desechable y pruebas de navegador con OAuth real, y verifica un reinicio de servicios y la persistencia de los eventos, fotos, avisos, eventos familiares, perfiles archivados y marcas de tareas.
 
-Tras un merge a `main`, empaqueta las imágenes de aplicación validadas en un artefacto identificado por el commit. No activa merge automático ni un despliegue remoto. La protección de ramas y el destino de despliegue público siguen pendientes; no se crean recursos AWS.
+Tras un merge a `main`, la CI valida el stack local y las raíces Terraform. Si termina correctamente, publica la imagen Lambda por SHA en ECR y actualiza preview mediante OIDC. Producción requiere promoción manual desde Make.
 
 Para ejecutar una entrega ya validada sin reconstruir, descarga el artefacto de esa ejecución de Actions y extrae el archivo `family-planner-images.tar.gz`. Con la configuración local preparada, carga las imágenes y sustituye `SHA_DEL_COMMIT` por el commit del artefacto:
 
@@ -179,6 +179,6 @@ Todo cambio parte de un issue en [GitHub](https://github.com/a10pepo/family_plan
 
 ## Terraform para AWS
 
-El [runtime AWS y su guía de despliegue](infra/README.md) usan S3/CloudFront, API Gateway/Lambda, DynamoDB y Cognito. Docker local mantiene PostgreSQL y Keycloak para que el desarrollo no dependa de AWS. Make construye los artefactos y prepara el bootstrap desde el perfil AWS CLI activo; muestra planes y pide confirmación explícita antes de aplicar cambios.
+El [runtime AWS y su guía de despliegue](infra/README.md) usan S3/CloudFront, API Gateway/Lambda, DynamoDB y Cognito. Docker local mantiene PostgreSQL y Keycloak para que el desarrollo no dependa de AWS. Make construye y publica imágenes Lambda en ECR desde la sesión AWS CLI activa; `make deploy preview` muestra y aplica el plan sin una segunda confirmación, mientras producción requiere confirmación.
 
-Preview y producción usan tablas separadas. Producción empieza vacía; no se migran datos locales ni se activa CD remoto. Revisa siempre el plan y los costes antes de confirmar el despliegue.
+Preview y producción usan tablas separadas. Producción empieza vacía; no se migran datos locales. La automatización de preview desde GitHub Actions requiere el rol OIDC configurado para el repositorio.

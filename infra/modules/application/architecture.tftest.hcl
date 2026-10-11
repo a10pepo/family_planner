@@ -35,19 +35,20 @@ mock_provider "aws" {
   }
 }
 variables {
-  environment             = "preview"
-  aws_account_id          = "111111111111"
-  aws_region              = "eu-west-1"
-  lambda_artifact_bucket  = "family-planner-preview-111111111111-artifacts"
-  lambda_artifact_key     = "preview/test.zip"
-  lambda_artifact_version = "synthetic-version"
-  lambda_artifact_sha256  = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  environment      = "preview"
+  aws_account_id   = "111111111111"
+  aws_region       = "eu-west-1"
+  lambda_image_uri = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/family-planner-preview@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 run "preview" {
   command = apply
   assert {
     condition     = aws_dynamodb_table.calendar.name == "family-planner-preview" && !aws_dynamodb_table.calendar.deletion_protection_enabled && !aws_dynamodb_table.calendar.point_in_time_recovery[0].enabled
     error_message = "Preview debe tener tabla propia sin protecciones de producción."
+  }
+  assert {
+    condition     = length(aws_secretsmanager_secret.preview_test_account) == 1 && aws_secretsmanager_secret.preview_test_account[0].recovery_window_in_days == 0 && output.preview_test_secret_arn == aws_secretsmanager_secret.preview_test_account[0].arn
+    error_message = "Solo preview debe guardar credenciales recuperables en Secrets Manager, sin versión en Terraform."
   }
   assert {
     condition     = aws_s3_bucket.frontend.bucket == "family-planner-preview-111111111111-web" && aws_s3_bucket_public_access_block.frontend.block_public_policy && aws_s3_bucket_public_access_block.frontend.restrict_public_buckets && aws_s3_bucket_public_access_block.frontend.block_public_acls && aws_s3_bucket_public_access_block.frontend.ignore_public_acls
@@ -62,12 +63,12 @@ run "preview" {
     error_message = "Lambda solo debe acceder a su tabla y sus registros."
   }
   assert {
-    condition     = aws_apigatewayv2_route.protected.authorization_type == "JWT" && aws_apigatewayv2_route.protected.authorization_scopes == toset(["family-planner-preview-api/access"]) && toset(keys(aws_apigatewayv2_route.public)) == toset(["GET /api/health", "GET /api/v1/config"])
-    error_message = "La API debe exigir token y alcance salvo salud/configuración públicas."
+    condition     = aws_apigatewayv2_route.protected.authorization_type == "JWT" && aws_apigatewayv2_route.protected.authorization_scopes == null && toset(keys(aws_apigatewayv2_route.public)) == toset(["GET /api/health", "GET /api/v1/config"])
+    error_message = "La API debe exigir un JWT de cliente propio salvo salud/configuración públicas."
   }
   assert {
-    condition     = !aws_cognito_user_pool_client.web.generate_secret && aws_cognito_user_pool_client.web.allowed_oauth_flows == toset(["code"]) && aws_cognito_user_pool.family.admin_create_user_config[0].allow_admin_create_user_only && aws_cognito_user_pool_client.web.callback_urls == toset(["https://mock.cloudfront.net/"])
-    error_message = "Login debe usar código con cliente público, callback propio y registro cerrado."
+    condition     = !aws_cognito_user_pool_client.web.generate_secret && contains(aws_cognito_user_pool_client.web.explicit_auth_flows, "ALLOW_USER_PASSWORD_AUTH") && !aws_cognito_user_pool.family.admin_create_user_config[0].allow_admin_create_user_only && aws_cognito_user_pool.family.auto_verified_attributes == toset(["email"]) && aws_cognito_user_pool_client.web.callback_urls == toset(["https://mock.cloudfront.net/"])
+    error_message = "Cognito debe permitir registro propio con cliente público y correo verificado."
   }
   assert {
     condition     = aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].path_pattern == "/api/*" && aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].cache_policy_id == data.aws_cloudfront_cache_policy.disabled.id && aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].origin_request_policy_id == data.aws_cloudfront_origin_request_policy.api.id && length(aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].function_association) == 0 && length(aws_cloudfront_distribution.frontend.custom_error_response) == 0
@@ -78,40 +79,46 @@ run "preview" {
     error_message = "API raíz y subrutas deben usar el origen API sin caché; S3 debe tener OAC."
   }
   assert {
-    condition     = aws_lambda_function.api.s3_object_version == "synthetic-version" && aws_lambda_function.api.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.api.environment[0].variables["OAUTH_REQUIRED_GROUP"] == "family-app"
-    error_message = "Lambda debe usar artefacto inmutable y configuración propia."
+    condition     = aws_lambda_function.api.package_type == "Image" && aws_lambda_function.api.image_uri == var.lambda_image_uri && aws_lambda_function.api.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.api.environment[0].variables["OAUTH_USER_POOL_ID"] == aws_cognito_user_pool.family.id
+    error_message = "Lambda debe usar una imagen inmutable y configuración propia."
   }
 }
 run "production" {
   command = apply
   variables {
-    environment            = "production"
-    lambda_artifact_bucket = "family-planner-production-111111111111-artifacts"
-    lambda_artifact_key    = "production/test.zip"
+    environment      = "production"
+    lambda_image_uri = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/family-planner-production@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   }
   assert {
     condition     = aws_dynamodb_table.calendar.name != run.preview.table_name && aws_dynamodb_table.calendar.name == "family-planner-production" && aws_dynamodb_table.calendar.deletion_protection_enabled && aws_dynamodb_table.calendar.point_in_time_recovery[0].enabled
     error_message = "Producción debe estar aislada de preview y conservar recuperación y protección."
   }
   assert {
+    condition     = length(aws_secretsmanager_secret.preview_test_account) == 0 && output.preview_test_secret_arn == null
+    error_message = "Producción no debe crear ni conservar el secreto de pruebas."
+  }
+  assert {
     condition     = aws_s3_bucket.frontend.bucket == "family-planner-production-111111111111-web" && aws_lambda_function.api.function_name != run.preview.lambda_function_name && aws_cognito_user_pool.family.name == "family-planner-production" && aws_cognito_user_pool.family.deletion_protection == "ACTIVE" && aws_cloudwatch_log_group.lambda.retention_in_days == 30
     error_message = "Recursos de producción deben tener identidad propia y protecciones."
   }
 }
-run "reject_cross_environment_artifact" {
+run "reject_cross_environment_image" {
   command = plan
-  variables { lambda_artifact_key = "production/test.zip" }
-  expect_failures = [var.lambda_artifact_key]
+  variables {
+    environment      = "production"
+    lambda_image_uri = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/family-planner-preview@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+  expect_failures = [var.lambda_image_uri]
 }
 run "reject_unknown_environment" {
   command = plan
   variables { environment = "staging" }
   expect_failures = [var.environment]
 }
-run "reject_unversioned_artifact" {
+run "reject_mutable_image_reference" {
   command = plan
-  variables { lambda_artifact_version = "null" }
-  expect_failures = [var.lambda_artifact_version]
+  variables { lambda_image_uri = "latest" }
+  expect_failures = [var.lambda_image_uri]
 }
 run "reject_domain_without_certificate" {
   command = plan
@@ -119,10 +126,10 @@ run "reject_domain_without_certificate" {
   expect_failures = [var.certificate_arn]
 }
 
-run "reject_cross_environment_bucket" {
+run "reject_other_repository_image" {
   command = plan
-  variables { lambda_artifact_bucket = "family-planner-production-111111111111-artifacts" }
-  expect_failures = [var.lambda_artifact_bucket]
+  variables { lambda_image_uri = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/other@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+  expect_failures = [var.lambda_image_uri]
 }
 run "custom_domain" {
   command = apply

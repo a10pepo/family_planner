@@ -6,18 +6,12 @@ from datetime import UTC, date, datetime, time
 from typing import Any
 from uuid import UUID
 
-from boto3.dynamodb.conditions import Key
-from boto3.dynamodb.types import TypeSerializer
-
 from app.domain.calendar import Category, Event, InvalidInput, Member, MissingEntity
 from app.domain.daily import Frequency, Notice, NoticeIcon, Task, TaskIcon
 from app.domain.family import FamilyEvent, FamilyIcon
 from app.domain.icons import CustomIcon
 from app.domain.recurrence import EndMode, EventException, EventSeries
 from app.domain.recurrence import Frequency as SeriesFrequency
-
-FAMILY_PK = "FAMILY#default"
-_SERIALIZER = TypeSerializer()
 
 
 def _date(value: date) -> str:
@@ -37,18 +31,33 @@ def _uuid(value: UUID | None) -> str | None:
 
 
 def _serialize(item: dict[str, Any]) -> dict[str, Any]:
-    return {key: _SERIALIZER.serialize(value) for key, value in item.items()}
+    from boto3.dynamodb.types import TypeSerializer
+
+    serializer = TypeSerializer()
+    return {key: serializer.serialize(value) for key, value in item.items()}
 
 
 class DynamoAccess:
-    def __init__(self, table):
+    def __init__(self, table, family_id: str, transaction_client=None):
         self.table = table
-        self.client = table.meta.client
+        self.client = transaction_client or table.meta.client
+        self.family_pk = f"FAMILY#{family_id}"
+
+    def member_index_pk(self, member_id: UUID) -> str:
+        return f"{self.family_pk}#MEMBER#{member_id}"
+
+    def day_index_pk(self, day: date) -> str:
+        return f"{self.family_pk}#DAY#{_date(day)}"
+
+    def completion_day_index_pk(self, day: date) -> str:
+        return f"{self.family_pk}#TASKDAY#{_date(day)}"
 
     def get(self, pk: str, sk: str) -> dict[str, Any] | None:
         return self.table.get_item(Key={"pk": pk, "sk": sk}, ConsistentRead=True).get("Item")
 
     def query(self, pk: str, prefix: str, index: str | None = None) -> list[dict[str, Any]]:
+        from boto3.dynamodb.conditions import Key
+
         args: dict[str, Any] = {
             "KeyConditionExpression": Key("pk").eq(pk) & Key("sk").begins_with(prefix),
         }
@@ -74,6 +83,8 @@ class DynamoAccess:
         sort_prefix: str,
         lower_bound: str,
     ) -> list[dict[str, Any]]:
+        from boto3.dynamodb.conditions import Key
+
         args: dict[str, Any] = {
             "IndexName": index,
             "KeyConditionExpression": Key("gsi1pk").eq(partition_key)
@@ -98,7 +109,7 @@ class DynamoAccess:
             {
                 "ConditionCheck": {
                     "TableName": self.table.name,
-                    "Key": _serialize({"pk": FAMILY_PK, "sk": f"MEMBER#{member_id}"}),
+                    "Key": _serialize({"pk": self.family_pk, "sk": f"MEMBER#{member_id}"}),
                     "ConditionExpression": "attribute_exists(pk) AND #active = :active",
                     "ExpressionAttributeNames": {"#active": "active"},
                     "ExpressionAttributeValues": _serialize({":active": True}),
@@ -127,11 +138,11 @@ class DynamoCalendarRepository:
         self.access = access
 
     def icon(self, icon_id: UUID):
-        row = self.access.get(FAMILY_PK, f"ICON#{icon_id}")
+        row = self.access.get(self.access.family_pk, f"ICON#{icon_id}")
         return CustomIcon(UUID(row["id"]), row["name"], row["image_data"]) if row else None
 
     def members(self, include_archived: bool = False) -> list[Member]:
-        rows = self.access.query(FAMILY_PK, "MEMBER#")
+        rows = self.access.query(self.access.family_pk, "MEMBER#")
         members = [
             Member(UUID(row["id"]), row["name"], row["color"], row.get("photo_data"), row["active"])
             for row in rows
@@ -141,7 +152,7 @@ class DynamoCalendarRepository:
         return sorted(members, key=lambda member: created.get(str(member.id), ""))
 
     def member(self, member_id: UUID, include_archived: bool = False) -> Member | None:
-        row = self.access.get(FAMILY_PK, f"MEMBER#{member_id}")
+        row = self.access.get(self.access.family_pk, f"MEMBER#{member_id}")
         if not row or (not row["active"] and not include_archived):
             return None
         return Member(
@@ -150,7 +161,7 @@ class DynamoCalendarRepository:
 
     def add_member(self, member: Member) -> Member:
         item = {
-            "pk": FAMILY_PK,
+            "pk": self.access.family_pk,
             "sk": f"MEMBER#{member.id}",
             "type": "member",
             "id": str(member.id),
@@ -166,7 +177,7 @@ class DynamoCalendarRepository:
         return member
 
     def save_member(self, member: Member) -> Member:
-        previous = self.access.get(FAMILY_PK, f"MEMBER#{member.id}")
+        previous = self.access.get(self.access.family_pk, f"MEMBER#{member.id}")
         if previous is None:
             raise MissingEntity("No existe el integrante.")
         item = {
@@ -187,7 +198,7 @@ class DynamoCalendarRepository:
 
     def events(self, start: datetime, end: datetime, member_id: UUID | None) -> list[Event]:
         rows = self.access.query_range(
-            "by-calendar-end", FAMILY_PK, "gsi1sk", "EVENT_END#", _datetime(start)
+            "by-calendar-end", self.access.family_pk, "gsi1sk", "EVENT_END#", _datetime(start)
         )
         members = {member.id for member in self.members()}
         events = [
@@ -213,11 +224,11 @@ class DynamoCalendarRepository:
         )
 
     def event(self, event_id: UUID) -> Event | None:
-        row = self.access.get(FAMILY_PK, f"EVENT#{event_id}")
+        row = self.access.get(self.access.family_pk, f"EVENT#{event_id}")
         return self._event(row) if row and self.member(UUID(row["member_id"])) else None
 
     def save_event(self, event: Event) -> Event:
-        key = {"pk": FAMILY_PK, "sk": f"EVENT#{event.id}"}
+        key = {"pk": self.access.family_pk, "sk": f"EVENT#{event.id}"}
         previous = self.access.get(**key)
         item = {
             **key,
@@ -228,7 +239,7 @@ class DynamoCalendarRepository:
             "starts_at": _datetime(event.starts_at),
             "ends_at": _datetime(event.ends_at),
             "category": event.category.value,
-            "gsi1pk": FAMILY_PK,
+            "gsi1pk": self.access.family_pk,
             "gsi1sk": f"EVENT_END#{_datetime(event.ends_at)}#{event.id}",
             "updated_at": _datetime(datetime.now(UTC)),
         }
@@ -242,14 +253,16 @@ class DynamoCalendarRepository:
         return event
 
     def remove_event(self, event_id: UUID) -> None:
-        row = self.access.get(FAMILY_PK, f"EVENT#{event_id}")
+        row = self.access.get(self.access.family_pk, f"EVENT#{event_id}")
         if not row:
             return
         operations = [
             {
                 "ConditionCheck": {
                     "TableName": self.access.table.name,
-                    "Key": _serialize({"pk": FAMILY_PK, "sk": f"MEMBER#{row['member_id']}"}),
+                    "Key": _serialize(
+                        {"pk": self.access.family_pk, "sk": f"MEMBER#{row['member_id']}"}
+                    ),
                     "ConditionExpression": "attribute_exists(pk) AND #active = :active",
                     "ExpressionAttributeNames": {"#active": "active"},
                     "ExpressionAttributeValues": _serialize({":active": True}),
@@ -258,7 +271,7 @@ class DynamoCalendarRepository:
             {
                 "Delete": {
                     "TableName": self.access.table.name,
-                    "Key": _serialize({"pk": FAMILY_PK, "sk": f"EVENT#{event_id}"}),
+                    "Key": _serialize({"pk": self.access.family_pk, "sk": f"EVENT#{event_id}"}),
                     "ConditionExpression": "attribute_exists(pk)",
                 }
             },
@@ -278,7 +291,7 @@ class DynamoDailyRepository:
         return self.calendar.member(member_id)
 
     def notices(self, day: date) -> list[Notice]:
-        rows = self.access.query(f"DAY#{_date(day)}", "NOTICE#", "by-day")
+        rows = self.access.query(self.access.day_index_pk(day), "NOTICE#", "by-day")
         return [self._notice(row) for row in rows if self.member(UUID(row["member_id"]))]
 
     @staticmethod
@@ -293,13 +306,13 @@ class DynamoDailyRepository:
         )
 
     def notice(self, notice_id: UUID) -> Notice | None:
-        row = self.access.get(FAMILY_PK, f"NOTICE#{notice_id}")
+        row = self.access.get(self.access.family_pk, f"NOTICE#{notice_id}")
         return self._notice(row) if row and self.member(UUID(row["member_id"])) else None
 
     def save_notice(self, notice: Notice) -> Notice:
-        previous = self.access.get(FAMILY_PK, f"NOTICE#{notice.id}")
+        previous = self.access.get(self.access.family_pk, f"NOTICE#{notice.id}")
         item = {
-            "pk": FAMILY_PK,
+            "pk": self.access.family_pk,
             "sk": f"NOTICE#{notice.id}",
             "type": "notice",
             "id": str(notice.id),
@@ -307,7 +320,7 @@ class DynamoDailyRepository:
             "day": _date(notice.day),
             "title": notice.title,
             "icon": notice.icon.value,
-            "gsi1pk": f"DAY#{_date(notice.day)}",
+            "gsi1pk": self.access.day_index_pk(notice.day),
             "gsi1sk": f"NOTICE#{notice.member_id}#{notice.id}",
         }
         if notice.custom_icon_id:
@@ -320,10 +333,12 @@ class DynamoDailyRepository:
         return notice
 
     def remove_notice(self, notice_id: UUID) -> None:
-        self.access.table.delete_item(Key={"pk": FAMILY_PK, "sk": f"NOTICE#{notice_id}"})
+        self.access.table.delete_item(
+            Key={"pk": self.access.family_pk, "sk": f"NOTICE#{notice_id}"}
+        )
 
     def tasks(self) -> list[Task]:
-        rows = self.access.query(FAMILY_PK, "TASK#")
+        rows = self.access.query(self.access.family_pk, "TASK#")
         return [self._task(row) for row in rows]
 
     @staticmethod
@@ -340,15 +355,15 @@ class DynamoDailyRepository:
         )
 
     def task(self, task_id: UUID) -> Task | None:
-        row = self.access.get(FAMILY_PK, f"TASK#{task_id}")
+        row = self.access.get(self.access.family_pk, f"TASK#{task_id}")
         return self._task(row) if row else None
 
     def save_task(self, task: Task) -> Task:
         if len(task.member_ids) > 99:
             raise InvalidInput("Una tarea no puede asignarse a más de 99 integrantes en AWS.")
-        previous = self.access.get(FAMILY_PK, f"TASK#{task.id}")
+        previous = self.access.get(self.access.family_pk, f"TASK#{task.id}")
         item = {
-            "pk": FAMILY_PK,
+            "pk": self.access.family_pk,
             "sk": f"TASK#{task.id}",
             "type": "task",
             "id": str(task.id),
@@ -366,7 +381,7 @@ class DynamoDailyRepository:
             item["custom_icon_id"] = str(task.custom_icon_id)
         operations = []
         for member_id in task.member_ids:
-            member = self.access.get(FAMILY_PK, f"MEMBER#{member_id}")
+            member = self.access.get(self.access.family_pk, f"MEMBER#{member_id}")
             retained_archived = (
                 member
                 and not member["active"]
@@ -379,7 +394,9 @@ class DynamoDailyRepository:
                 {
                     "ConditionCheck": {
                         "TableName": self.access.table.name,
-                        "Key": _serialize({"pk": FAMILY_PK, "sk": f"MEMBER#{member_id}"}),
+                        "Key": _serialize(
+                            {"pk": self.access.family_pk, "sk": f"MEMBER#{member_id}"}
+                        ),
                         "ConditionExpression": "attribute_exists(pk) AND #active = :active",
                         "ExpressionAttributeNames": {"#active": "active"},
                         "ExpressionAttributeValues": _serialize({":active": not retained_archived}),
@@ -401,25 +418,25 @@ class DynamoDailyRepository:
         return task
 
     def completions(self, day: date) -> dict[tuple[UUID, UUID], bool]:
-        rows = self.access.query(f"TASKDAY#{_date(day)}", "", "by-completion-day")
+        rows = self.access.query(self.access.completion_day_index_pk(day), "", "by-completion-day")
         return {(UUID(row["task_id"]), UUID(row["member_id"])): row["completed"] for row in rows}
 
     def set_completion(self, task_id: UUID, member_id: UUID, day: date, completed: bool) -> None:
-        task = self.access.get(FAMILY_PK, f"TASK#{task_id}")
-        member = self.access.get(FAMILY_PK, f"MEMBER#{member_id}")
+        task = self.access.get(self.access.family_pk, f"TASK#{task_id}")
+        member = self.access.get(self.access.family_pk, f"MEMBER#{member_id}")
         if not task or not task["active"] or str(member_id) not in task["member_ids"]:
             raise MissingEntity("La tarea ya no está asignada a un integrante activo.")
         if not member or not member["active"]:
             raise MissingEntity("No existe un integrante activo con ese identificador.")
         item = {
-            "pk": f"MEMBER#{member_id}",
-            "sk": f"COMPLETION#{_date(day)}#{task_id}",
+            "pk": self.access.family_pk,
+            "sk": f"COMPLETION#{member_id}#{_date(day)}#{task_id}",
             "type": "completion",
             "task_id": str(task_id),
             "member_id": str(member_id),
             "day": _date(day),
             "completed": completed,
-            "gsi2pk": f"TASKDAY#{_date(day)}",
+            "gsi2pk": self.access.completion_day_index_pk(day),
             "gsi2sk": f"MEMBER#{member_id}#TASK#{task_id}",
             "updated_at": _datetime(datetime.now(UTC)),
         }
@@ -428,7 +445,7 @@ class DynamoDailyRepository:
                 {
                     "ConditionCheck": {
                         "TableName": self.access.table.name,
-                        "Key": _serialize({"pk": FAMILY_PK, "sk": f"TASK#{task_id}"}),
+                        "Key": _serialize({"pk": self.access.family_pk, "sk": f"TASK#{task_id}"}),
                         "ConditionExpression": (
                             "attribute_exists(pk) AND #active = :active "
                             "AND contains(member_ids, :member)"
@@ -442,7 +459,9 @@ class DynamoDailyRepository:
                 {
                     "ConditionCheck": {
                         "TableName": self.access.table.name,
-                        "Key": _serialize({"pk": FAMILY_PK, "sk": f"MEMBER#{member_id}"}),
+                        "Key": _serialize(
+                            {"pk": self.access.family_pk, "sk": f"MEMBER#{member_id}"}
+                        ),
                         "ConditionExpression": "attribute_exists(pk) AND #active = :active",
                         "ExpressionAttributeNames": {"#active": "active"},
                         "ExpressionAttributeValues": _serialize({":active": True}),
@@ -465,7 +484,7 @@ class DynamoFamilyRepository:
         result: list[FamilyEvent] = []
         day = start
         while day < end:
-            rows = self.access.query(f"DAY#{_date(day)}", "FAMILY_EVENT#", "by-day")
+            rows = self.access.query(self.access.day_index_pk(day), "FAMILY_EVENT#", "by-day")
             result.extend(self._event(row) for row in rows)
             day = date.fromordinal(day.toordinal() + 1)
         return sorted(result, key=lambda item: (item.day, item.title, item.id))
@@ -481,20 +500,20 @@ class DynamoFamilyRepository:
         )
 
     def event(self, event_id: UUID) -> FamilyEvent | None:
-        row = self.access.get(FAMILY_PK, f"FAMILY_EVENT#{event_id}")
+        row = self.access.get(self.access.family_pk, f"FAMILY_EVENT#{event_id}")
         return self._event(row) if row else None
 
     def save(self, event: FamilyEvent) -> FamilyEvent:
-        previous = self.access.get(FAMILY_PK, f"FAMILY_EVENT#{event.id}")
+        previous = self.access.get(self.access.family_pk, f"FAMILY_EVENT#{event.id}")
         item = {
-            "pk": FAMILY_PK,
+            "pk": self.access.family_pk,
             "sk": f"FAMILY_EVENT#{event.id}",
             "type": "family_event",
             "id": str(event.id),
             "day": _date(event.day),
             "title": event.title,
             "icon": event.icon.value,
-            "gsi1pk": f"DAY#{_date(event.day)}",
+            "gsi1pk": self.access.day_index_pk(event.day),
             "gsi1sk": f"FAMILY_EVENT#{event.title}#{event.id}",
         }
         if event.custom_icon_id:
@@ -508,7 +527,9 @@ class DynamoFamilyRepository:
         return event
 
     def remove(self, event_id: UUID) -> None:
-        self.access.table.delete_item(Key={"pk": FAMILY_PK, "sk": f"FAMILY_EVENT#{event_id}"})
+        self.access.table.delete_item(
+            Key={"pk": self.access.family_pk, "sk": f"FAMILY_EVENT#{event_id}"}
+        )
 
 
 class DynamoIconRepository:
@@ -516,17 +537,17 @@ class DynamoIconRepository:
         self.access = access
 
     def icons(self) -> list[CustomIcon]:
-        rows = self.access.query(FAMILY_PK, "ICON#")
+        rows = self.access.query(self.access.family_pk, "ICON#")
         return [CustomIcon(UUID(row["id"]), row["name"], row["image_data"]) for row in rows]
 
     def icon(self, icon_id: UUID) -> CustomIcon | None:
-        row = self.access.get(FAMILY_PK, f"ICON#{icon_id}")
+        row = self.access.get(self.access.family_pk, f"ICON#{icon_id}")
         return CustomIcon(UUID(row["id"]), row["name"], row["image_data"]) if row else None
 
     def add_icon(self, icon: CustomIcon) -> CustomIcon:
         self.access.table.put_item(
             Item={
-                "pk": FAMILY_PK,
+                "pk": self.access.family_pk,
                 "sk": f"ICON#{icon.id}",
                 "type": "icon",
                 "id": str(icon.id),
@@ -548,9 +569,9 @@ class DynamoRecurrenceRepository:
         self, member_id: UUID | None = None, include_archived: bool = False
     ) -> list[EventSeries]:
         if member_id:
-            rows = self.access.query(f"MEMBER#{member_id}", "SERIES#", "by-member")
+            rows = self.access.query(self.access.member_index_pk(member_id), "SERIES#", "by-member")
         else:
-            rows = self.access.query(FAMILY_PK, "SERIES#")
+            rows = self.access.query(self.access.family_pk, "SERIES#")
         series = [self._series(row) for row in rows]
         return sorted(
             [item for item in series if include_archived or self.calendar.member(item.member_id)],
@@ -578,15 +599,15 @@ class DynamoRecurrenceRepository:
         )
 
     def get_series(self, series_id: UUID) -> EventSeries | None:
-        row = self.access.get(FAMILY_PK, f"SERIES#{series_id}")
+        row = self.access.get(self.access.family_pk, f"SERIES#{series_id}")
         if not row or not self.calendar.member(UUID(row["member_id"])):
             return None
         return self._series(row)
 
     def save_series(self, series: EventSeries) -> EventSeries:
-        previous = self.access.get(FAMILY_PK, f"SERIES#{series.id}")
+        previous = self.access.get(self.access.family_pk, f"SERIES#{series.id}")
         item = {
-            "pk": FAMILY_PK,
+            "pk": self.access.family_pk,
             "sk": f"SERIES#{series.id}",
             "type": "series",
             "id": str(series.id),
@@ -601,7 +622,7 @@ class DynamoRecurrenceRepository:
             "weekdays": list(series.weekdays),
             "end_mode": series.end_mode.value,
             "category": series.category.value,
-            "gsi2pk": f"MEMBER#{series.member_id}",
+            "gsi2pk": self.access.member_index_pk(series.member_id),
             "gsi2sk": f"SERIES#{_date(series.start_date)}#{_time(series.start_time)}#{series.id}",
         }
         if series.end_date:
@@ -618,12 +639,14 @@ class DynamoRecurrenceRepository:
         return series
 
     def delete_series(self, series_id: UUID) -> None:
-        for row in self.access.query(f"SERIES#{series_id}", "EXCEPTION#"):
+        for row in self.access.query(self.access.family_pk, f"EXCEPTION#{series_id}#"):
             self.access.table.delete_item(Key={"pk": row["pk"], "sk": row["sk"]})
-        self.access.table.delete_item(Key={"pk": FAMILY_PK, "sk": f"SERIES#{series_id}"})
+        self.access.table.delete_item(
+            Key={"pk": self.access.family_pk, "sk": f"SERIES#{series_id}"}
+        )
 
     def exceptions(self, series_id: UUID) -> list[EventException]:
-        rows = self.access.query(f"SERIES#{series_id}", "EXCEPTION#")
+        rows = self.access.query(self.access.family_pk, f"EXCEPTION#{series_id}#")
         return [self._exception(row) for row in rows]
 
     @staticmethod
@@ -644,9 +667,12 @@ class DynamoRecurrenceRepository:
         )
 
     def save_exception(self, exception: EventException) -> EventException:
-        sk = f"EXCEPTION#{_date(exception.occurrence_date)}#{_time(exception.occurrence_time)}"
+        sk = (
+            f"EXCEPTION#{exception.series_id}#{_date(exception.occurrence_date)}"
+            f"#{_time(exception.occurrence_time)}"
+        )
         item = {
-            "pk": f"SERIES#{exception.series_id}",
+            "pk": self.access.family_pk,
             "sk": sk,
             "type": "exception",
             "series_id": str(exception.series_id),
@@ -675,7 +701,9 @@ class DynamoRecurrenceRepository:
                 {
                     "ConditionCheck": {
                         "TableName": self.access.table.name,
-                        "Key": _serialize({"pk": FAMILY_PK, "sk": f"SERIES#{exception.series_id}"}),
+                        "Key": _serialize(
+                            {"pk": self.access.family_pk, "sk": f"SERIES#{exception.series_id}"}
+                        ),
                         "ConditionExpression": "attribute_exists(pk)",
                     }
                 },
@@ -687,5 +715,5 @@ class DynamoRecurrenceRepository:
     def delete_exception(
         self, series_id: UUID, occurrence_date: date, occurrence_time: time
     ) -> None:
-        sk = f"EXCEPTION#{_date(occurrence_date)}#{_time(occurrence_time)}"
-        self.access.table.delete_item(Key={"pk": f"SERIES#{series_id}", "sk": sk})
+        sk = f"EXCEPTION#{series_id}#{_date(occurrence_date)}#{_time(occurrence_time)}"
+        self.access.table.delete_item(Key={"pk": self.access.family_pk, "sk": sk})

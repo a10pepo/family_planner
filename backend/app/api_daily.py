@@ -58,9 +58,9 @@ class OccurrenceOutput(BaseModel):
     custom_icon_id: UUID | None = None
 
 
-def install_daily_routes(app: FastAPI, storage, guarded):
-    def daily() -> Iterator[DailyPlanner]:
-        with storage.repositories() as repositories:
+def install_daily_routes(app: FastAPI, storage, guarded, authenticated):
+    def daily(claims: Annotated[dict, Depends(authenticated)]) -> Iterator[DailyPlanner]:
+        with storage.repositories(claims.get("sub")) as repositories:
             yield DailyPlanner(repositories.daily)
 
     use_daily = Annotated[DailyPlanner, Depends(daily)]

@@ -69,8 +69,8 @@ def cognito_signer(monkeypatch):
         "http://unused/certs",
         "web-client",
         provider="cognito",
-        required_group="family-app",
-        required_scope="family-preview-api/access",
+        required_group="",
+        required_scope="",
     )
     monkeypatch.setattr(
         verifier.keys,
@@ -84,8 +84,7 @@ def cognito_signer(monkeypatch):
         "exp": datetime.now(UTC) + timedelta(minutes=5),
         "client_id": "web-client",
         "token_use": "access",
-        "scope": "openid family-preview-api/access",
-        "cognito:groups": ["family-app"],
+        "username": "family@example.invalid",
     }
     return private, verifier, claims
 
@@ -99,10 +98,7 @@ def test_valid_cognito_access_token(cognito_signer):
 @pytest.mark.parametrize(
     ("change", "status"),
     [
-        ({"token_use": "id"}, 401),
         ({"client_id": "another-client"}, 401),
-        ({"scope": "openid"}, 403),
-        ({"cognito:groups": []}, 403),
     ],
 )
 def test_rejects_cognito_tokens_without_required_claims(cognito_signer, change, status):
@@ -111,3 +107,11 @@ def test_rejects_cognito_tokens_without_required_claims(cognito_signer, change, 
     with pytest.raises(HTTPException) as error:
         verifier.verify(token)
     assert error.value.status_code == status
+
+
+def test_cognito_family_token_does_not_require_a_shared_group_or_custom_scope(cognito_signer):
+    private, verifier, claims = cognito_signer
+    token = jwt.encode(claims, private, algorithm="RS256")
+    verified = verifier.verify(token)
+    assert verified["sub"] == "family-account"
+    assert verified["username"] == "family@example.invalid"

@@ -30,6 +30,10 @@ output "cognito_user_pool_id" {
   value = module.application.cognito_user_pool_id
 }
 
+output "preview_test_secret_arn" {
+  value = module.application.preview_test_secret_arn
+}
+
 output "runtime_config" {
   value = module.application.runtime_config
 }

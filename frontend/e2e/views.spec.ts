@@ -10,23 +10,35 @@ async function login(page: Page) {
   await expect(page.locator(".person-heading")).toHaveCount(4);
 }
 
-test("large portraits and vertical routines accompany a moving current-time line", async ({
+test("compact portraits and vertical routines show the useful day range", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.install();
   await login(page);
   const jaime = page
     .locator(".person-heading")
     .filter({ has: page.locator(".person-name", { hasText: /^Jaime$/ }) });
   const portrait = jaime.locator(".face-avatar");
-  await expect(portrait).toHaveCSS("width", "116px");
+  await expect(portrait).toHaveCSS("width", "80px");
   const routines = jaime.locator(".task-token");
   const picture = await portrait.boundingBox();
   const first = await routines.nth(0).boundingBox();
   const second = await routines.nth(1).boundingBox();
-  expect(first!.width).toBe(68);
+  expect(first!.width).toBe(56);
   expect(first!.x + first!.width).toBeLessThan(picture!.x);
   expect(second!.y).toBeGreaterThan(first!.y);
+  const viewport = page.locator(".day-viewport");
+  const viewportBox = await viewport.boundingBox();
+  const headings = await page.locator(".family-headings").boundingBox();
+  const firstHour = await page.locator(".hour-label").nth(8).boundingBox();
+  const finalHour = await page.locator(".hour-label").nth(20).boundingBox();
+  expect(firstHour!.y).toBeGreaterThanOrEqual(
+    headings!.y + headings!.height - 1,
+  );
+  expect(finalHour!.y + finalHour!.height).toBeLessThanOrEqual(
+    viewportBox!.y + viewportBox!.height,
+  );
   const line = page.locator(".current-time-line");
   await expect(line).toHaveCount(1);
   const initial = await line.evaluate((element) =>
@@ -246,7 +258,7 @@ test("week filters, global all-day events and confirmed profile archive persist"
       .click();
     await expect(token).toHaveCount(0);
     await page.getByRole("button", { name: "Semana", exact: true }).click();
-    await event.click();
+    await event.dispatchEvent("click");
     await page
       .getByRole("button", { name: "Eliminar evento", exact: true })
       .click();

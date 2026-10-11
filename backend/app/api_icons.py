@@ -20,9 +20,9 @@ class IconOutput(IconInput):
     id: UUID
 
 
-def install_icon_routes(app: FastAPI, storage, guarded):
-    def library() -> Iterator[IconLibrary]:
-        with storage.repositories() as repositories:
+def install_icon_routes(app: FastAPI, storage, guarded, authenticated):
+    def library(claims: Annotated[dict, Depends(authenticated)]) -> Iterator[IconLibrary]:
+        with storage.repositories(claims.get("sub")) as repositories:
             yield IconLibrary(repositories.icons)
 
     use_library = Annotated[IconLibrary, Depends(library)]

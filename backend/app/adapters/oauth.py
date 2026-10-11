@@ -51,7 +51,9 @@ class OAuthVerifier:
                 )
             if self.required_scope and self.required_scope not in claims.get("scope", "").split():
                 raise HTTPException(403, "El token no incluye el alcance de acceso familiar.")
-            authorized = self.required_group in claims.get("cognito:groups", [])
+            authorized = not self.required_group or self.required_group in claims.get(
+                "cognito:groups", []
+            )
         else:
             authorized = self.required_group in claims.get("realm_access", {}).get("roles", [])
         if not authorized:

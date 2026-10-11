@@ -11,6 +11,8 @@ export interface AppConfig {
   logout_endpoint?: string;
   scopes?: string[];
   client_id: string;
+  user_pool_id?: string;
+  aws_region?: string;
 }
 
 export interface AuthClient {
@@ -21,6 +23,16 @@ export interface AuthClient {
   clearToken(): void;
   login(options?: { redirectUri?: string }): void | Promise<void>;
   logout(options?: { redirectUri?: string }): void | Promise<void>;
+  signUp?(email: string, password: string): Promise<void>;
+  confirmSignUp?(email: string, code: string): Promise<void>;
+  resendSignUpCode?(email: string): Promise<void>;
+  signIn?(email: string, password: string): Promise<void>;
+  forgotPassword?(email: string): Promise<void>;
+  confirmForgotPassword?(
+    email: string,
+    code: string,
+    password: string,
+  ): Promise<void>;
 }
 
 class CognitoAuth implements AuthClient {
@@ -28,31 +40,9 @@ class CognitoAuth implements AuthClient {
   token?: string;
   onAuthLogout?: () => void;
   private refreshToken?: string;
+  private readonly pendingUsernames = new Map<string, string>();
 
   constructor(private config: AppConfig) {}
-
-  async completeLogin() {
-    const url = new URL(window.location.href);
-    const code = url.searchParams.get("code");
-    if (!code) return;
-    const state = url.searchParams.get("state");
-    const expectedState = sessionStorage.getItem("cognito_state");
-    const verifier = sessionStorage.getItem("cognito_verifier");
-    sessionStorage.removeItem("cognito_state");
-    sessionStorage.removeItem("cognito_verifier");
-    if (!state || state !== expectedState || !verifier)
-      throw new Error("La respuesta de inicio de sesión no es válida.");
-    const tokens = await this.tokenRequest({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: `${window.location.origin}/`,
-      code_verifier: verifier,
-    });
-    this.setTokens(tokens);
-    url.searchParams.delete("code");
-    url.searchParams.delete("state");
-    window.history.replaceState({}, document.title, url.pathname + url.hash);
-  }
 
   async updateToken(minValidity: number) {
     if (this.token && this.expiresAt - Date.now() > minValidity * 1000)
@@ -62,12 +52,12 @@ class CognitoAuth implements AuthClient {
       return false;
     }
     try {
-      this.setTokens(
-        await this.tokenRequest({
-          grant_type: "refresh_token",
-          refresh_token: this.refreshToken,
-        }),
-      );
+      const result = await this.call("InitiateAuth", {
+        AuthFlow: "REFRESH_TOKEN_AUTH",
+        ClientId: this.config.client_id,
+        AuthParameters: { REFRESH_TOKEN: this.refreshToken },
+      });
+      this.setTokens(result.AuthenticationResult);
       return true;
     } catch {
       this.clearToken();
@@ -82,73 +72,138 @@ class CognitoAuth implements AuthClient {
     this.onAuthLogout?.();
   }
 
-  async login() {
-    const verifier = randomValue(64);
-    const challenge = await sha256(verifier);
-    const state = randomValue(32);
-    sessionStorage.setItem("cognito_verifier", verifier);
-    sessionStorage.setItem("cognito_state", state);
-    const url = new URL(this.config.authorization_endpoint!);
-    url.search = new URLSearchParams({
-      response_type: "code",
-      client_id: this.config.client_id,
-      redirect_uri: `${window.location.origin}/`,
-      scope: (this.config.scopes ?? []).join(" "),
-      code_challenge_method: "S256",
-      code_challenge: challenge,
-      state,
-    }).toString();
-    window.location.assign(url);
+  login() {
+    throw new Error("Introduce el correo y la contraseña en esta pantalla.");
+  }
+
+  async signUp(email: string, password: string) {
+    const username = `family-${crypto.randomUUID()}`;
+    await this.call("SignUp", {
+      ClientId: this.config.client_id,
+      // Cognito rejects email-shaped usernames when email is configured as an alias.
+      Username: username,
+      Password: password,
+      UserAttributes: [{ Name: "email", Value: email }],
+    });
+    this.pendingUsernames.set(email.trim().toLowerCase(), username);
+  }
+
+  async confirmSignUp(email: string, code: string) {
+    await this.call("ConfirmSignUp", {
+      ClientId: this.config.client_id,
+      Username: this.pendingUsername(email),
+      ConfirmationCode: code,
+    });
+    this.pendingUsernames.delete(email.trim().toLowerCase());
+  }
+
+  async resendSignUpCode(email: string) {
+    await this.call("ResendConfirmationCode", {
+      ClientId: this.config.client_id,
+      Username: this.pendingUsername(email),
+    });
+  }
+
+  private pendingUsername(email: string) {
+    return (
+      this.pendingUsernames.get(email.trim().toLowerCase()) ?? email.trim()
+    );
+  }
+
+  async signIn(email: string, password: string) {
+    const result = await this.call("InitiateAuth", {
+      AuthFlow: "USER_PASSWORD_AUTH",
+      ClientId: this.config.client_id,
+      AuthParameters: { USERNAME: email, PASSWORD: password },
+    });
+    if (!result.AuthenticationResult) {
+      throw new Error("No se pudo completar el inicio de sesión.");
+    }
+    this.setTokens(result.AuthenticationResult);
+  }
+
+  async forgotPassword(email: string) {
+    await this.call("ForgotPassword", {
+      ClientId: this.config.client_id,
+      Username: email,
+    });
+  }
+
+  async confirmForgotPassword(email: string, code: string, password: string) {
+    await this.call("ConfirmForgotPassword", {
+      ClientId: this.config.client_id,
+      Username: email,
+      ConfirmationCode: code,
+      Password: password,
+    });
   }
 
   logout() {
     this.clearToken();
-    const url = new URL(this.config.logout_endpoint!);
-    url.search = new URLSearchParams({
-      client_id: this.config.client_id,
-      logout_uri: `${window.location.origin}/`,
-    }).toString();
-    window.location.assign(url);
   }
 
   private expiresAt = 0;
 
-  private async tokenRequest(params: Record<string, string>) {
-    const response = await fetch(this.config.token_endpoint!, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        ...params,
-        client_id: this.config.client_id,
-      }),
-    });
-    if (!response.ok) throw new Error("No se pudo validar la sesión.");
-    return response.json() as Promise<{
-      access_token: string;
-      refresh_token?: string;
-      expires_in: number;
-    }>;
+  private async call(target: string, body: object) {
+    const response = await fetch(
+      `https://cognito-idp.${this.config.aws_region}.amazonaws.com/`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-amz-json-1.1",
+          "X-Amz-Target": `AWSCognitoIdentityProviderService.${target}`,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      const type =
+        String(result.__type ?? "")
+          .split("#")
+          .at(-1) ?? "";
+      const messages: Record<string, string> = {
+        UsernameExistsException: "Ya existe una cuenta con este correo.",
+        AliasExistsException:
+          "Ya existe una cuenta con este correo. Inicia sesión o recupera la contraseña.",
+        UserNotConfirmedException:
+          "Confirma tu correo con el código que te enviamos.",
+        CodeMismatchException:
+          "El código no es correcto. Usa el código más reciente.",
+        ExpiredCodeException:
+          "El código ha caducado. Pulsa «Enviar un código nuevo».",
+        NotAuthorizedException: "Correo o contraseña incorrectos.",
+        InvalidPasswordException:
+          "La contraseña no cumple los requisitos de seguridad.",
+        LimitExceededException:
+          "Se han hecho demasiados intentos. Prueba más tarde.",
+      };
+      throw new Error(messages[type] ?? "No se pudo completar la solicitud.");
+    }
+    return result;
   }
 
   private setTokens(tokens: {
-    access_token: string;
-    refresh_token?: string;
-    expires_in: number;
+    AccessToken: string;
+    RefreshToken?: string;
+    ExpiresIn: number;
   }) {
-    this.token = tokens.access_token;
-    this.refreshToken = tokens.refresh_token ?? this.refreshToken;
-    this.expiresAt = Date.now() + tokens.expires_in * 1000;
+    this.token = tokens.AccessToken;
+    this.refreshToken = tokens.RefreshToken ?? this.refreshToken;
+    this.expiresAt = Date.now() + tokens.ExpiresIn * 1000;
     this.authenticated = true;
   }
 }
 
-export async function initializeAuth() {
+export async function initializeAuth(): Promise<{
+  auth: AuthClient;
+  config: AppConfig;
+}> {
   const response = await fetch("/api/v1/config");
   if (!response.ok) throw new Error("No se puede conectar con la aplicación.");
   const config: AppConfig = await response.json();
   if (config.oauth_provider === "cognito") {
     const auth = new CognitoAuth(config);
-    await auth.completeLogin();
     return { auth, config };
   }
   const auth = new Keycloak({
@@ -163,23 +218,4 @@ export async function initializeAuth() {
     responseMode: "query",
   });
   return { auth, config };
-}
-
-function randomValue(length: number) {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
 }

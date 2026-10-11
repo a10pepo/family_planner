@@ -88,6 +88,7 @@ resource "aws_cloudfront_function" "spa" {
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
+  tags                = { Project = var.project, Environment = var.environment }
   enabled             = true
   is_ipv6_enabled     = true
   comment             = local.prefix

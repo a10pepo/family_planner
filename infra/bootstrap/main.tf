@@ -108,6 +108,36 @@ resource "aws_s3_bucket_policy" "storage" {
   depends_on = [aws_s3_bucket_public_access_block.storage]
 }
 
+resource "aws_ecr_repository" "lambda" {
+  for_each             = toset(["preview", "production"])
+  name                 = "${var.project}-${each.value}"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = false
+  image_scanning_configuration { scan_on_push = true }
+  encryption_configuration { encryption_type = "AES256" }
+}
+
+resource "aws_ecr_lifecycle_policy" "lambda" {
+  for_each   = aws_ecr_repository.lambda
+  repository = each.value.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Remove dangling layers shortly after their tags are deleted"
+        selection    = { tagStatus = "untagged", countType = "sinceImagePushed", countUnit = "days", countNumber = 1 }
+        action       = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the 30 newest SHA-versioned builds for rollback"
+        selection    = { tagStatus = "tagged", tagPrefixList = ["sha-"], countType = "imageCountMoreThan", countNumber = 30 }
+        action       = { type = "expire" }
+      }
+    ]
+  })
+}
+
 output "state_bucket" {
   value = aws_s3_bucket.storage["state"].id
 }
@@ -118,4 +148,131 @@ output "artifact_buckets" {
 
 output "backend_keys" {
   value = { preview = "preview/terraform.tfstate", production = "production/terraform.tfstate" }
+}
+
+output "lambda_repositories" {
+  value = { for environment, repository in aws_ecr_repository.lambda : environment => repository.repository_url }
+}
+
+data "aws_iam_openid_connect_provider" "github" {
+  arn = "arn:aws:iam::${var.aws_account_id}:oidc-provider/token.actions.githubusercontent.com"
+}
+
+resource "aws_iam_role" "github_preview" {
+  name = "${var.project}-preview-github-actions"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = data.aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:a10pepo/family_planner:ref:refs/heads/main" }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "github_preview" {
+  name = "${var.project}-preview-deploy"
+  role = aws_iam_role.github_preview.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "PushPreviewImage"
+        Effect   = "Allow"
+        Action   = ["ecr:BatchCheckLayerAvailability", "ecr:CompleteLayerUpload", "ecr:DescribeImages", "ecr:DescribeRepositories", "ecr:GetDownloadUrlForLayer", "ecr:InitiateLayerUpload", "ecr:PutImage", "ecr:UploadLayerPart"]
+        Resource = aws_ecr_repository.lambda["preview"].arn
+      },
+      {
+        Sid      = "EcrAuthentication"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Sid      = "PreviewStateAndSite"
+        Effect   = "Allow"
+        Action   = ["s3:GetBucketLocation", "s3:ListBucket"]
+        Resource = [aws_s3_bucket.storage["state"].arn, "arn:aws:s3:::${var.project}-preview-${var.aws_account_id}-web"]
+      },
+      {
+        Sid      = "ManagePreviewSiteBucket"
+        Effect   = "Allow"
+        Action   = ["s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketAcl", "s3:GetBucketLocation", "s3:GetBucketPolicy", "s3:GetBucketPublicAccessBlock", "s3:GetBucketOwnershipControls", "s3:GetBucketVersioning", "s3:GetEncryptionConfiguration", "s3:PutBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutBucketOwnershipControls", "s3:PutBucketVersioning", "s3:PutEncryptionConfiguration", "s3:DeleteBucketPolicy", "s3:DeleteBucketPublicAccessBlock", "s3:DeleteBucketOwnershipControls", "s3:DeleteBucketVersioning", "s3:DeleteEncryptionConfiguration", "s3:ListBucket"]
+        Resource = "arn:aws:s3:::${var.project}-preview-${var.aws_account_id}-web"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = ["${aws_s3_bucket.storage["state"].arn}/preview/*", "${aws_s3_bucket.storage["state"].arn}/preview/terraform.tfstate.tflock", "arn:aws:s3:::${var.project}-preview-${var.aws_account_id}-web/*"]
+      },
+      {
+        Sid       = "CreateTaggedPreviewCredentialSecret"
+        Effect    = "Allow"
+        Action    = ["secretsmanager:CreateSecret"]
+        Resource  = "*"
+        Condition = { StringEquals = { "aws:RequestTag/Environment" = "preview" } }
+      },
+      {
+        Sid      = "ManagePreviewCredentialSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource"]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project}-preview/test-account-*"
+      },
+      {
+        Sid    = "ManagePreviewData"
+        Effect = "Allow"
+        Action = ["dynamodb:*", "lambda:*", "logs:*", "cognito-idp:*", "apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE", "cloudfront:CreateInvalidation", "cloudfront:DeleteDistribution", "cloudfront:DeleteOriginAccessControl", "cloudfront:GetDistribution", "cloudfront:GetDistributionConfig", "cloudfront:GetInvalidation", "cloudfront:GetOriginAccessControl", "cloudfront:ListTagsForResource", "cloudfront:TagResource", "cloudfront:UntagResource", "cloudfront:UpdateDistribution", "cloudfront:UpdateOriginAccessControl"]
+        Resource = [
+          "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project}-preview",
+          "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project}-preview/index/*",
+          "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project}-preview-*",
+          "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project}-preview-*",
+          "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/apigateway/${var.project}-preview*",
+          "arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/*",
+          "arn:aws:apigateway:${var.aws_region}::/apis/*",
+          "arn:aws:cloudfront::${var.aws_account_id}:distribution/*",
+          "arn:aws:cloudfront::${var.aws_account_id}:origin-access-control/*"
+        ]
+        Condition = { StringEquals = { "aws:ResourceTag/Environment" = "preview" } }
+      },
+      {
+        Sid      = "CreateTaggedPreviewResources"
+        Effect   = "Allow"
+        Action   = ["dynamodb:CreateTable", "lambda:CreateFunction", "logs:CreateLogGroup", "cognito-idp:CreateUserPool", "apigateway:POST"]
+        Resource = "*"
+        Condition = {
+          StringEquals = { "aws:RequestTag/Environment" = "preview" }
+        }
+      },
+      {
+        Sid      = "CreatePreviewEdgeResources"
+        Effect   = "Allow"
+        Action   = ["cloudfront:CreateDistribution"]
+        Resource = "*"
+        Condition = {
+          StringEquals = { "aws:RequestTag/Environment" = "preview" }
+        }
+      },
+      {
+        Sid      = "CreatePreviewOriginAccessControl"
+        Effect   = "Allow"
+        Action   = ["cloudfront:CreateOriginAccessControl"]
+        Resource = "*"
+      },
+      {
+        Sid      = "PassPreviewLambdaRole"
+        Effect   = "Allow"
+        Action   = ["iam:AttachRolePolicy", "iam:CreateRole", "iam:DeleteRole", "iam:DeleteRolePolicy", "iam:DetachRolePolicy", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:PassRole", "iam:PutRolePolicy", "iam:TagRole", "iam:UntagRole", "iam:UpdateAssumeRolePolicy"]
+        Resource = "arn:aws:iam::${var.aws_account_id}:role/${var.project}-preview-lambda"
+      }
+    ]
+  })
+}
+
+output "github_preview_role_arn" {
+  value = aws_iam_role.github_preview.arn
 }

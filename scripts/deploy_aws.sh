@@ -4,7 +4,6 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BOOTSTRAP_DIR="$ROOT/infra/bootstrap"
 BOOTSTRAP_VARS="$BOOTSTRAP_DIR/terraform.tfvars"
-API_ZIP=${LAMBDA_ZIP:-$ROOT/build/aws/api-compatible.zip}
 FRONTEND_DIST=${FRONTEND_DIST:-$ROOT/build/aws/frontend-compatible/dist}
 AWS_REGION=${AWS_REGION:-eu-west-1}
 
@@ -15,6 +14,7 @@ usage() {
     '       make plan production' \
     '       make deploy preview' \
     '       make deploy production' \
+    '       make preview-credentials' \
     '       make destroy preview'
 }
 
@@ -42,7 +42,7 @@ require_file() {
 }
 
 require_tools() {
-  for tool in aws openssl python3; do
+  for tool in aws docker python3; do
     command -v "$tool" >/dev/null 2>&1 || fail "No se encuentra '$tool' en PATH."
   done
 }
@@ -170,7 +170,6 @@ ensure_bootstrap() {
   [ "$status" -le 2 ] || fail "Falló el plan de bootstrap."
   if [ "$status" -eq 2 ]; then
     terraform -chdir="$BOOTSTRAP_DIR" show -no-color "$plan_dir/bootstrap.tfplan"
-    confirm_plan 'APPLY bootstrap'
     terraform -chdir="$BOOTSTRAP_DIR" apply -input=false "$plan_dir/bootstrap.tfplan"
   fi
   trap - 0 HUP INT TERM
@@ -179,27 +178,18 @@ ensure_bootstrap() {
 
 build_artifacts() {
   AWS_BUILD_DIR="$ROOT/build/aws" sh "$ROOT/scripts/build_aws.sh"
-  [ "$API_ZIP" = "$ROOT/build/aws/api-compatible.zip" ] || cp "$ROOT/build/aws/api-compatible.zip" "$API_ZIP"
   if [ "$FRONTEND_DIST" != "$ROOT/build/aws/frontend-compatible/dist" ]; then
     rm -rf "$FRONTEND_DIST"
     mkdir -p "$(dirname "$FRONTEND_DIST")"
     cp -R "$ROOT/build/aws/frontend-compatible/dist" "$FRONTEND_DIST"
   fi
-  require_file "$API_ZIP"
   require_file "$FRONTEND_DIST/index.html"
 }
 
-upload_lambda() {
+publish_lambda() {
   environment=$1
-  artifact_buckets=$(terraform -chdir="$BOOTSTRAP_DIR" output -json artifact_buckets)
-  artifact_bucket=$(printf '%s' "$artifact_buckets" | python3 -c \
-    'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$environment")
-  printf 'Subiendo el paquete Lambda versionado a %s/%s/...\n' "$artifact_bucket" "$environment"
-  commit=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || date -u +%Y%m%dT%H%M%SZ)
-  artifact_key="$environment/$commit-$(basename "$API_ZIP")"
-  artifact_version=$(aws s3api put-object --bucket "$artifact_bucket" --key "$artifact_key" --body "$API_ZIP" --query VersionId --output text)
-  case "$artifact_version" in ''|None|null) fail "S3 no devolvió VersionId; comprueba que el bucket tenga versionado habilitado." ;; esac
-  artifact_sha256=$(openssl dgst -sha256 -binary "$API_ZIP" | openssl base64 -A)
+  terraform_image_uri=$(AWS_REGION="$AWS_REGION" sh "$ROOT/scripts/publish_lambda_image.sh" "$environment" | tail -n 1)
+  case "$terraform_image_uri" in *@sha256:????????????????????????????????????????????????????????????????) ;; *) fail "No se obtuvo una imagen ECR fijada por digest." ;; esac
 }
 
 plan() {
@@ -215,17 +205,14 @@ plan() {
   ensure_bootstrap
   prepare_config
   check_environment "$environment"
-  upload_lambda "$environment"
+  publish_lambda "$environment"
 
   environment_dir="$ROOT/infra/environments/$environment"
   plan_dir=$(temporary_plan_dir)
   trap 'rm -rf "$plan_dir"' 0 HUP INT TERM
   terraform -chdir="$environment_dir" init -input=false -backend-config=backend.hcl
   terraform -chdir="$environment_dir" plan -input=false -out="$plan_dir/$environment.tfplan" \
-    -var="lambda_artifact_bucket=$artifact_bucket" \
-    -var="lambda_artifact_key=$artifact_key" \
-    -var="lambda_artifact_version=$artifact_version" \
-    -var="lambda_artifact_sha256=$artifact_sha256"
+    -var="lambda_image_uri=$terraform_image_uri"
   terraform -chdir="$environment_dir" show -no-color "$plan_dir/$environment.tfplan"
   printf '\nPlan de %s mostrado; no se aplicaron cambios.\n' "$environment"
 }
@@ -252,18 +239,15 @@ deploy() {
   environment_dir="$ROOT/infra/environments/$environment"
   check_environment "$environment"
 
-  upload_lambda "$environment"
+  publish_lambda "$environment"
 
   plan_dir=$(temporary_plan_dir)
   trap 'rm -rf "$plan_dir"' 0 HUP INT TERM
   terraform -chdir="$environment_dir" init -input=false -backend-config=backend.hcl
   terraform -chdir="$environment_dir" plan -input=false -out="$plan_dir/$environment.tfplan" \
-    -var="lambda_artifact_bucket=$artifact_bucket" \
-    -var="lambda_artifact_key=$artifact_key" \
-    -var="lambda_artifact_version=$artifact_version" \
-    -var="lambda_artifact_sha256=$artifact_sha256"
+    -var="lambda_image_uri=$terraform_image_uri"
   terraform -chdir="$environment_dir" show -no-color "$plan_dir/$environment.tfplan"
-  confirm_plan "APPLY $environment"
+  if [ "$environment" = production ]; then confirm_plan "APPLY $environment"; fi
   terraform -chdir="$environment_dir" apply -input=false "$plan_dir/$environment.tfplan"
 
   frontend_bucket=$(terraform -chdir="$environment_dir" output -raw frontend_bucket)
@@ -278,8 +262,33 @@ deploy() {
   aws cloudfront create-invalidation \
     --distribution-id "$distribution_id" \
     --paths '/*'
+  if [ "$environment" = preview ]; then
+    runtime=$(terraform -chdir="$environment_dir" output -json runtime_config)
+    user_pool_id=$(printf '%s' "$runtime" | python3 -c 'import json,sys; print(json.load(sys.stdin)["user_pool_id"])')
+    client_id=$(printf '%s' "$runtime" | python3 -c 'import json,sys; print(json.load(sys.stdin)["client_id"])')
+    secret_arn=$(terraform -chdir="$environment_dir" output -raw preview_test_secret_arn)
+    api_url=$(terraform -chdir="$environment_dir" output -raw api_url)
+    timezone=$(printf '%s' "$runtime" | python3 -c 'import json,sys; print(json.load(sys.stdin)["timezone"])')
+    python3 "$ROOT/scripts/seed_preview.py" \
+      --region "$AWS_REGION" --user-pool-id "$user_pool_id" --client-id "$client_id" \
+      --secret-arn "$secret_arn" --api-url "$api_url" --timezone "$timezone"
+  fi
   printf '\nDespliegue %s terminado: ' "$environment"
   terraform -chdir="$environment_dir" output -raw site_url
+}
+
+preview_credentials() {
+  command -v aws >/dev/null 2>&1 || fail "No se encuentra 'aws' en PATH."
+  command -v python3 >/dev/null 2>&1 || fail "No se encuentra 'python3' en PATH."
+  prepare_config
+  environment_dir="$ROOT/infra/environments/preview"
+  require_file "$environment_dir/backend.hcl"
+  require_file "$environment_dir/terraform.tfvars"
+  terraform -chdir="$environment_dir" init -input=false -backend-config=backend.hcl
+  secret_arn=$(terraform -chdir="$environment_dir" output -raw preview_test_secret_arn)
+  aws secretsmanager get-secret-value --region "$AWS_REGION" --secret-id "$secret_arn" \
+    --query SecretString --output text | python3 -c \
+    'import json,sys; value=json.load(sys.stdin); print("Usuario:", value["username"]); print("Correo:", value["email"]); print("Contraseña:", value["password"])'
 }
 
 delete_versioned_objects() {
@@ -367,10 +376,7 @@ destroy() {
     fail "El bucket web preview ($frontend_bucket) no coincide con el nombre esperado ($expected_frontend_bucket)."
   terraform -chdir="$environment_dir" plan -destroy -input=false \
     -var-file=terraform.tfvars \
-    -var="lambda_artifact_bucket=$project-preview-$account-artifacts" \
-    -var='lambda_artifact_key=preview/destroy-placeholder.zip' \
-    -var='lambda_artifact_version=destroy-placeholder' \
-    -var='lambda_artifact_sha256=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+    -var="lambda_image_uri=$account.dkr.ecr.$AWS_REGION.amazonaws.com/$project-preview@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
     -out="$plan_dir/preview-destroy.tfplan"
   terraform -chdir="$environment_dir" show -no-color "$plan_dir/preview-destroy.tfplan"
   printf '\nEsto destruye exclusivamente los recursos gestionados por preview. Se conservan el bootstrap, el estado remoto vacío y producción.\n'
@@ -399,6 +405,10 @@ case "${1:-}" in
   plan)
     shift
     plan "$@"
+    ;;
+  preview-credentials)
+    [ "$#" -eq 1 ] || { usage >&2; exit 2; }
+    preview_credentials
     ;;
   *)
     usage >&2

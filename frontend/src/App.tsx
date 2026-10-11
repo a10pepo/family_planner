@@ -50,6 +50,204 @@ const colors = [
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar el cambio.";
 
+function FamilyAccess({
+  auth,
+  onAuthenticated,
+}: {
+  auth: AuthClient;
+  onAuthenticated: () => void;
+}) {
+  const [mode, setMode] = useState<
+    "login" | "register" | "confirm" | "forgot" | "reset"
+  >("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const isPasswordFlow =
+    mode === "login" || mode === "register" || mode === "reset";
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      if (mode === "login") {
+        await auth.signIn?.(email.trim(), password);
+        onAuthenticated();
+      } else if (mode === "register") {
+        await auth.signUp?.(email.trim(), password);
+        setMode("confirm");
+        setNotice("Te hemos enviado un código para verificar el correo.");
+      } else if (mode === "confirm") {
+        await auth.confirmSignUp?.(email.trim(), code.trim());
+        setMode("login");
+        setNotice("Correo verificado. Ya puedes entrar a vuestro calendario.");
+      } else if (mode === "forgot") {
+        await auth.forgotPassword?.(email.trim());
+        setMode("reset");
+        setNotice("Te hemos enviado un código para restablecer la contraseña.");
+      } else {
+        await auth.confirmForgotPassword?.(email.trim(), code.trim(), password);
+        setMode("login");
+        setPassword("");
+        setNotice("Contraseña actualizada. Ya puedes iniciar sesión.");
+      }
+    } catch (submitError) {
+      setError(message(submitError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendConfirmationCode() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await auth.resendSignUpCode?.(email.trim());
+      setCode("");
+      setNotice("Te enviamos un nuevo código. Usa el último que recibas.");
+    } catch (resendError) {
+      setError(message(resendError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const titles = {
+    login: "Entrar en vuestro calendario",
+    register: "Crear la cuenta familiar",
+    confirm: "Verificar el correo",
+    forgot: "Recuperar acceso",
+    reset: "Elegir una contraseña nueva",
+  };
+  return (
+    <main className="welcome">
+      <div className="brand-mark">
+        <Icon name="calendar" />
+      </div>
+      <p className="eyebrow">FAMILY PLANNER</p>
+      <h1>{titles[mode]}</h1>
+      <p>Un calendario compartido para todos los planes de la familia.</p>
+      <form className="family-access" onSubmit={submit}>
+        {(mode === "login" ||
+          mode === "register" ||
+          mode === "forgot" ||
+          mode === "reset") && (
+          <label>
+            Correo electrónico
+            <input
+              autoComplete="email"
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+        )}
+        {isPasswordFlow && (
+          <label>
+            {mode === "reset" ? "Contraseña nueva" : "Contraseña"}
+            <input
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
+              type="password"
+              minLength={14}
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            {mode !== "login" && (
+              <span className="small muted">
+                Al menos 14 caracteres, con mayúsculas, minúsculas, números y
+                símbolos.
+              </span>
+            )}
+          </label>
+        )}
+        {(mode === "confirm" || mode === "reset") && (
+          <label>
+            Código de verificación
+            <input
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              required
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+            />
+          </label>
+        )}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p className="form-notice" role="status">
+            {notice}
+          </p>
+        )}
+        <button type="submit" disabled={busy}>
+          {busy
+            ? "Un momento…"
+            : mode === "login"
+              ? "Entrar"
+              : mode === "register"
+                ? "Crear cuenta"
+                : mode === "confirm"
+                  ? "Verificar correo"
+                  : mode === "forgot"
+                    ? "Enviar código"
+                    : "Guardar contraseña"}
+        </button>
+      </form>
+      <nav className="access-links" aria-label="Opciones de acceso">
+        {mode === "confirm" && (
+          <button
+            className="text-button"
+            type="button"
+            disabled={busy}
+            onClick={resendConfirmationCode}
+          >
+            Enviar un código nuevo
+          </button>
+        )}
+        {mode === "login" && (
+          <>
+            <button className="text-button" onClick={() => setMode("register")}>
+              Crear una cuenta familiar
+            </button>
+            <button className="text-button" onClick={() => setMode("forgot")}>
+              He olvidado mi contraseña
+            </button>
+          </>
+        )}
+        {(mode === "register" ||
+          mode === "confirm" ||
+          mode === "forgot" ||
+          mode === "reset") && (
+          <button
+            className="text-button"
+            onClick={() => {
+              setMode("login");
+              setError("");
+              setNotice("");
+            }}
+          >
+            Volver a iniciar sesión
+          </button>
+        )}
+      </nav>
+      <p className="small muted">Cada cuenta es compartida por una familia.</p>
+    </main>
+  );
+}
+
 function MemberForm({
   api,
   initialColor,
@@ -484,7 +682,7 @@ export default function App({
   }, [api, authenticated, day, refresh, rangeStart, rangeEnd]);
 
   useEffect(() => {
-    if (viewport.current) viewport.current.scrollTop = 7 * 56;
+    if (viewport.current) viewport.current.scrollTop = 8 * 38;
   }, [loading, authenticated, day, view]);
 
   function addEvent(memberId: string, start?: string, end?: string) {
@@ -543,6 +741,14 @@ export default function App({
       setCompleting(null);
     }
   }
+
+  if (!authenticated && config.oauth_provider === "cognito")
+    return (
+      <FamilyAccess
+        auth={auth}
+        onAuthenticated={() => setAuthenticated(true)}
+      />
+    );
 
   if (!authenticated)
     return (
