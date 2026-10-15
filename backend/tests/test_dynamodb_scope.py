@@ -1,5 +1,6 @@
 import sys
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -8,10 +9,12 @@ from app.adapters.dynamodb import (
     DynamoAccess,
     DynamoCalendarRepository,
     DynamoFamilyRepository,
+    DynamoRecurrenceRepository,
 )
 from app.adapters.storage import DynamoStorage
 from app.domain.calendar import Category, Event
 from app.domain.family import FamilyEvent, FamilyIcon
+from app.domain.recurrence import expand_series
 
 
 class FakeClient:
@@ -118,3 +121,49 @@ def test_dynamo_storage_uses_plain_client_for_transactions(monkeypatch):
     with storage.repositories("family-alpha") as repositories:
         assert repositories.calendar.access.client is transaction_client
         assert repositories.calendar.access.table is resource_table
+
+
+def test_recurring_series_normalizes_dynamodb_numbers_before_expansion():
+    series = DynamoRecurrenceRepository._series(
+        {
+            "id": str(uuid4()),
+            "member_id": str(uuid4()),
+            "title": "Clase",
+            "start_date": "2026-10-13",
+            "start_time": "09:00:00",
+            "duration_minutes": Decimal(30),
+            "timezone": "Europe/Madrid",
+            "frequency": "weekly",
+            "interval": Decimal(1),
+            "weekdays": [Decimal(1)],
+            "end_mode": "count",
+            "occurrence_count": Decimal(1),
+            "category": "other",
+        }
+    )
+
+    events = expand_series(
+        series,
+        datetime(2026, 10, 13, tzinfo=UTC),
+        datetime(2026, 10, 14, tzinfo=UTC),
+        [],
+    )
+
+    assert len(events) == 1
+    assert (events[0].ends_at - events[0].starts_at).total_seconds() == 30 * 60
+
+
+def test_recurring_exception_normalizes_dynamodb_override_duration():
+    exception = DynamoRecurrenceRepository._exception(
+        {
+            "series_id": str(uuid4()),
+            "occurrence_date": "2026-10-13",
+            "occurrence_time": "09:00:00",
+            "cancelled": False,
+            "override_duration_minutes": Decimal(45),
+            "has_icon_override": False,
+        }
+    )
+
+    assert exception.override_duration_minutes == 45
+    assert type(exception.override_duration_minutes) is int

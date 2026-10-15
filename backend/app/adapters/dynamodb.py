@@ -586,14 +586,14 @@ class DynamoRecurrenceRepository:
             row["title"],
             date.fromisoformat(row["start_date"]),
             time.fromisoformat(row["start_time"]),
-            row["duration_minutes"],
+            int(row["duration_minutes"]),
             row["timezone"],
             SeriesFrequency(row["frequency"]),
-            row["interval"],
-            tuple(row["weekdays"]),
+            int(row["interval"]),
+            tuple(int(day) for day in row["weekdays"]),
             EndMode(row["end_mode"]),
             date.fromisoformat(row["end_date"]) if row.get("end_date") else None,
-            row.get("occurrence_count"),
+            int(row["occurrence_count"]) if row.get("occurrence_count") is not None else None,
             Category(row["category"]),
             UUID(row["custom_icon_id"]) if row.get("custom_icon_id") else None,
         )
@@ -659,7 +659,9 @@ class DynamoRecurrenceRepository:
             time.fromisoformat(row["override_start_time"])
             if row.get("override_start_time")
             else None,
-            row.get("override_duration_minutes"),
+            int(row["override_duration_minutes"])
+            if row.get("override_duration_minutes") is not None
+            else None,
             row.get("override_title"),
             Category(row["override_category"]) if row.get("override_category") else None,
             row["has_icon_override"],
