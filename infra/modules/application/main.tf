@@ -1,12 +1,17 @@
 locals {
-  prefix       = "${var.project}-${var.environment}"
-  bucket_name  = "${local.prefix}-${var.aws_account_id}-web"
-  issuer       = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.family.id}"
-  site_url     = "https://${var.domain_name != null ? var.domain_name : aws_cloudfront_distribution.frontend.domain_name}"
-  login_host   = "${aws_cognito_user_pool_domain.family.domain}.auth.${var.aws_region}.amazoncognito.com"
-  scope        = "${aws_cognito_resource_server.api.identifier}/access"
-  cognito_base = "https://${local.login_host}"
-  production   = var.environment == "production"
+  prefix           = "${var.project}-${var.environment}"
+  bucket_name      = "${local.prefix}-${var.aws_account_id}-web"
+  issuer           = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.family.id}"
+  site_url         = "https://${var.domain_name != null ? var.domain_name : aws_cloudfront_distribution.frontend.domain_name}"
+  login_host       = "${aws_cognito_user_pool_domain.family.domain}.auth.${var.aws_region}.amazoncognito.com"
+  scope            = "${aws_cognito_resource_server.api.identifier}/access"
+  cognito_base     = "https://${local.login_host}"
+  production       = var.environment == "production"
+  mcp_resource_url = "${local.site_url}/mcp"
+  mcp_scope_read   = "${local.mcp_resource_url}/calendar.read"
+  mcp_scope_write  = "${local.mcp_resource_url}/calendar.write"
+  mcp_callback_id  = substr(replace(replace(trimsuffix(base64sha256(local.mcp_resource_url), "="), "+", "-"), "/", "_"), 0, 12)
+  mcp_callback_url = "http://127.0.0.1:1455/callback/${local.mcp_callback_id}"
 }
 
 resource "aws_dynamodb_table" "calendar" {
@@ -72,6 +77,11 @@ resource "aws_cloudwatch_log_group" "lambda" {
   retention_in_days = local.production ? 30 : 7
 }
 
+resource "aws_cloudwatch_log_group" "mcp_lambda" {
+  name              = "/aws/lambda/${local.prefix}-mcp"
+  retention_in_days = local.production ? 30 : 7
+}
+
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/apigateway/${local.prefix}"
   retention_in_days = local.production ? 30 : 7
@@ -102,6 +112,36 @@ resource "aws_iam_role_policy" "lambda" {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.lambda.arn}:*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "mcp_lambda" {
+  name = "${local.prefix}-mcp-lambda"
+  assume_role_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Allow", Principal = { Service = "lambda.amazonaws.com" }, Action = "sts:AssumeRole" }]
+  })
+}
+
+resource "aws_iam_role_policy" "mcp_lambda" {
+  name = "${local.prefix}-mcp-execution"
+  role = aws_iam_role.mcp_lambda.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CalendarEventsOnly"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:ConditionCheckItem", "dynamodb:TransactWriteItems"]
+        Resource = [aws_dynamodb_table.calendar.arn, "${aws_dynamodb_table.calendar.arn}/index/*"]
+      },
+      {
+        Sid      = "OwnLogsOnly"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.mcp_lambda.arn}:*"
       }
     ]
   })
@@ -138,6 +178,37 @@ resource "aws_lambda_function" "api" {
   depends_on = [aws_iam_role_policy.lambda, aws_cloudwatch_log_group.lambda]
 }
 
+resource "aws_lambda_function" "mcp" {
+  function_name = "${local.prefix}-mcp"
+  role          = aws_iam_role.mcp_lambda.arn
+  package_type  = "Image"
+  architectures = ["x86_64"]
+  image_uri     = var.lambda_image_uri
+  memory_size   = 512
+  timeout       = 15
+  image_config {
+    command = ["app.mcp_lambda_handler.handler"]
+  }
+  environment {
+    variables = {
+      APP_ENVIRONMENT            = var.environment
+      STORAGE_BACKEND            = "dynamodb"
+      DYNAMODB_TABLE             = aws_dynamodb_table.calendar.name
+      FAMILY_TIMEZONE            = var.family_timezone
+      OAUTH_PROVIDER             = "cognito"
+      OAUTH_ISSUER               = local.issuer
+      OAUTH_JWKS_URL             = "${local.issuer}/.well-known/jwks.json"
+      MCP_OAUTH_CLIENT_ID        = aws_cognito_user_pool_client.mcp.id
+      MCP_RESOURCE_URL           = local.mcp_resource_url
+      MCP_SCOPE_READ             = local.mcp_scope_read
+      MCP_SCOPE_WRITE            = local.mcp_scope_write
+      MCP_AUTHORIZATION_ENDPOINT = "${local.cognito_base}/oauth2/authorize"
+      MCP_TOKEN_ENDPOINT         = "${local.cognito_base}/oauth2/token"
+    }
+  }
+  depends_on = [aws_iam_role_policy.mcp_lambda, aws_cloudwatch_log_group.mcp_lambda]
+}
+
 resource "aws_apigatewayv2_api" "api" {
   name          = "${local.prefix}-api"
   protocol_type = "HTTP"
@@ -148,6 +219,14 @@ resource "aws_apigatewayv2_integration" "lambda" {
   api_id                 = aws_apigatewayv2_api.api.id
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.api.invoke_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 16000
+}
+
+resource "aws_apigatewayv2_integration" "mcp_lambda" {
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.mcp.invoke_arn
   payload_format_version = "2.0"
   timeout_milliseconds   = 16000
 }
@@ -179,6 +258,21 @@ resource "aws_apigatewayv2_route" "public" {
   authorization_type = "NONE"
 }
 
+resource "aws_apigatewayv2_route" "mcp" {
+  api_id             = aws_apigatewayv2_api.api.id
+  route_key          = "POST /mcp"
+  target             = "integrations/${aws_apigatewayv2_integration.mcp_lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "mcp_metadata" {
+  for_each           = toset(["GET /.well-known/oauth-protected-resource/mcp", "GET /mcp/.well-known/oauth-protected-resource", "GET /.well-known/oauth-authorization-server"])
+  api_id             = aws_apigatewayv2_api.api.id
+  route_key          = each.value
+  target             = "integrations/${aws_apigatewayv2_integration.mcp_lambda.id}"
+  authorization_type = "NONE"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.api.id
   name        = "$default"
@@ -197,6 +291,14 @@ resource "aws_lambda_permission" "api" {
   statement_id  = "ApiGatewayOnly"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "mcp" {
+  statement_id  = "ApiGatewayMcpOnly"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.mcp.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
 }
@@ -240,6 +342,20 @@ resource "aws_cognito_resource_server" "api" {
   }
 }
 
+resource "aws_cognito_resource_server" "mcp" {
+  identifier   = local.mcp_resource_url
+  name         = "${local.prefix}-mcp"
+  user_pool_id = aws_cognito_user_pool.family.id
+  scope {
+    scope_name        = "calendar.read"
+    scope_description = "Consultar los eventos del calendario familiar desde MCP."
+  }
+  scope {
+    scope_name        = "calendar.write"
+    scope_description = "Crear y editar eventos del calendario familiar desde MCP."
+  }
+}
+
 resource "aws_cognito_user_pool_client" "web" {
   name                                 = "${local.prefix}-web"
   user_pool_id                         = aws_cognito_user_pool.family.id
@@ -261,6 +377,30 @@ resource "aws_cognito_user_pool_client" "web" {
     id_token      = "minutes"
     refresh_token = "days"
   }
+}
+
+resource "aws_cognito_user_pool_client" "mcp" {
+  name                                 = "${local.prefix}-mcp-codex"
+  user_pool_id                         = aws_cognito_user_pool.family.id
+  generate_secret                      = false
+  supported_identity_providers         = ["COGNITO"]
+  explicit_auth_flows                  = ["ALLOW_REFRESH_TOKEN_AUTH"]
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["openid", local.mcp_scope_read, local.mcp_scope_write]
+  callback_urls                        = [local.mcp_callback_url]
+  logout_urls                          = [local.mcp_callback_url]
+  prevent_user_existence_errors        = "ENABLED"
+  enable_token_revocation              = true
+  access_token_validity                = 15
+  id_token_validity                    = 15
+  refresh_token_validity               = 1
+  token_validity_units {
+    access_token  = "minutes"
+    id_token      = "minutes"
+    refresh_token = "days"
+  }
+  depends_on = [aws_cognito_resource_server.mcp]
 }
 
 resource "aws_secretsmanager_secret" "preview_test_account" {

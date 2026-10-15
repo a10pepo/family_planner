@@ -10,6 +10,14 @@ output "table_name" { value = aws_dynamodb_table.calendar.name }
 
 output "lambda_function_name" { value = aws_lambda_function.api.function_name }
 
+output "mcp_lambda_function_name" { value = aws_lambda_function.mcp.function_name }
+
+output "mcp_url" { value = local.mcp_resource_url }
+
+output "mcp_oauth_client_id" { value = aws_cognito_user_pool_client.mcp.id }
+
+output "mcp_oauth_callback_url" { value = local.mcp_callback_url }
+
 output "api_url" { value = aws_apigatewayv2_api.api.api_endpoint }
 
 output "cognito_user_pool_id" { value = aws_cognito_user_pool.family.id }
@@ -34,5 +42,9 @@ output "runtime_config" {
     preview_test_secret_arn = try(aws_secretsmanager_secret.preview_test_account[0].arn, null)
     scopes                  = ["openid", "email", "profile", local.scope]
     redirect_uri            = "${local.site_url}/"
+    mcp_url                 = local.mcp_resource_url
+    mcp_oauth_client_id     = aws_cognito_user_pool_client.mcp.id
+    mcp_oauth_callback_url  = local.mcp_callback_url
+    mcp_scopes              = [local.mcp_scope_read, local.mcp_scope_write]
   }
 }

@@ -8,6 +8,21 @@ Este stack despliega la aplicación Family Planner en AWS usando Lambda, DynamoD
 
 Cada entorno tiene S3 privado para la web, CloudFront con OAC y HTTPS, API Gateway HTTP, Lambda Python 3.12 desde imagen ECR, DynamoDB on-demand, Cognito y sus roles/registros. La Lambda implementa el contrato `/api/v1` mediante la capa de dominio y el adaptador DynamoDB. CloudFront sirve la API por `/api/*` sin caché. Solo `GET /api/health` y `GET /api/v1/config` son públicos; el resto exige un JWT de acceso válido del cliente Cognito del entorno.
 
+El endpoint MCP vive en `/mcp` dentro de la misma distribución CloudFront y API Gateway, sin caché. Una Lambda independiente usa el mismo artefacto ECR, un rol IAM separado y solo operaciones necesarias para leer/escribir eventos en la tabla del entorno; no tiene permiso para borrar eventos. Cognito emite los scopes `calendar.read` y `calendar.write` ligados a la audiencia del MCP. La Lambda comprueba firma, emisor de Cognito, tipo de token, audiencia, scope y `sub` antes de construir los repositorios familiares. La Lambda publica metadata de recurso OAuth y una metadata de autorización compatible con Codex (PKCE S256 y scopes), que delega las rutas de autorización/token en el User Pool de ese entorno. Cognito no tiene DCR, por lo que Codex usa el `client_id` público preconfigurado. No se modifica el esquema DynamoDB.
+
+#### Conectar Codex a los endpoints MCP
+
+Después de aplicar el entorno, consulta las salidas `mcp_url`, `mcp_oauth_client_id` y `mcp_oauth_callback_url`. Codex debe usar el puerto de callback `1455`, cuyo path específico queda registrado en Cognito para cada URL MCP.
+
+```sh
+codex mcp add family-planner-preview \
+  --url "$(terraform -chdir=infra/environments/preview output -raw mcp_url)" \
+  --oauth-client-id "$(terraform -chdir=infra/environments/preview output -raw mcp_oauth_client_id)"
+codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455
+```
+
+Repite con `family-planner-production` y las salidas de `infra/environments/production`. La conexión solicita OAuth con PKCE; preview apunta a su propio User Pool y datos ficticios, producción al User Pool de producción. Codex recibe las herramientas `list_events` y `save_event`; la segunda crea un evento si no tiene `event_id` o actualiza uno existente si lo incluye. No se exponen tareas, perfiles, rutinas ni borrado de eventos. Para consultar o guardar eventos se usan fechas ISO-8601 con zona horaria, y para crear se requiere `member_id`.
+
 Cada registro usa `PK=FAMILY#<sub de Cognito>` y `SK=TIPO#id`; GSIs de día, series y marcas incluyen ese mismo identificador. Las excepciones de series y marcas de tareas también usan la partición familiar. El backend crea repositorios por petición a partir del `sub` del token ya validado, consulta con `Query` y no usa `Scan`. Las escrituras condicionadas/transacciones impiden que una familia referencie integrantes o elementos de otra. Pedro aprobó el cambio el 10 de octubre de 2026; preview empieza vacío y producción no se modifica ni migra.
 
 Las asignaciones a tareas admiten hasta 99 integrantes por escritura: la transacción DynamoDB reserva la operación restante para guardar la tarea junto con los controles de estado de cada perfil.

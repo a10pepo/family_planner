@@ -78,6 +78,14 @@ El downgrade borra exclusivamente `family_all_day_events` y `members.active`; pi
 - Cambiar el integrante asignado a un evento, reasignación y gestión avanzada de perfiles.
 - Configuración para la pantalla de la nevera por red doméstica y despliegue público, incluyendo HTTPS y OAuth para su URL real.
 - Adaptación y puesta en marcha en AWS, revisión del coste real y seguridad para acceso público.
+
+## MCP del calendario (issue #55)
+
+Pedro aprobó expresamente el 15 de octubre de 2026 una Lambda MCP para Preview y Producción con OAuth/PKCE, scopes separados de lectura y escritura y sin aplicar Terraform en esta implementación. Se aprobó que Codex pueda consultar, crear y editar eventos; el borrado queda fuera.
+
+Cada entorno conserva su User Pool y tabla DynamoDB. El MCP usa un cliente Cognito público dedicado, una audiencia de recurso distinta por entorno, y los scopes `calendar.read` y `calendar.write`. La Lambda publica metadata de Protected Resource y metadata de autorización para Codex, con PKCE S256 y endpoints de autorización/token delegados a Cognito. El token se valida en la Lambda por firma, emisor real de Cognito, tipo `access`, audiencia, scopes y `sub`. El `sub` validado sigue siendo la única clave de partición familiar. API Gateway enruta `/mcp` a una Lambda separada con rol IAM propio, limitado a la tabla del entorno y sus logs; CloudFront reenvía `Authorization` y desactiva caché para MCP y metadata OAuth.
+
+Las herramientas son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe; no permite cambiar el integrante ni borrar. No se modifica DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
 
