@@ -18,13 +18,14 @@ export function useCurrentTime(zone: string) {
 export function CurrentTime({ now, day }: { now: DateTime; day: string }) {
   if (now.toISODate() !== day) return null;
   const minute = now.hour * 60 + now.minute + now.second / 60;
+  const pixelsPerHour = 38;
   return (
     <div
       className="current-time-line"
       role="img"
       aria-label={`Hora actual: ${now.toFormat("HH:mm")}`}
       data-time={now.toFormat("HH:mm")}
-      style={{ top: `${1 + (minute * 56) / 60}px` }}
+      style={{ top: `${1 + (minute * pixelsPerHour) / 60}px` }}
     >
       <span>{now.toFormat("HH:mm")}</span>
     </div>

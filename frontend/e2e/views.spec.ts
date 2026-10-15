@@ -14,7 +14,10 @@ test("compact portraits and vertical routines show the useful day range", async 
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.clock.install();
+  const fixedNow = DateTime.now()
+    .setZone("Europe/Madrid")
+    .set({ hour: 14, minute: 20, second: 0, millisecond: 0 });
+  await page.clock.install({ time: fixedNow.toJSDate() });
   await login(page);
   const jaime = page
     .locator(".person-heading")
@@ -41,6 +44,16 @@ test("compact portraits and vertical routines show the useful day range", async 
   );
   const line = page.locator(".current-time-line");
   await expect(line).toHaveCount(1);
+  await expect(line).toHaveAttribute("data-time", "14:20");
+  const lineTop = await line.evaluate((element) =>
+    parseFloat((element as HTMLElement).style.top),
+  );
+  const columns = await page.locator(".day-columns").boundingBox();
+  const hour14 = await page.locator(".hour-label").nth(14).boundingBox();
+  const hour15 = await page.locator(".hour-label").nth(15).boundingBox();
+  const expectedTop =
+    hour14!.y - columns!.y + ((hour15!.y - hour14!.y) * 20) / 60;
+  expect(lineTop).toBeCloseTo(expectedTop, 0);
   const initial = await line.evaluate((element) =>
     parseFloat((element as HTMLElement).style.top),
   );
