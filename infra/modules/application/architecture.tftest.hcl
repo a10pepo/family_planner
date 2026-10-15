@@ -63,6 +63,10 @@ run "preview" {
     error_message = "Lambda solo debe acceder a su tabla y sus registros."
   }
   assert {
+    condition     = jsondecode(aws_iam_role_policy.mcp_lambda.policy).Statement[0].Resource == [aws_dynamodb_table.calendar.arn, "${aws_dynamodb_table.calendar.arn}/index/*"] && !contains(jsondecode(aws_iam_role_policy.mcp_lambda.policy).Statement[0].Action, "dynamodb:Scan") && !contains(jsondecode(aws_iam_role_policy.mcp_lambda.policy).Statement[0].Action, "dynamodb:DeleteItem") && aws_lambda_function.mcp.role == aws_iam_role.mcp_lambda.arn
+    error_message = "La Lambda MCP debe limitarse a lectura/escritura de eventos en su tabla, con rol propio y sin borrados."
+  }
+  assert {
     condition     = aws_apigatewayv2_route.protected.authorization_type == "JWT" && aws_apigatewayv2_route.protected.authorization_scopes == null && toset(keys(aws_apigatewayv2_route.public)) == toset(["GET /api/health", "GET /api/v1/config"])
     error_message = "La API debe exigir un JWT de cliente propio salvo salud/configuración públicas."
   }
@@ -75,12 +79,28 @@ run "preview" {
     error_message = "La API no se debe cachear ni convertir sus errores en HTML."
   }
   assert {
-    condition     = length(aws_cloudfront_distribution.frontend.ordered_cache_behavior) == 2 && alltrue([for b in aws_cloudfront_distribution.frontend.ordered_cache_behavior : b.target_origin_id == "api" && b.cache_policy_id == data.aws_cloudfront_cache_policy.disabled.id]) && anytrue([for o in aws_cloudfront_distribution.frontend.origin : o.origin_id == "frontend" && o.origin_access_control_id == aws_cloudfront_origin_access_control.frontend.id && length(o.s3_origin_config) == 1])
-    error_message = "API raíz y subrutas deben usar el origen API sin caché; S3 debe tener OAC."
+    condition     = length(aws_cloudfront_distribution.frontend.ordered_cache_behavior) == 6 && alltrue([for b in aws_cloudfront_distribution.frontend.ordered_cache_behavior : b.target_origin_id == "api" && b.cache_policy_id == data.aws_cloudfront_cache_policy.disabled.id && b.origin_request_policy_id == data.aws_cloudfront_origin_request_policy.api.id]) && anytrue([for b in aws_cloudfront_distribution.frontend.ordered_cache_behavior : b.path_pattern == "/mcp" || b.path_pattern == "/mcp/*"]) && anytrue([for b in aws_cloudfront_distribution.frontend.ordered_cache_behavior : b.path_pattern == "/.well-known/oauth-authorization-server"]) && anytrue([for o in aws_cloudfront_distribution.frontend.origin : o.origin_id == "frontend" && o.origin_access_control_id == aws_cloudfront_origin_access_control.frontend.id && length(o.s3_origin_config) == 1])
+    error_message = "API y MCP deben usar su origen API sin caché; S3 debe tener OAC."
   }
   assert {
-    condition     = aws_lambda_function.api.package_type == "Image" && aws_lambda_function.api.image_uri == var.lambda_image_uri && aws_lambda_function.api.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.api.environment[0].variables["OAUTH_USER_POOL_ID"] == aws_cognito_user_pool.family.id
-    error_message = "Lambda debe usar una imagen inmutable y configuración propia."
+    condition     = aws_apigatewayv2_route.mcp.route_key == "POST /mcp" && aws_apigatewayv2_route.mcp.authorization_type == "NONE"
+    error_message = "El endpoint MCP debe llegar a su handler dedicado que valida los tokens."
+  }
+  assert {
+    condition     = alltrue([for r in values(aws_apigatewayv2_route.mcp_metadata) : r.authorization_type == "NONE"])
+    error_message = "La metadata necesaria para descubrir OAuth debe ser pública."
+  }
+  assert {
+    condition     = toset(aws_lambda_function.mcp.image_config[0].command) == toset(["app.mcp_lambda_handler.handler"])
+    error_message = "La Lambda MCP debe iniciar el handler MCP del artefacto compartido."
+  }
+  assert {
+    condition     = aws_lambda_function.api.package_type == "Image" && aws_lambda_function.api.image_uri == var.lambda_image_uri && aws_lambda_function.api.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.api.environment[0].variables["OAUTH_USER_POOL_ID"] == aws_cognito_user_pool.family.id && aws_lambda_function.mcp.image_uri == var.lambda_image_uri && aws_lambda_function.mcp.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.mcp.environment[0].variables["MCP_RESOURCE_URL"] == "https://mock.cloudfront.net/mcp"
+    error_message = "Las Lambdas deben usar una imagen inmutable y configuración propia por entorno."
+  }
+  assert {
+    condition     = aws_cognito_resource_server.mcp.identifier == "https://mock.cloudfront.net/mcp" && toset([for scope in aws_cognito_resource_server.mcp.scope : scope.scope_name]) == toset(["calendar.read", "calendar.write"]) && aws_cognito_user_pool_client.mcp.generate_secret == false && aws_cognito_user_pool_client.mcp.callback_urls == toset([output.mcp_oauth_callback_url])
+    error_message = "Cognito debe emitir scopes separados para el recurso MCP y callback loopback de Codex."
   }
 }
 run "production" {
@@ -139,8 +159,8 @@ run "custom_domain" {
     route53_zone_id = "ZEXAMPLE"
   }
   assert {
-    condition     = output.site_url == "https://calendar.example.com" && aws_cognito_user_pool_client.web.callback_urls == toset(["https://calendar.example.com/"]) && length(aws_route53_record.frontend) == 2
-    error_message = "El dominio propio debe configurar el sitio, callback y DNS IPv4/IPv6."
+    condition     = output.site_url == "https://calendar.example.com" && aws_cognito_user_pool_client.web.callback_urls == toset(["https://calendar.example.com/"]) && output.mcp_url == "https://calendar.example.com/mcp" && aws_cognito_resource_server.mcp.identifier == "https://calendar.example.com/mcp" && length(aws_route53_record.frontend) == 2
+    error_message = "El dominio propio debe configurar el sitio, callback MCP y DNS IPv4/IPv6."
   }
 }
 

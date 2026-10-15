@@ -127,7 +127,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
   dynamic "ordered_cache_behavior" {
-    for_each = ["/api/*", "/api"]
+    for_each = ["/api/*", "/api", "/mcp", "/mcp/*", "/.well-known/oauth-protected-resource/*", "/.well-known/oauth-authorization-server"]
     content {
       path_pattern               = ordered_cache_behavior.value
       target_origin_id           = "api"
