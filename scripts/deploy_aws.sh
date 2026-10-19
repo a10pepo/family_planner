@@ -273,6 +273,9 @@ deploy() {
       --region "$AWS_REGION" --user-pool-id "$user_pool_id" --client-id "$client_id" \
       --secret-arn "$secret_arn" --api-url "$api_url" --timezone "$timezone"
   fi
+  if ! sh "$ROOT/scripts/sync_codex_mcp.sh" "$environment"; then
+    printf 'Aviso: el despliegue AWS terminó, pero Codex no se pudo sincronizar. Ejecuta manualmente los comandos indicados en infra/README.md.\n' >&2
+  fi
   printf '\nDespliegue %s terminado: ' "$environment"
   terraform -chdir="$environment_dir" output -raw site_url
 }
