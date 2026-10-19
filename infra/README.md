@@ -12,7 +12,17 @@ El endpoint MCP vive en `/mcp` dentro de la misma distribución CloudFront y API
 
 #### Conectar Codex a los endpoints MCP
 
-Después de aplicar el entorno, consulta las salidas `mcp_url`, `mcp_oauth_client_id` y `mcp_oauth_callback_url`. Codex debe usar el puerto de callback `1455`, cuyo path específico queda registrado en Cognito para cada URL MCP.
+Consulta las salidas `mcp_url`, `mcp_oauth_client_id` y `mcp_oauth_callback_url` para revisar la configuración. Codex debe usar el puerto de callback `1455`, cuyo path específico queda registrado en Cognito para cada URL MCP.
+
+Al finalizar `make deploy preview` o `make deploy production`, Make reemplaza en la configuración local de Codex la entrada `family-planner-<entorno>` con la URL CloudFront y el cliente OAuth recién aplicados. La sincronización se omite con un aviso si Codex CLI no está instalado o no puede modificar la configuración; el despliegue AWS ya completado no se revierte. Si después Codex solicita autenticación, inicia sesión con:
+
+```sh
+codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455
+```
+
+Para producción, sustituye `preview` por `production`. La configuración MCP es compartida por la aplicación Codex, la CLI y la extensión IDE.
+
+Para una configuración manual inicial o para recuperarse de un error de sincronización:
 
 ```sh
 codex mcp add family-planner-preview \
