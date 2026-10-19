@@ -35,7 +35,7 @@ Pedro solicitó sustituir la demo por Laura (Mamá), Pedro (Papá), Jaime (Tete)
 
 Pedro aprobó expresamente añadir la categoría persistente. La migración `002_event_category` añade `events.category`, con `school`, `activities`, `medical`, `friends` y `other`; los eventos actuales quedan en `other`. El alta que no envía categoría usa `other`; la edición que no la envía conserva la existente. La reversión quita la columna y sus valores, sin borrar eventos. Pruebas comprueban migración, validación y conservación de la categoría al mover.
 
-El modo demo es explícito e idempotente; no sustituye bases con perfiles existentes. La renovación de esta demo local se limitó a los antiguos perfiles ficticios de las pruebas, tras guardar una copia en `.local`, excluida de Git. Una instalación normal sigue empezando vacía y permite más integrantes.
+El modo demo es explícito e idempotente; no sustituye bases con perfiles existentes. En el issue [#57](https://github.com/a10pepo/family_planner/issues/57), Pedro aprobó usar sus cuatro retratos ilustrados como avatares predeterminados locales para Laura, Pedro, Jaime y Lucía. Son fallback de presentación: las fotos personalizadas guardadas tienen prioridad y no se copian ni reemplazan fotos en perfiles persistidos. El resto de integrantes conserva caras genéricas. La renovación de esta demo local se limitó a los antiguos perfiles ficticios de las pruebas, tras guardar una copia en `.local`, excluida de Git. Una instalación normal sigue empezando vacía y permite más integrantes.
 
 ## Configuración y rutinas (issue #6)
 
@@ -86,6 +86,7 @@ Pedro aprobó expresamente el 15 de octubre de 2026 una Lambda MCP para Preview 
 Cada entorno conserva su User Pool y tabla DynamoDB. El MCP usa un cliente Cognito público dedicado, una audiencia de recurso distinta por entorno, y los scopes `calendar.read` y `calendar.write`. La Lambda publica metadata de Protected Resource y metadata de autorización para Codex, con PKCE S256 y endpoints de autorización/token delegados a Cognito. El token se valida en la Lambda por firma, emisor real de Cognito, tipo `access`, audiencia, scopes y `sub`. El `sub` validado sigue siendo la única clave de partición familiar. API Gateway enruta `/mcp` a una Lambda separada con rol IAM propio, limitado a la tabla del entorno y sus logs; CloudFront reenvía `Authorization` y desactiva caché para MCP y metadata OAuth.
 
 Las herramientas son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe; no permite cambiar el integrante ni borrar. No se modifica DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
+
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
 

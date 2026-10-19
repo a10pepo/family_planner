@@ -50,7 +50,7 @@ Las rutas son `frontend/src`, `backend/app/api.py` / `api_daily.py`, `backend/ap
 - La progresión de tareas pertenece a versiones futuras; no crear tablas o endpoints de analítica para anticiparla.
 - La estructura inicial de datos y cualquier cambio posterior requieren propuesta y aprobación previa de Pedro.
 - Cuando exista esquema, versionar las migraciones y probarlas con una base de datos desechable. No ejecutar cambios destructivos sobre datos reales sin aprobación expresa.
-- Los datos de prueba deben ser sintéticos. No usar fotografías, contraseñas ni actividades reales de la familia.
+- Los datos de prueba deben ser sintéticos. No usar fotografías, contraseñas ni actividades reales de la familia. Excepción aprobada en el issue [#57](https://github.com/a10pepo/family_planner/issues/57): cuatro retratos ilustrados aportados por Pedro se sirven como avatares predeterminados locales para los perfiles con nombres Laura, Pedro, Jaime y Lucía. Son solo fallback visual; no se escriben en perfiles persistidos y una foto elegida por la familia prevalece.
 
 ## 5. Seguridad
 

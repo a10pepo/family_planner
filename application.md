@@ -34,7 +34,7 @@ Los controles tienen un objetivo mínimo de 44 × 44 px. En pantallas estrechas,
 
 ## Demo
 
-Contiene exactamente Laura (Mamá), Pedro (Papá), Jaime (Tete) y Lucía (Teta), por solicitud expresa de Pedro. Usa caras ilustradas genéricas y actividades ficticias. No requiere fotografías familiares. Una instalación normal empieza vacía y admite un número variable de integrantes.
+Contiene exactamente Laura (Mamá), Pedro (Papá), Jaime (Tete) y Lucía (Teta), por solicitud expresa de Pedro, con los retratos ilustrados locales aprobados en el issue [#57](https://github.com/a10pepo/family_planner/issues/57). Los retratos son valores predeterminados de presentación; una foto elegida en Configuración tiene prioridad y no se modifican perfiles persistidos. Los demás integrantes conservan caras ilustradas genéricas y las actividades de la demo son ficticias. Una instalación normal empieza vacía y admite un número variable de integrantes.
 
 ## Configuración, avisos y tareas (issue #6)
 

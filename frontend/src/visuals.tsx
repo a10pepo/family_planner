@@ -1,4 +1,8 @@
 import type { CSSProperties } from "react";
+import jaimePortrait from "./assets/avatars/jaime.jpg";
+import lauraPortrait from "./assets/avatars/laura.jpg";
+import luciaPortrait from "./assets/avatars/lucia.jpg";
+import pedroPortrait from "./assets/avatars/pedro.jpg";
 
 export type IconName =
   | "birthday"
@@ -148,6 +152,13 @@ export function Icon({ name }: { name: IconName }) {
   );
 }
 
+const defaultPortraits: Record<string, string> = {
+  Laura: lauraPortrait,
+  Pedro: pedroPortrait,
+  Jaime: jaimePortrait,
+  Lucía: luciaPortrait,
+};
+
 export function Avatar({
   name,
   color,
@@ -160,6 +171,15 @@ export function Avatar({
   const first = name.split(/[\s(]/)[0];
   if (photo)
     return <img className="face-avatar" src={photo} alt={`Foto de ${first}`} />;
+  const defaultPortrait = defaultPortraits[first];
+  if (defaultPortrait)
+    return (
+      <img
+        className="face-avatar"
+        src={defaultPortrait}
+        alt={`Retrato de ${first}`}
+      />
+    );
   const kind =
     first === "Laura"
       ? "long"
