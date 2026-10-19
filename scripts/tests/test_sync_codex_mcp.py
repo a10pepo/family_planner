@@ -70,8 +70,8 @@ class SyncCodexMcpTests(unittest.TestCase):
             [
                 "mcp get family-planner-preview --json",
                 "mcp remove family-planner-preview",
-                "mcp add family-planner-preview --url https://new-preview.example/mcp "
-                "--oauth-client-id client-preview",
+                "mcp add family-planner-preview -c mcp_oauth_callback_port=1455 "
+                "--url https://new-preview.example/mcp --oauth-client-id client-preview",
             ],
         )
         self.assertIn("codex mcp login family-planner-preview", result.stdout)
@@ -88,8 +88,8 @@ class SyncCodexMcpTests(unittest.TestCase):
             calls,
             [
                 "mcp get family-planner-production --json",
-                "mcp add family-planner-production --url https://new-production.example/mcp "
-                "--oauth-client-id client-production",
+                "mcp add family-planner-production -c mcp_oauth_callback_port=1455 "
+                "--url https://new-production.example/mcp --oauth-client-id client-production",
             ],
         )
 

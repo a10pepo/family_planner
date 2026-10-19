@@ -26,6 +26,7 @@ Para una configuración manual inicial o para recuperarse de un error de sincron
 
 ```sh
 codex mcp add family-planner-preview \
+  -c mcp_oauth_callback_port=1455 \
   --url "$(terraform -chdir=infra/environments/preview output -raw mcp_url)" \
   --oauth-client-id "$(terraform -chdir=infra/environments/preview output -raw mcp_oauth_client_id)"
 codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455

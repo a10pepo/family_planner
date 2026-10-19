@@ -32,7 +32,9 @@ if codex mcp get "$SERVER_NAME" --json >/dev/null 2>&1; then
   }
 fi
 
-codex mcp add "$SERVER_NAME" --url "$MCP_URL" --oauth-client-id "$CLIENT_ID" || {
+codex mcp add "$SERVER_NAME" \
+  -c mcp_oauth_callback_port=1455 \
+  --url "$MCP_URL" --oauth-client-id "$CLIENT_ID" || {
   printf 'No se pudo añadir la configuración MCP actual de %s.\n' "$ENVIRONMENT" >&2
   exit 1
 }
