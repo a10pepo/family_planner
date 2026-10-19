@@ -4,7 +4,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "sync_codex_mcp.sh"
 
@@ -15,15 +14,15 @@ def run_sync(tmp_path, *, listed_servers, environment="preview"):
     log = tmp_path / "codex.log"
     (bin_dir / "codex").write_text(
         "#!/bin/sh\n"
-        "printf '%s\\n' \"$*\" >> \"$CODEX_LOG\"\n"
-        "case \"$1 $2\" in\n"
+        'printf \'%s\\n\' "$*" >> "$CODEX_LOG"\n'
+        'case "$1 $2" in\n'
         "  'mcp get') [ \"${CODEX_CONFIGURED:-0}\" = 1 ] ;;\n"
         "  *) exit 0 ;;\n"
         "esac\n"
     )
     (bin_dir / "terraform").write_text(
         "#!/bin/sh\n"
-        "case \"$4\" in\n"
+        'case "$4" in\n'
         "  mcp_url) printf 'https://new-%s.example/mcp\\n' \"${ENVIRONMENT:-unknown}\" ;;\n"
         "  mcp_oauth_client_id) printf 'client-%s\\n' \"${ENVIRONMENT:-unknown}\" ;;\n"
         "  *) exit 1 ;;\n"
@@ -38,9 +37,7 @@ def run_sync(tmp_path, *, listed_servers, environment="preview"):
             "PATH": f"{bin_dir}:{env['PATH']}",
             "CODEX_LOG": str(log),
             "CODEX_CONFIGURED": (
-                "1"
-                if f'"name":"family-planner-{environment}"' in listed_servers
-                else "0"
+                "1" if f'"name":"family-planner-{environment}"' in listed_servers else "0"
             ),
             "ENVIRONMENT": environment,
         }
@@ -73,7 +70,8 @@ class SyncCodexMcpTests(unittest.TestCase):
             [
                 "mcp get family-planner-preview --json",
                 "mcp remove family-planner-preview",
-                "mcp add family-planner-preview --url https://new-preview.example/mcp --oauth-client-id client-preview",
+                "mcp add family-planner-preview --url https://new-preview.example/mcp "
+                "--oauth-client-id client-preview",
             ],
         )
         self.assertIn("codex mcp login family-planner-preview", result.stdout)
@@ -90,7 +88,8 @@ class SyncCodexMcpTests(unittest.TestCase):
             calls,
             [
                 "mcp get family-planner-production --json",
-                "mcp add family-planner-production --url https://new-production.example/mcp --oauth-client-id client-production",
+                "mcp add family-planner-production --url https://new-production.example/mcp "
+                "--oauth-client-id client-production",
             ],
         )
 
