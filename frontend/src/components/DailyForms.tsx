@@ -8,7 +8,7 @@ import {
   type TaskInput,
 } from "../api";
 import { noticeIcons, taskIcons } from "../daily-icons";
-import { CustomSymbol, IconPicker } from "./IconCatalog";
+import { IconPicker, TaskSymbol } from "./IconCatalog";
 import { Dialog } from "./Dialog";
 
 const errorMessage = (error: unknown) =>
@@ -386,10 +386,7 @@ export function TasksPanel({
         {tasks.map((task) => (
           <article className="task-card" key={task.id}>
             <span className="task-symbol">
-              <CustomSymbol
-                id={task.custom_icon_id}
-                fallback={taskIcons[task.icon].icon}
-              />
+              <TaskSymbol id={task.custom_icon_id} icon={task.icon} />
             </span>
             <div className="task-description">
               <h2>{task.title}</h2>

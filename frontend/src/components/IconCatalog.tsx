@@ -1,5 +1,6 @@
 import { createContext, useContext, useRef, useState } from "react";
 import { Api, type CustomIcon } from "../api";
+import { taskIcons } from "../daily-icons";
 import { prepareIcon } from "../photos";
 import { Icon, type IconName } from "../visuals";
 
@@ -30,6 +31,30 @@ export function CustomSymbol({
   );
 }
 
+export function TaskSymbol({
+  id,
+  icon,
+}: {
+  id?: string | null;
+  icon: keyof typeof taskIcons;
+}) {
+  const library = useContext(IconCatalog);
+  const image = library?.icons.find((item) => item.id === id);
+  const builtin = taskIcons[icon];
+  return image ? (
+    <img
+      className="custom-symbol"
+      src={image.image_data}
+      alt=""
+      aria-hidden="true"
+    />
+  ) : builtin.image ? (
+    <img className="task-art" src={builtin.image} alt="" aria-hidden="true" />
+  ) : (
+    <Icon name={builtin.icon} />
+  );
+}
+
 export function IconPicker({
   options,
   builtin,
@@ -39,7 +64,7 @@ export function IconPicker({
   setBusy,
   allowUpload = true,
 }: {
-  options: Record<string, { label: string; icon: IconName }>;
+  options: Record<string, { label: string; icon: IconName; image?: string }>;
   builtin: string;
   selected?: string | null;
   onChange: (builtin: string, selected: string | null, label: string) => void;
@@ -66,7 +91,11 @@ export function IconPicker({
             disabled={busy}
             onClick={() => onChange(value, null, details.label)}
           >
-            <Icon name={details.icon} />
+            {details.image ? (
+              <img className="task-art" src={details.image} alt="" />
+            ) : (
+              <Icon name={details.icon} />
+            )}
           </button>
         ))}
         {library.icons.map((icon) => (

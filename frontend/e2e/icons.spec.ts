@@ -36,6 +36,20 @@ test("uploaded icon is shared by tasks, notices and events and survives restart"
       exact: true,
     })
     .click();
+  for (const label of [
+    "Ir al colegio",
+    "Hacer los deberes",
+    "Preparar el uniforme",
+    "Lavarse los dientes",
+    "Hacer la mochila",
+    "Hacer la cama",
+  ]) {
+    await expect(
+      page
+        .getByRole("button", { name: label, exact: true })
+        .locator("img.task-art"),
+    ).toBeVisible();
+  }
   const choice = page.getByRole("button", {
     name: `Icono ${iconName}`,
     exact: true,

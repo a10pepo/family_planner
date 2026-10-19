@@ -957,6 +957,10 @@ legend {
   color: #819276;
   flex-shrink: 0;
 }
+.task-symbol .task-art {
+  width: 36px;
+  height: 36px;
+}
 .task-actions {
   display: flex;
   gap: 6px;
@@ -1062,6 +1066,11 @@ legend {
 }
 
 .custom-symbol {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.task-art {
   width: 28px;
   height: 28px;
   object-fit: contain;
@@ -1190,6 +1199,10 @@ legend {
 }
 .person-heading .task-token > .icon,
 .person-heading .task-token > .custom-symbol {
+  width: 40px;
+  height: 40px;
+}
+.person-heading .task-token > .task-art {
   width: 40px;
   height: 40px;
 }

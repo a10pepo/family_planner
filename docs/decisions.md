@@ -59,6 +59,10 @@ El navegador admite JPG/PNG/WebP hasta 5 MB y prepara una imagen pequeña; la AP
 
 La reversión retira exclusivamente las referencias y el catálogo, perdiendo las imágenes personalizadas y recuperando los iconos incluidos; conserva actividades, integrantes y marcas. Guardar copia antes de revertir. Pruebas verifican migración, reutilización entre los tres tipos, errores de entrada y referencias, compatibilidad con ediciones anteriores y persistencia al recargar y reiniciar.
 
+## Ilustraciones para tareas (issue #59)
+
+Pedro aprobó el 19 de octubre de 2026 ampliar el enum persistido de iconos de tareas con `school`, `homework` y `uniform`, además de las seis ilustraciones de las opciones existentes y nuevas. La migración `007_task_icons` amplía la restricción `tasks.icon`; conserva los iconos, asignaciones y marcas existentes. Las opciones nuevas se llaman «Ir al colegio», «Hacer los deberes» y «Preparar el uniforme». Los iconos personalizados siguen teniendo prioridad. La reversión restaura la restricción previa y requiere que no haya rutinas con esos tres valores nuevos.
+
 ## Vistas y gestión familiar (issue #11)
 
 Pedro autorizó el 8 de octubre de 2026 «Sí, eventos familiares y archivo con restauración» y confirmó «Sí, filtrar sus eventos». La propuesta incluía conservación del historial, reversión que elimina los nuevos eventos familiares y vuelve a mostrar a integrantes archivados, sin AWS ni cambios de autenticación.

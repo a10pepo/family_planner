@@ -15,6 +15,9 @@ class NoticeIcon(StrEnum):
 
 
 class TaskIcon(StrEnum):
+    SCHOOL = "school"
+    HOMEWORK = "homework"
+    UNIFORM = "uniform"
     TOOTH = "tooth"
     BACKPACK = "backpack"
     BED = "bed"

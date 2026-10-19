@@ -1104,6 +1104,9 @@
       },
       "TaskIcon": {
         "enum": [
+          "school",
+          "homework",
+          "uniform",
           "tooth",
           "backpack",
           "bed",
