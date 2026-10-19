@@ -14,7 +14,7 @@ El endpoint MCP vive en `/mcp` dentro de la misma distribución CloudFront y API
 
 Consulta las salidas `mcp_url`, `mcp_oauth_client_id` y `mcp_oauth_callback_url` para revisar la configuración. Codex debe usar el puerto de callback `1455`, cuyo path específico queda registrado en Cognito para cada URL MCP.
 
-Al finalizar `make deploy preview` o `make deploy production`, Make reemplaza en la configuración local de Codex la entrada `family-planner-<entorno>` con la URL CloudFront y el cliente OAuth recién aplicados. La sincronización se omite con un aviso si Codex CLI no está instalado o no puede modificar la configuración; el despliegue AWS ya completado no se revierte. Si después Codex solicita autenticación, inicia sesión con:
+Al finalizar `make deploy preview` o `make deploy production`, Make reemplaza en la configuración local de Codex la entrada `family-planner-<entorno>` con la URL CloudFront y el cliente OAuth recién aplicados, y Codex inicia el flujo OAuth dentro del mismo comando usando el callback `127.0.0.1:1455`. Abre la URL de autorización que muestra Codex y termina el inicio de sesión antes de cerrar el despliegue. La sincronización se omite con un aviso si Codex CLI no está instalado o no puede modificar la configuración; el despliegue AWS ya completado no se revierte. Para repetir la autorización más adelante, ejecuta:
 
 ```sh
 codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455
@@ -22,13 +22,15 @@ codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455
 
 Para producción, sustituye `preview` por `production`. La configuración MCP es compartida por la aplicación Codex, la CLI y la extensión IDE.
 
-Para una configuración manual inicial o para recuperarse de un error de sincronización:
+Para una configuración manual inicial, el propio `codex mcp add` inicia OAuth con el callback fijo. Si solo necesitas volver a autorizar una entrada existente, usa `codex mcp login` como en el ejemplo anterior.
+
+Para registrar manualmente el servidor:
 
 ```sh
 codex mcp add family-planner-preview \
+  -c mcp_oauth_callback_port=1455 \
   --url "$(terraform -chdir=infra/environments/preview output -raw mcp_url)" \
   --oauth-client-id "$(terraform -chdir=infra/environments/preview output -raw mcp_oauth_client_id)"
-codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455
 ```
 
 Repite con `family-planner-production` y las salidas de `infra/environments/production`. La conexión solicita OAuth con PKCE; preview apunta a su propio User Pool y datos ficticios, producción al User Pool de producción. Codex recibe las herramientas `list_events` y `save_event`; la segunda crea un evento si no tiene `event_id` o actualiza uno existente si lo incluye. No se exponen tareas, perfiles, rutinas ni borrado de eventos. Para consultar o guardar eventos se usan fechas ISO-8601 con zona horaria, y para crear se requiere `member_id`.
