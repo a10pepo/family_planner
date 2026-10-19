@@ -25,6 +25,11 @@ CLIENT_ID=$(terraform -chdir="$ENVIRONMENT_DIR" output -raw mcp_oauth_client_id)
   exit 1
 }
 
+python3 "$ROOT/scripts/configure_codex_oauth.py" --port 1455 || {
+  printf 'No se pudo fijar el puerto OAuth de MCP en la configuración global de Codex.\n' >&2
+  exit 1
+}
+
 if codex mcp get "$SERVER_NAME" --json >/dev/null 2>&1; then
   codex mcp remove "$SERVER_NAME" || {
     printf 'No se pudo quitar la configuración anterior de %s.\n' "$SERVER_NAME" >&2

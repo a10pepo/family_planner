@@ -14,7 +14,7 @@ El endpoint MCP vive en `/mcp` dentro de la misma distribución CloudFront y API
 
 Consulta las salidas `mcp_url`, `mcp_oauth_client_id` y `mcp_oauth_callback_url` para revisar la configuración. Codex debe usar el puerto de callback `1455`, cuyo path específico queda registrado en Cognito para cada URL MCP.
 
-Al finalizar `make deploy preview` o `make deploy production`, Make reemplaza en la configuración local de Codex la entrada `family-planner-<entorno>` con la URL CloudFront y el cliente OAuth recién aplicados, y Codex inicia el flujo OAuth dentro del mismo comando usando el callback `127.0.0.1:1455`. Abre la URL de autorización que muestra Codex y termina el inicio de sesión antes de cerrar el despliegue. La sincronización se omite con un aviso si Codex CLI no está instalado o no puede modificar la configuración; el despliegue AWS ya completado no se revierte. Para repetir la autorización más adelante, ejecuta:
+Al finalizar `make deploy preview` o `make deploy production`, Make fija también `mcp_oauth_callback_port = 1455` en la configuración global de Codex (`$CODEX_HOME/config.toml` o `~/.codex/config.toml`) y reemplaza la entrada `family-planner-<entorno>` con la URL CloudFront y el cliente OAuth recién aplicados. Así la CLI y la app Codex comparten el callback que Cognito registra (`http://127.0.0.1:1455/callback/<id>`), incluso al volver a autorizar desde la app. El ajuste es global para los inicios OAuth de servidores MCP de Codex y conserva el resto de preferencias. Codex inicia el flujo OAuth dentro del mismo comando. Abre la URL de autorización que muestra Codex y termina el inicio de sesión antes de cerrar el despliegue. La sincronización se omite con un aviso si Codex CLI no está instalado o no puede modificar la configuración; el despliegue AWS ya completado no se revierte. Para repetir la autorización más adelante, ejecuta:
 
 ```sh
 codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455
@@ -22,7 +22,7 @@ codex mcp login family-planner-preview -c mcp_oauth_callback_port=1455
 
 Para producción, sustituye `preview` por `production`. La configuración MCP es compartida por la aplicación Codex, la CLI y la extensión IDE.
 
-Para una configuración manual inicial, el propio `codex mcp add` inicia OAuth con el callback fijo. Si solo necesitas volver a autorizar una entrada existente, usa `codex mcp login` como en el ejemplo anterior.
+Para una configuración manual inicial, fija primero `mcp_oauth_callback_port = 1455` en la configuración global de Codex; después, `codex mcp add` inicia OAuth con el callback registrado. Si solo necesitas volver a autorizar una entrada existente, usa `codex mcp login` como en el ejemplo anterior. El argumento `-c mcp_oauth_callback_port=1455` solo afecta a esa invocación y no sustituye la preferencia global necesaria para futuros inicios OAuth desde la app.
 
 Para registrar manualmente el servidor:
 

@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -10,7 +11,7 @@ SCRIPT = ROOT / "scripts" / "sync_codex_mcp.sh"
 
 def run_sync(tmp_path, *, listed_servers, environment="preview"):
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(exist_ok=True)
     log = tmp_path / "codex.log"
     (bin_dir / "codex").write_text(
         "#!/bin/sh\n"
@@ -40,6 +41,7 @@ def run_sync(tmp_path, *, listed_servers, environment="preview"):
                 "1" if f'"name":"family-planner-{environment}"' in listed_servers else "0"
             ),
             "ENVIRONMENT": environment,
+            "CODEX_HOME": str(tmp_path / "codex-home"),
         }
     )
     result = subprocess.run(
@@ -75,6 +77,10 @@ class SyncCodexMcpTests(unittest.TestCase):
             ],
         )
         self.assertIn("codex mcp login family-planner-preview", result.stdout)
+        config = tomllib.loads(
+            (self.tmp_path / "codex-home" / "config.toml").read_text()
+        )
+        self.assertEqual(config["mcp_oauth_callback_port"], 1455)
 
     def test_does_not_remove_a_different_environment_entry(self):
         result, calls = run_sync(
@@ -92,6 +98,28 @@ class SyncCodexMcpTests(unittest.TestCase):
                 "--url https://new-production.example/mcp --oauth-client-id client-production",
             ],
         )
+
+    def test_persists_port_without_replacing_other_global_codex_settings(self):
+        codex_home = self.tmp_path / "codex-home"
+        codex_home.mkdir()
+        config_path = codex_home / "config.toml"
+        config_path.write_text(
+            'model = "gpt-6.1-sol"\n'
+            "mcp_oauth_callback_port = 58710\n\n"
+            "[mcp_servers.other]\nurl = \"https://example.test/mcp\"\n"
+        )
+
+        first, _ = run_sync(self.tmp_path, listed_servers="[]")
+        second, _ = run_sync(self.tmp_path, listed_servers="[]")
+
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        config_text = config_path.read_text()
+        config = tomllib.loads(config_text)
+        self.assertEqual(config["model"], "gpt-6.1-sol")
+        self.assertEqual(config["mcp_oauth_callback_port"], 1455)
+        self.assertEqual(config["mcp_servers"]["other"]["url"], "https://example.test/mcp")
+        self.assertEqual(config_text.count("mcp_oauth_callback_port ="), 1)
 
 
 if __name__ == "__main__":
