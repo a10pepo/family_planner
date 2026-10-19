@@ -30,6 +30,14 @@ output "cognito_user_pool_id" {
   value = module.application.cognito_user_pool_id
 }
 
+output "mcp_url" {
+  value = module.application.mcp_url
+}
+
+output "mcp_oauth_client_id" {
+  value = module.application.mcp_oauth_client_id
+}
+
 output "runtime_config" {
   value = module.application.runtime_config
 }
