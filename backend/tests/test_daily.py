@@ -86,6 +86,15 @@ def test_once_occurs_only_on_selected_date_and_assignment_edit_preserves_existin
         service.complete(task.id, ids[1], TODAY + timedelta(days=1), True)
 
 
+def test_built_in_task_icons_are_accepted_by_the_domain():
+    repo = MemoryDaily()
+    service = DailyPlanner(repo)
+
+    for icon in ("school", "homework", "uniform", "tooth", "backpack", "bed", "other"):
+        task = service.save_task("Rutina", icon, "daily", TODAY, [repo.people[0].id])
+        assert task.icon.value == icon
+
+
 @pytest.mark.parametrize(
     "changes",
     [

@@ -38,7 +38,10 @@ class NoticeRow(Base):
 class TaskRow(Base):
     __tablename__ = "tasks"
     __table_args__ = (
-        CheckConstraint("icon IN ('tooth', 'backpack', 'bed', 'other')", name="task_icon"),
+        CheckConstraint(
+            "icon IN ('school', 'homework', 'uniform', 'tooth', 'backpack', 'bed', 'other')",
+            name="task_icon",
+        ),
         CheckConstraint("frequency IN ('daily', 'once')", name="task_frequency"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)

@@ -348,6 +348,30 @@ def test_daily_tasks_completion_and_archive_keep_history(client, database):
         )
 
 
+def test_task_icon_options_are_persisted_and_returned_by_occurrences(client):
+    member_id = client.post("/api/v1/members", json={"name": "Alex", "color": "#abcdef"}).json()[
+        "id"
+    ]
+    base = {
+        "title": "Rutina",
+        "starts_on": "2026-10-07",
+        "member_ids": [member_id],
+    }
+
+    for icon in ("school", "homework", "uniform", "tooth", "backpack", "bed", "other"):
+        created = client.post("/api/v1/tasks", json=base | {"icon": icon})
+        assert created.status_code == 201
+        task_id = created.json()["id"]
+        occurrence = next(
+            item
+            for item in client.get("/api/v1/task-occurrences", params={"day": "2026-10-07"}).json()
+            if item["task_id"] == task_id
+        )
+        assert occurrence["icon"] == icon
+
+    assert client.post("/api/v1/tasks", json=base | {"icon": "unknown"}).status_code == 422
+
+
 def test_once_task_and_new_routes_require_auth(client):
     member_id = client.post("/api/v1/members", json={"name": "Alex", "color": "#abcdef"}).json()[
         "id"

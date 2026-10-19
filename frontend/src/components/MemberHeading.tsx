@@ -1,7 +1,7 @@
 import type { Member, Notice, Occurrence } from "../api";
-import { noticeIcons, taskIcons } from "../daily-icons";
+import { noticeIcons } from "../daily-icons";
 import { Avatar, Icon } from "../visuals";
-import { CustomSymbol } from "./IconCatalog";
+import { CustomSymbol, TaskSymbol } from "./IconCatalog";
 
 export function MemberHeading({
   member,
@@ -42,10 +42,7 @@ export function MemberHeading({
               disabled={busy}
               onClick={() => complete(item)}
             >
-              <CustomSymbol
-                id={item.custom_icon_id}
-                fallback={taskIcons[item.icon].icon}
-              />
+              <TaskSymbol id={item.custom_icon_id} icon={item.icon} />
               {item.completed && (
                 <span className="task-tick">
                   <Icon name="check" />

@@ -785,7 +785,14 @@ export interface components {
      * TaskIcon
      * @enum {string}
      */
-    TaskIcon: "tooth" | "backpack" | "bed" | "other";
+    TaskIcon:
+      | "school"
+      | "homework"
+      | "uniform"
+      | "tooth"
+      | "backpack"
+      | "bed"
+      | "other";
     /** TaskInput */
     TaskInput: {
       /** Custom Icon Id */
