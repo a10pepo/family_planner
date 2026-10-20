@@ -218,6 +218,32 @@ def test_wrong_resource_audience_is_rejected(client):
     assert response.status_code == 401
 
 
+def test_audience_rejection_logs_only_safe_claim_metadata(client, monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENVIRONMENT", "preview")
+    monkeypatch.setenv("MCP_DIAGNOSTIC_LOGS", "true")
+    wrong_audience = "https://old.example/mcp"
+    app = create_mcp_app(
+        storage=client.storage,
+        verifier=TokenVerifier(
+            {"sub": "family-user-123", "aud": wrong_audience, "scope": READ_SCOPE}
+        ),
+    )
+
+    with caplog.at_level(logging.INFO, logger="family_planner.mcp.diagnostics"):
+        response = TestClient(app).post(
+            "/mcp", headers={"Authorization": "Bearer valid"}, json=rpc("initialize")
+        )
+
+    assert response.status_code == 401
+    assert '"audience_claim_present":true' in caplog.text
+    assert '"audience_claim_type":"string"' in caplog.text
+    assert '"audience_element_types":[]' in caplog.text
+    assert '"audience_matches_resource":false' in caplog.text
+    assert '"audience_host_matches_resource":false' in caplog.text
+    assert '"audience_path_matches_resource":true' in caplog.text
+    assert wrong_audience not in caplog.text
+
+
 def test_read_and_save_events_use_authenticated_family_and_domain(client):
     headers = {"Authorization": "Bearer valid"}
     start = datetime(2026, 10, 15, 10, tzinfo=UTC)

@@ -9,6 +9,7 @@ import time as monotonic_time
 from dataclasses import asdict
 from datetime import date, datetime, time
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -70,6 +71,33 @@ def _diagnostic_log(enabled: bool, event: str, **fields: Any) -> None:
         logger.info("%s", json.dumps({"event": event, **fields}, separators=(",", ":")))
 
 
+def _audience_diagnostics(audience: Any, resource_url: str) -> dict[str, Any]:
+    values = audience if isinstance(audience, list) else [audience]
+    string_values = [value for value in values if isinstance(value, str)]
+    expected = urlsplit(resource_url)
+    parsed_values = []
+    for value in string_values:
+        try:
+            parsed_values.append(urlsplit(value))
+        except ValueError:
+            continue
+    return {
+        "audience_claim_present": audience is not None,
+        "audience_claim_type": _json_type(audience),
+        "audience_element_types": sorted({_json_type(value) for value in values})
+        if isinstance(audience, list)
+        else [],
+        "audience_matches_resource": resource_url in string_values,
+        "audience_host_matches_resource": any(
+            value.scheme == expected.scheme and value.netloc == expected.netloc
+            for value in parsed_values
+        ),
+        "audience_path_matches_resource": any(
+            value.path == expected.path for value in parsed_values
+        ),
+    }
+
+
 class ListEventsArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
     start: AwareDatetime
@@ -120,9 +148,16 @@ def _tool_error(message: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": message}], "isError": True}
 
 
-def _auth_error(status_code: int, reason: str, detail: str, headers: dict[str, str]):
+def _auth_error(
+    status_code: int,
+    reason: str,
+    detail: str,
+    headers: dict[str, str],
+    diagnostic_fields: dict[str, Any] | None = None,
+):
     error = HTTPException(status_code=status_code, detail=detail, headers=headers)
     error.diagnostic_reason = reason
+    error.diagnostic_fields = diagnostic_fields or {}
     return error
 
 
@@ -256,6 +291,7 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 status_code=401,
                 reason="resource_audience_mismatch",
                 detail="El token no fue emitido para este endpoint MCP.",
+                diagnostic_fields=_audience_diagnostics(audience, resource_url),
                 headers={
                     "WWW-Authenticate": (
                         f'Bearer error="invalid_token", resource_metadata="{metadata_url}", '
@@ -392,6 +428,7 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 status_code=exc.status_code,
                 jsonrpc_method=safe_method,
                 tool=safe_tool_name,
+                **getattr(exc, "diagnostic_fields", {}),
             )
             return JSONResponse(
                 {"detail": exc.detail},

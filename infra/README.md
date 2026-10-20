@@ -47,7 +47,7 @@ Producción activa recuperación a un momento dado (PITR) y protección contra b
 
 La Lambda `family-planner-preview-mcp` registra cada petición `/mcp` con un `request_id`, estado HTTP y duración. Los eventos `mcp_rpc_received`, `mcp_tool_started`, `mcp_tool_completed`, `mcp_tool_rejected` y `mcp_request_rejected` indican el método, la herramienta, los nombres y tipos de argumentos y la fase/motivo del fallo. Las consultas `list_events` incluyen el número de resultados, sin registrar los eventos.
 
-Los logs no incluyen tokens, claims, subject, cabeceras, valores de argumentos, títulos, IDs ni resultados. La opción se activa solo en preview y sus registros se conservan 7 días. Para seguirlos:
+Cuando se rechaza una audiencia, el log incluye únicamente si `aud` está presente, su tipo JSON y comparaciones booleanas de igualdad, host y ruta con el recurso esperado; nunca registra el valor del claim. Los logs tampoco incluyen tokens, otros valores de claims, subject, cabeceras, valores de argumentos, títulos, IDs ni resultados. La opción se activa solo en preview y sus registros se conservan 7 días. Para seguirlos:
 
 ```sh
 aws logs tail /aws/lambda/family-planner-preview-mcp --since 15m --follow --region eu-west-1
