@@ -366,6 +366,93 @@ def test_read_and_save_events_use_authenticated_family_and_domain(client):
     assert updated.json()["result"]["structuredContent"]["category"] == Category.MEDICAL.value
 
 
+def test_list_events_filters_title_case_insensitively_and_category(client):
+    headers = {"Authorization": "Bearer valid"}
+    start = "2026-10-15T10:00:00Z"
+    end = "2026-10-15T11:00:00Z"
+    member_id = str(client.storage.calendar.member_id)
+    other_member_id = str(client.storage.calendar.other_member.id)
+
+    def create_event(member, title, category):
+        return client.post(
+            "/mcp",
+            headers=headers,
+            json=rpc(
+                "tools/call",
+                params={
+                    "name": "save_event",
+                    "arguments": {
+                        "member_id": member,
+                        "title": title,
+                        "starts_at": start,
+                        "ends_at": end,
+                        "category": category,
+                    },
+                },
+            ),
+        )
+
+    first = create_event(member_id, "EDEM Sesión 1", "activities")
+    create_event(member_id, "Reunión EDEM", "friends")
+    create_event(other_member_id, "EDEM Sesión 2", "activities")
+
+    response = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "list_events",
+                "arguments": {
+                    "start": "2026-10-15T09:00:00Z",
+                    "end": "2026-10-15T12:00:00Z",
+                    "member_id": member_id,
+                    "title": "  edem sesión ",
+                    "category": "activities",
+                },
+            },
+        ),
+    )
+
+    assert first.status_code == 200
+    assert response.status_code == 200
+    events = response.json()["result"]["structuredContent"]
+    assert len(events) == 1
+    assert events[0]["title"] == "EDEM Sesión 1"
+    assert events[0]["member_id"] == member_id
+    assert events[0]["category"] == "activities"
+
+
+@pytest.mark.parametrize(
+    ("filters", "error_fragment"),
+    [
+        ({"title": "   "}, "filtro de título"),
+        ({"category": "unknown"}, "input should be"),
+    ],
+)
+def test_list_events_rejects_invalid_title_or_category_filters(client, filters, error_fragment):
+    response = client.post(
+        "/mcp",
+        headers={"Authorization": "Bearer valid"},
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "list_events",
+                "arguments": {
+                    "start": "2026-10-15T09:00:00Z",
+                    "end": "2026-10-15T12:00:00Z",
+                    **filters,
+                },
+            },
+        ),
+    )
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is True
+    assert error_fragment in result["content"][0]["text"].lower()
+
+
 def test_write_scope_is_required_for_save(client):
     read_only = create_mcp_app(
         storage=client.storage,

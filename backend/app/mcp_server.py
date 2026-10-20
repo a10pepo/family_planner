@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.adapters.oauth import OAuthVerifier
 from app.adapters.storage import configured_storage
@@ -31,7 +31,7 @@ def _argument_types(tool_name: str, arguments: Any) -> dict[str, str]:
     """Return argument names and JSON types without logging their values."""
     allowed = {
         "list_members": set(),
-        "list_events": {"start", "end", "member_id"},
+        "list_events": {"start", "end", "member_id", "title", "category"},
         "save_event": {
             "event_id",
             "member_id",
@@ -104,6 +104,18 @@ class ListEventsArguments(BaseModel):
     start: AwareDatetime
     end: AwareDatetime
     member_id: UUID | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    category: Category | None = None
+
+    @field_validator("title")
+    @classmethod
+    def normalize_title_filter(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("El filtro de título no puede estar vacío.")
+        return normalized
 
 
 class ListMembersArguments(BaseModel):
@@ -481,7 +493,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                     {
                         "name": "list_events",
                         "description": (
-                            "Lee eventos del calendario familiar dentro de un rango temporal."
+                            "Lee eventos dentro de un rango temporal, con filtros opcionales por "
+                            "integrante, texto del título (búsqueda parcial sin distinguir "
+                            "mayúsculas) y categoría."
                         ),
                         "inputSchema": {
                             "type": "object",
@@ -489,6 +503,19 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                                 "start": {"type": "string", "format": "date-time"},
                                 "end": {"type": "string", "format": "date-time"},
                                 "member_id": {"type": "string", "format": "uuid"},
+                                "title": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": (
+                                        "Texto parcial del título; búsqueda sin distinguir "
+                                        "mayúsculas y minúsculas."
+                                    ),
+                                },
+                                "category": {
+                                    "type": "string",
+                                    "enum": [category.value for category in Category],
+                                },
                             },
                             "required": ["start", "end"],
                             "additionalProperties": False,
@@ -647,6 +674,11 @@ async def _call_tool(
                     punctual.extend(
                         expand_series(series, data.start, data.end, recurring.exceptions(series.id))
                     )
+            if data.title is not None:
+                title_query = data.title.casefold()
+                punctual = [event for event in punctual if title_query in event.title.casefold()]
+            if data.category is not None:
+                punctual = [event for event in punctual if event.category == data.category]
             events = [
                 _event_value(event) for event in sorted(punctual, key=lambda item: item.starts_at)
             ]
