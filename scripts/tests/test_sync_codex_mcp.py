@@ -77,9 +77,7 @@ class SyncCodexMcpTests(unittest.TestCase):
             ],
         )
         self.assertIn("codex mcp login family-planner-preview", result.stdout)
-        config = tomllib.loads(
-            (self.tmp_path / "codex-home" / "config.toml").read_text()
-        )
+        config = tomllib.loads((self.tmp_path / "codex-home" / "config.toml").read_text())
         self.assertEqual(config["mcp_oauth_callback_port"], 1455)
 
     def test_does_not_remove_a_different_environment_entry(self):
@@ -106,7 +104,7 @@ class SyncCodexMcpTests(unittest.TestCase):
         config_path.write_text(
             'model = "gpt-6.1-sol"\n'
             "mcp_oauth_callback_port = 58710\n\n"
-            "[mcp_servers.other]\nurl = \"https://example.test/mcp\"\n"
+            '[mcp_servers.other]\nurl = "https://example.test/mcp"\n'
         )
 
         first, _ = run_sync(self.tmp_path, listed_servers="[]")

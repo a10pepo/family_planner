@@ -11,7 +11,6 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-
 KEY = "mcp_oauth_callback_port"
 
 
