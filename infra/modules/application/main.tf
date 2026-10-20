@@ -311,7 +311,7 @@ resource "aws_lambda_permission" "mcp" {
 
 resource "aws_cognito_user_pool" "family" {
   name                     = local.prefix
-  user_pool_tier           = "LITE"
+  user_pool_tier           = var.user_pool_tier
   deletion_protection      = local.production ? "ACTIVE" : "INACTIVE"
   alias_attributes         = ["email"]
   auto_verified_attributes = ["email"]
@@ -335,7 +335,7 @@ resource "aws_cognito_user_pool" "family" {
 resource "aws_cognito_user_pool_domain" "family" {
   domain                = "${local.prefix}-${var.aws_account_id}"
   user_pool_id          = aws_cognito_user_pool.family.id
-  managed_login_version = 1
+  managed_login_version = var.managed_login_version
 }
 
 resource "aws_cognito_resource_server" "api" {
@@ -407,6 +407,20 @@ resource "aws_cognito_user_pool_client" "mcp" {
     refresh_token = "days"
   }
   depends_on = [aws_cognito_resource_server.mcp]
+}
+
+resource "aws_cognito_managed_login_branding" "web" {
+  count                       = var.managed_login_version == 2 ? 1 : 0
+  user_pool_id                = aws_cognito_user_pool.family.id
+  client_id                   = aws_cognito_user_pool_client.web.id
+  use_cognito_provided_values = true
+}
+
+resource "aws_cognito_managed_login_branding" "mcp" {
+  count                       = var.managed_login_version == 2 ? 1 : 0
+  user_pool_id                = aws_cognito_user_pool.family.id
+  client_id                   = aws_cognito_user_pool_client.mcp.id
+  use_cognito_provided_values = true
 }
 
 resource "aws_secretsmanager_secret" "preview_test_account" {

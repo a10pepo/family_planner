@@ -35,10 +35,12 @@ mock_provider "aws" {
   }
 }
 variables {
-  environment      = "preview"
-  aws_account_id   = "111111111111"
-  aws_region       = "eu-west-1"
-  lambda_image_uri = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/family-planner-preview@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  environment           = "preview"
+  aws_account_id        = "111111111111"
+  aws_region            = "eu-west-1"
+  lambda_image_uri      = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/family-planner-preview@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  user_pool_tier        = "ESSENTIALS"
+  managed_login_version = 2
 }
 run "preview" {
   command = apply
@@ -73,6 +75,14 @@ run "preview" {
   assert {
     condition     = !aws_cognito_user_pool_client.web.generate_secret && contains(aws_cognito_user_pool_client.web.explicit_auth_flows, "ALLOW_USER_PASSWORD_AUTH") && !aws_cognito_user_pool.family.admin_create_user_config[0].allow_admin_create_user_only && aws_cognito_user_pool.family.auto_verified_attributes == toset(["email"]) && aws_cognito_user_pool_client.web.callback_urls == toset(["https://mock.cloudfront.net/"])
     error_message = "Cognito debe permitir registro propio con cliente público y correo verificado."
+  }
+  assert {
+    condition     = aws_cognito_user_pool.family.user_pool_tier == "ESSENTIALS" && aws_cognito_user_pool_domain.family.managed_login_version == 2
+    error_message = "Preview debe usar Essentials y Managed Login para admitir resource binding de OAuth."
+  }
+  assert {
+    condition     = length(aws_cognito_managed_login_branding.web) == 1 && aws_cognito_managed_login_branding.web[0].use_cognito_provided_values && length(aws_cognito_managed_login_branding.mcp) == 1 && aws_cognito_managed_login_branding.mcp[0].use_cognito_provided_values
+    error_message = "Preview debe asignar estilos Cognito predeterminados a los clientes web y MCP para habilitar las páginas de login."
   }
   assert {
     condition     = aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].path_pattern == "/api/*" && aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].cache_policy_id == data.aws_cloudfront_cache_policy.disabled.id && aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].origin_request_policy_id == data.aws_cloudfront_origin_request_policy.api.id && length(aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].function_association) == 0 && length(aws_cloudfront_distribution.frontend.custom_error_response) == 0
@@ -110,8 +120,10 @@ run "preview" {
 run "production" {
   command = apply
   variables {
-    environment      = "production"
-    lambda_image_uri = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/family-planner-production@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    environment           = "production"
+    lambda_image_uri      = "111111111111.dkr.ecr.eu-west-1.amazonaws.com/family-planner-production@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    user_pool_tier        = "LITE"
+    managed_login_version = 1
   }
   assert {
     condition     = aws_dynamodb_table.calendar.name != run.preview.table_name && aws_dynamodb_table.calendar.name == "family-planner-production" && aws_dynamodb_table.calendar.deletion_protection_enabled && aws_dynamodb_table.calendar.point_in_time_recovery[0].enabled
@@ -132,6 +144,14 @@ run "production" {
   assert {
     condition     = aws_lambda_function.mcp.logging_config[0].log_format == "JSON" && aws_lambda_function.mcp.logging_config[0].application_log_level == "WARN" && aws_lambda_function.mcp.logging_config[0].system_log_level == "WARN"
     error_message = "Producción debe conservar niveles de logs WARN para aplicación y sistema."
+  }
+  assert {
+    condition     = aws_cognito_user_pool.family.user_pool_tier == "LITE" && aws_cognito_user_pool_domain.family.managed_login_version == 1
+    error_message = "Producción debe conservar el plan LITE y Hosted UI clásico."
+  }
+  assert {
+    condition     = length(aws_cognito_managed_login_branding.web) == 0 && length(aws_cognito_managed_login_branding.mcp) == 0
+    error_message = "Producción no debe crear estilos Managed Login mientras conserva Hosted UI clásico."
   }
 }
 run "reject_cross_environment_image" {

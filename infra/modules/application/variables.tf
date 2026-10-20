@@ -25,6 +25,24 @@ variable "aws_account_id" {
 
 variable "aws_region" { type = string }
 
+variable "user_pool_tier" {
+  type    = string
+  default = "LITE"
+  validation {
+    condition     = contains(["LITE", "ESSENTIALS", "PLUS"], var.user_pool_tier)
+    error_message = "El plan Cognito debe ser LITE, ESSENTIALS o PLUS."
+  }
+}
+
+variable "managed_login_version" {
+  type    = number
+  default = 1
+  validation {
+    condition     = contains([1, 2], var.managed_login_version)
+    error_message = "La versión de login de Cognito debe ser 1 (clásica) o 2 (Managed Login)."
+  }
+}
+
 variable "lambda_image_uri" {
   type = string
   validation {
