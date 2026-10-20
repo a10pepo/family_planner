@@ -1,11 +1,14 @@
+import json
 import os
+import urllib.error
+import urllib.request
 from dataclasses import asdict
 from datetime import date, time
 from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
@@ -58,6 +61,40 @@ class EventOutput(EventInput):
     recurring_series_id: UUID | None = None
     occurrence_date: date | None = None
     occurrence_time: time | None = None
+
+
+class CognitoRefreshTokenInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    refresh_token: str = Field(min_length=1, max_length=4096)
+
+
+class CognitoSessionOutput(BaseModel):
+    access_token: str
+    expires_in: int
+
+
+class CognitoAuthError(Exception):
+    """Cognito rejected a session-token operation."""
+
+
+def _cognito_auth_request(region: str, target: str, body: dict) -> dict:
+    request = urllib.request.Request(
+        f"https://cognito-idp.{region}.amazonaws.com/",
+        data=json.dumps(body, separators=(",", ":")).encode(),
+        headers={
+            "Content-Type": "application/x-amz-json-1.1",
+            "X-Amz-Target": f"AWSCognitoIdentityProviderService.{target}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = response.read()
+            return json.loads(payload) if payload else {}
+    except urllib.error.HTTPError as exc:
+        raise CognitoAuthError from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise HTTPException(503, "El servicio de acceso no está disponible.") from exc
 
 
 def create_app(database_url: str | None = None, verifier=None, storage=None) -> FastAPI:
@@ -145,6 +182,104 @@ def create_app(database_url: str | None = None, verifier=None, storage=None) -> 
             "realm": "family",
             "client_id": os.getenv("OAUTH_CLIENT_ID", "family-planner"),
         }
+
+    refresh_cookie = "family_planner_refresh"
+    refresh_cookie_path = "/api/v1/auth"
+    refresh_cookie_max_age = 86400
+
+    def require_cognito_origin(request):
+        if provider != "cognito":
+            raise HTTPException(404, "No existe esta ruta.")
+        if request.headers.get("origin") != origin:
+            raise HTTPException(403, "Origen no permitido.")
+
+    def refresh_cognito_session(refresh_token: str) -> dict:
+        try:
+            result = _cognito_auth_request(
+                os.environ["AWS_REGION"],
+                "InitiateAuth",
+                {
+                    "AuthFlow": "REFRESH_TOKEN_AUTH",
+                    "ClientId": os.environ["OAUTH_CLIENT_ID"],
+                    "AuthParameters": {"REFRESH_TOKEN": refresh_token},
+                },
+            )
+        except CognitoAuthError as exc:
+            raise HTTPException(401, "La sesión ha caducado.") from exc
+        tokens = result.get("AuthenticationResult")
+        if not tokens or not tokens.get("AccessToken") or not tokens.get("ExpiresIn"):
+            raise HTTPException(401, "La sesión ha caducado.")
+        return {"access_token": tokens["AccessToken"], "expires_in": tokens["ExpiresIn"]}
+
+    def attach_refresh_cookie(response: Response, refresh_token: str) -> None:
+        response.set_cookie(
+            refresh_cookie,
+            refresh_token,
+            max_age=refresh_cookie_max_age,
+            path=refresh_cookie_path,
+            secure=origin.startswith("https://"),
+            httponly=True,
+            samesite="strict",
+        )
+
+    def clear_refresh_cookie(response: Response) -> None:
+        response.delete_cookie(
+            refresh_cookie,
+            path=refresh_cookie_path,
+            secure=origin.startswith("https://"),
+            httponly=True,
+            samesite="strict",
+        )
+
+    @app.post(
+        "/api/v1/auth/session",
+        response_model=CognitoSessionOutput,
+        tags=["auth"],
+        include_in_schema=True,
+    )
+    def create_cognito_session(data: CognitoRefreshTokenInput, request: Request):
+        require_cognito_origin(request)
+        session = refresh_cognito_session(data.refresh_token)
+        response = JSONResponse(session)
+        attach_refresh_cookie(response, data.refresh_token)
+        return response
+
+    @app.post(
+        "/api/v1/auth/refresh",
+        response_model=CognitoSessionOutput,
+        tags=["auth"],
+    )
+    def refresh_cognito_cookie_session(request: Request):
+        require_cognito_origin(request)
+        refresh_token = request.cookies.get(refresh_cookie)
+        if not refresh_token:
+            response = JSONResponse({"detail": "La sesión ha caducado."}, status_code=401)
+            clear_refresh_cookie(response)
+            return response
+        try:
+            return refresh_cognito_session(refresh_token)
+        except HTTPException as exc:
+            if exc.status_code == 401:
+                response = JSONResponse({"detail": str(exc.detail)}, status_code=401)
+                clear_refresh_cookie(response)
+                return response
+            raise
+
+    @app.post("/api/v1/auth/logout", status_code=204, tags=["auth"])
+    def logout_cognito_cookie_session(request: Request, response: Response):
+        require_cognito_origin(request)
+        refresh_token = request.cookies.get(refresh_cookie)
+        if refresh_token:
+            try:
+                _cognito_auth_request(
+                    os.environ["AWS_REGION"],
+                    "RevokeToken",
+                    {"ClientId": os.environ["OAUTH_CLIENT_ID"], "Token": refresh_token},
+                )
+            except (CognitoAuthError, HTTPException):
+                # Clear the browser session even if Cognito has already revoked or expired it.
+                pass
+        clear_refresh_cookie(response)
 
     guarded = [Depends(authenticated)]
     use_calendar = Annotated[Calendar, Depends(calendar)]
