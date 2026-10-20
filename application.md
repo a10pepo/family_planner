@@ -18,13 +18,13 @@ El menú izquierdo es estrecho y contiene únicamente iconos, con nombres accesi
 
 Las tarjetas muestran horario, título con letra más grande e icono de categoría, aprovechando el ancho disponible. El nombre de categoría se conserva en la leyenda, tooltip y descripción accesible; no aparece dentro de la tarjeta. El color depende de la categoría, con una paleta pastel:
 
-| Categoría | Color | Icono |
-| --- | --- | --- |
-| Colegio | Azul | Birrete |
-| Extraescolares | Amarillo | Balón |
-| Médicos | Rosa | Cruz |
-| Amigos | Lila | Corazón |
-| Otros | Verde | Estrella |
+| Categoría      | Color    | Icono    |
+| -------------- | -------- | -------- |
+| Colegio        | Azul     | Birrete  |
+| Extraescolares | Amarillo | Balón    |
+| Médicos        | Rosa     | Cruz     |
+| Amigos         | Lila     | Corazón  |
+| Otros          | Verde    | Estrella |
 
 La categoría se guarda en cada evento. Los eventos anteriores conservan sus datos y reciben la categoría Otros. El formulario permite editar la categoría junto con el título, inicio y fin.
 
@@ -38,7 +38,7 @@ Contiene exactamente Laura (Mamá), Pedro (Papá), Jaime (Tete) y Lucía (Teta),
 
 ## Configuración, avisos y tareas (issue #6)
 
-Configuración permite editar nombre y foto de cada integrante, manteniendo sus eventos y asignaciones. La foto es opcional: elegir JPG, PNG o WebP, recortar al centro y guardar; quitarla recupera la ilustración.
+Configuración permite añadir integrantes después de crear la familia y editar nombre y foto de cada integrante, manteniendo sus eventos y asignaciones. La foto es opcional: elegir JPG, PNG o WebP, recortar al centro y guardar; quitarla recupera la ilustración.
 
 Debajo del conjunto de cara y tareas hay una fila de avisos de día completo (uniforme, chándal, excursión u otro) para esa persona y fecha. Se añaden desde su «+» y se editan o eliminan pulsando el icono. Se muestran separados de los eventos con horario.
 

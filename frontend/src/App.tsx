@@ -29,6 +29,7 @@ import {
   CustomSymbol,
 } from "./components/IconCatalog";
 import { Profiles } from "./components/Profiles";
+import { MemberForm, memberColors } from "./components/MemberForm";
 import { NoticeForm, TasksPanel } from "./components/DailyForms";
 import { MemberHeading } from "./components/MemberHeading";
 import { CurrentTime, useCurrentTime } from "./components/CurrentTime";
@@ -39,14 +40,6 @@ import {
   EventSeriesPanel,
 } from "./components/EventSeriesPanel";
 
-const colors = [
-  "#dcebe2",
-  "#dce6f3",
-  "#f4e7cf",
-  "#eadff0",
-  "#f5dfe3",
-  "#dceeee",
-];
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar el cambio.";
 
@@ -245,95 +238,6 @@ function FamilyAccess({
       </nav>
       <p className="small muted">Cada cuenta es compartida por una familia.</p>
     </main>
-  );
-}
-
-function MemberForm({
-  api,
-  initialColor,
-  close,
-  saved,
-}: {
-  api: Api;
-  initialColor: string;
-  close: () => void;
-  saved: (member: Member) => void;
-}) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(initialColor);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      saved(await api.addMember(name.trim(), color));
-    } catch (error) {
-      setError(message(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Dialog title="Añadir integrante" close={close} busy={busy}>
-      <form onSubmit={submit}>
-        <p className="muted">
-          Un color y un nombre para encontrar su día de un vistazo.
-        </p>
-        <label>
-          Nombre
-          <input
-            autoFocus
-            required
-            maxLength={80}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            disabled={busy}
-          />
-        </label>
-        <fieldset disabled={busy}>
-          <legend>Color del integrante</legend>
-          <div className="color-options">
-            {colors.map((value, index) => (
-              <label
-                key={value}
-                className="color-choice"
-                style={{ background: value }}
-              >
-                <input
-                  type="radio"
-                  name="color"
-                  value={value}
-                  checked={color === value}
-                  onChange={() => setColor(value)}
-                  aria-label={`Color ${index + 1}`}
-                />
-                <span aria-hidden="true">{color === value ? "✓" : ""}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        <div className="form-actions">
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy}
-            onClick={close}
-          >
-            Cancelar
-          </button>
-          <button disabled={busy || !name.trim()}>
-            {busy ? "Guardando…" : "Guardar integrante"}
-          </button>
-        </div>
-      </form>
-    </Dialog>
   );
 }
 
@@ -1333,9 +1237,9 @@ export default function App({
           <MemberForm
             api={api}
             initialColor={
-              colors.find(
+              memberColors.find(
                 (color) => !members.some((member) => member.color === color),
-              ) ?? colors[members.length % colors.length]
+              ) ?? memberColors[members.length % memberColors.length]
             }
             close={() => setMemberForm(false)}
             saved={(member) => {

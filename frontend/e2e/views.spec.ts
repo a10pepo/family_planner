@@ -206,6 +206,7 @@ test("week filters, global all-day events and confirmed profile archive persist"
   });
   if (!(await restore.count())) {
     await page
+      .locator("aside")
       .getByRole("button", { name: "Añadir integrante", exact: true })
       .click();
     await page.getByLabel("Nombre", { exact: true }).fill(person);
