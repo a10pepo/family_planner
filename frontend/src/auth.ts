@@ -141,18 +141,16 @@ class CognitoAuth implements AuthClient {
   }
 
   async logout() {
-    try {
-      await fetch("/api/v1/auth/logout", {
-        method: "POST",
-        credentials: "same-origin",
-      });
-    } finally {
-      this.clearToken();
-    }
+    const response = await fetch("/api/v1/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw new Error("No se pudo cerrar la sesión.");
+    this.clearToken();
   }
 
   clearRemoteSession() {
-    void this.logout();
+    void this.logout().catch(() => this.clearToken());
   }
 
   private expiresAt = 0;

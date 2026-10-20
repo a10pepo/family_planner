@@ -846,7 +846,9 @@ export default function App({
             aria-label="Cerrar sesión"
             title="Cerrar sesión"
             onClick={() =>
-              auth.logout({ redirectUri: `${window.location.origin}/` })
+              void Promise.resolve(
+                auth.logout({ redirectUri: `${window.location.origin}/` }),
+              ).catch(() => setError("No se pudo cerrar la sesión."))
             }
           >
             <Icon name="logout" />
