@@ -91,6 +91,10 @@ Cada entorno conserva su User Pool y tabla DynamoDB. El MCP usa un cliente Cogni
 
 Las herramientas son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe; no permite cambiar el integrante ni borrar. No se modifica DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
 
+### Nombres de integrantes en MCP (issue #81)
+
+El 20 de octubre de 2026 Pedro solicitó que el MCP permita resolver integrantes cuando el usuario los mencione por nombre. Se añade `list_members` bajo el scope de lectura existente; devuelve ID, nombre y estado activo de perfiles activos, sin fotos ni otros datos del perfil. No cambia el esquema DynamoDB, IAM ni la autenticación.
+
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
 

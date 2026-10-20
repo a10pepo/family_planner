@@ -38,6 +38,10 @@ El backend verifica firma RS256, caducidad, emisor, audiencia `family-api` y rol
 
 Todas las operaciones de integrantes, eventos, avisos y tareas requieren un token válido. Los identificadores son UUID. Las fechas de los eventos deben incluir desplazamiento UTC; la persistencia usa PostgreSQL `timestamptz`. El intervalo es de inicio incluido y final excluido, con eventos que se solapan incluidos aunque empiecen antes. El fin siempre debe ser posterior al inicio. Un evento puede cruzar la medianoche o un cambio horario.
 
+## MCP del calendario
+
+El MCP de AWS requiere OAuth con PKCE y los scopes `calendar.read` o `calendar.write`. `list_members` requiere `calendar.read` y devuelve únicamente `{id, name, active}` para integrantes activos, de modo que el cliente pueda resolver referencias a personas por nombre. No devuelve fotos, colores ni perfiles archivados. `list_events` también requiere lectura; `save_event` requiere escritura.
+
 Los errores usan `detail`: 401 para acceso ausente o inválido, 403 para cuenta sin rol, 404 para entidad inexistente, 422 para datos inválidos y 503 si un servicio necesario no está disponible. La respuesta de validación 422 puede contener una lista de errores de campos.
 
 ## Eventos recurrentes

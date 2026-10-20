@@ -31,11 +31,13 @@ class TokenVerifier:
 class CalendarRepository:
     def __init__(self):
         self.member_id = uuid4()
-        self.member_data = Member(self.member_id, "Demo", "#abcdef")
+        self.member_data = Member(self.member_id, "Sample Parent", "#abcdef", "synthetic-photo")
+        self.archived_member = Member(uuid4(), "Archived Sample", "#123456", active=False)
         self.events_by_id = {}
 
     def members(self, include_archived=False):
-        return [self.member_data]
+        members = [self.member_data, self.archived_member]
+        return members if include_archived else [member for member in members if member.active]
 
     def member(self, member_id, include_archived=False):
         return self.member_data if member_id == self.member_id else None
@@ -192,7 +194,58 @@ def test_initialize_and_tools_are_scoped(client):
     assert initialized.status_code == 200
     assert initialized.json()["result"]["protocolVersion"] == "2025-11-25"
     tools = client.post("/mcp", headers=headers, json=rpc("tools/list")).json()["result"]["tools"]
-    assert {tool["name"] for tool in tools} == {"list_events", "save_event"}
+    assert {tool["name"] for tool in tools} == {
+        "list_members",
+        "list_events",
+        "save_event",
+    }
+
+
+def test_list_members_uses_read_scope_and_returns_only_active_identity_fields(client):
+    read_only = create_mcp_app(
+        storage=client.storage,
+        verifier=TokenVerifier({"sub": "family-user-123", "aud": RESOURCE, "scope": READ_SCOPE}),
+    )
+    read_client = TestClient(read_only)
+    headers = {"Authorization": "Bearer valid"}
+    tools = read_client.post("/mcp", headers=headers, json=rpc("tools/list")).json()["result"][
+        "tools"
+    ]
+    assert {tool["name"] for tool in tools} == {"list_members", "list_events"}
+
+    response = read_client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc("tools/call", params={"name": "list_members", "arguments": {}}),
+    )
+
+    assert response.status_code == 200
+    members = response.json()["result"]["structuredContent"]
+    assert members == [
+        {
+            "id": str(client.storage.calendar.member_id),
+            "name": "Sample Parent",
+            "active": True,
+        }
+    ]
+    assert "synthetic-photo" not in response.text
+    assert "color" not in response.text
+    assert client.storage.family_ids == ["family-user-123"]
+
+
+def test_list_members_rejects_arguments(client):
+    response = client.post(
+        "/mcp",
+        headers={"Authorization": "Bearer valid"},
+        json=rpc(
+            "tools/call",
+            params={"name": "list_members", "arguments": {"include_archived": True}},
+        ),
+    )
+
+    assert response.json()["result"]["isError"] is True
+    error_text = response.json()["result"]["content"][0]["text"].lower()
+    assert "extra inputs are not permitted" in error_text
 
 
 def test_invalid_params_return_json_rpc_error_instead_of_server_error(client):

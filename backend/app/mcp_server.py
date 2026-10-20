@@ -30,6 +30,7 @@ logger = logging.getLogger("family_planner.mcp.diagnostics")
 def _argument_types(tool_name: str, arguments: Any) -> dict[str, str]:
     """Return argument names and JSON types without logging their values."""
     allowed = {
+        "list_members": set(),
         "list_events": {"start", "end", "member_id"},
         "save_event": {
             "event_id",
@@ -103,6 +104,10 @@ class ListEventsArguments(BaseModel):
     start: AwareDatetime
     end: AwareDatetime
     member_id: UUID | None = None
+
+
+class ListMembersArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class SaveEventArguments(BaseModel):
@@ -390,7 +395,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
         required_scope = None
         if method == "tools/call":
             tool_name = params.get("name")
-            required_scope = scope_read if tool_name == "list_events" else scope_write
+            required_scope = (
+                scope_read if tool_name in {"list_members", "list_events"} else scope_write
+            )
         safe_method = (
             method
             if method
@@ -401,7 +408,7 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
             tool_name
             if method == "tools/call"
             and isinstance(tool_name, str)
-            and tool_name in {"list_events", "save_event"}
+            and tool_name in {"list_members", "list_events", "save_event"}
             else None
         )
         _diagnostic_log(
@@ -449,7 +456,7 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "family-planner", "version": "1.0.0"},
                 "instructions": (
-                    "Consulta eventos por rango. Usa save_event para crear o editar; "
+                    "Consulta integrantes y eventos por rango. Usa save_event para crear o editar; "
                     "nunca borres eventos."
                 ),
             }
@@ -457,6 +464,19 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
             granted = set(claims.get("scope", "").split())
             tools = []
             if scope_read in granted:
+                tools.append(
+                    {
+                        "name": "list_members",
+                        "description": (
+                            "Lista los integrantes activos con su ID y nombre para identificarlos."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": False,
+                        },
+                    }
+                )
                 tools.append(
                     {
                         "name": "list_events",
@@ -479,7 +499,10 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 tools.append(
                     {
                         "name": "save_event",
-                        "description": "Crea un evento o edita uno existente. No elimina eventos.",
+                        "description": (
+                            "Crea o edita un evento; usa list_members para resolver el integrante. "
+                            "No elimina eventos."
+                        ),
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -569,7 +592,8 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 outcome="error" if tool_is_error else "success",
                 result_count=(
                     len(structured_result)
-                    if tool_name == "list_events" and isinstance(structured_result, list)
+                    if tool_name in {"list_members", "list_events"}
+                    and isinstance(structured_result, list)
                     else None
                 ),
             )
@@ -598,6 +622,17 @@ async def _call_tool(
     try:
         if not isinstance(arguments, dict):
             raise ValueError("Los argumentos deben ser un objeto JSON.")
+        if name == "list_members":
+            ListMembersArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                members = repositories.calendar.members()
+            return _tool_result(
+                [
+                    {"id": str(member.id), "name": member.name, "active": member.active}
+                    for member in members
+                ]
+            )
+
         if name == "list_events":
             data = ListEventsArguments.model_validate(arguments)
             with storage.repositories(claims["sub"]) as repositories:
