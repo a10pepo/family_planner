@@ -85,6 +85,23 @@ def test_category_survives_movement_and_can_be_changed():
         calendar.create_event(member.id, "Actividad", start, end, "unknown")
 
 
+def test_event_can_be_reassigned_to_another_active_member():
+    calendar = Calendar(MemoryRepository())
+    member = calendar.add_member("Sample One", "#dcebe2")
+    other_member = calendar.add_member("Sample Two", "#cde3ef")
+    start = datetime.fromisoformat("2026-10-07T09:00:00Z")
+    end = datetime.fromisoformat("2026-10-07T10:00:00Z")
+    event = calendar.create_event(member.id, "Actividad", start, end, "activities")
+
+    reassigned = calendar.update_event(event.id, event.title, start, end, member_id=other_member.id)
+
+    assert reassigned.member_id == other_member.id
+    assert reassigned.category == event.category
+    with pytest.raises(MissingEntity):
+        calendar.update_event(event.id, event.title, start, end, member_id=uuid4())
+    assert calendar.repository.event(event.id) == reassigned
+
+
 def test_member_edit_preserves_id_color_and_optional_photo():
     calendar = Calendar(MemoryRepository())
     member = calendar.add_member("Alex", "#abcdef")

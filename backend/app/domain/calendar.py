@@ -152,10 +152,14 @@ class Calendar:
         category: str | None = None,
         custom_icon_id: UUID | None = None,
         replace_custom_icon: bool = False,
+        member_id: UUID | None = None,
     ) -> Event:
         previous = self.repository.event(event_id)
         if previous is None or self.repository.member(previous.member_id) is None:
             raise MissingEntity("No existe el evento.")
+        assigned_member_id = previous.member_id if member_id is None else member_id
+        if self.repository.member(assigned_member_id) is None:
+            raise MissingEntity("No existe el integrante.")
         reference = custom_icon_id if replace_custom_icon else previous.custom_icon_id
         if reference is not None and self.repository.icon(reference) is None:
             raise MissingEntity("No existe el icono.")
@@ -163,7 +167,7 @@ class Calendar:
         return self.repository.save_event(
             Event(
                 event_id,
-                previous.member_id,
+                assigned_member_id,
                 clean_text(title, 200),
                 start,
                 end,

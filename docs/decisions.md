@@ -89,11 +89,11 @@ Pedro aprobó expresamente el 15 de octubre de 2026 una Lambda MCP para Preview 
 
 Cada entorno conserva su User Pool y tabla DynamoDB. El MCP usa un cliente Cognito público dedicado, una audiencia de recurso distinta por entorno, y los scopes `calendar.read` y `calendar.write`. La Lambda publica metadata de Protected Resource y metadata de autorización para Codex, con PKCE S256 y endpoints de autorización/token delegados a Cognito. El token se valida en la Lambda por firma, emisor real de Cognito, tipo `access`, audiencia, scopes y `sub`. El `sub` validado sigue siendo la única clave de partición familiar. API Gateway enruta `/mcp` a una Lambda separada con rol IAM propio, limitado a la tabla del entorno y sus logs; CloudFront reenvía `Authorization` y desactiva caché para MCP y metadata OAuth.
 
-Las herramientas son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe; no permite cambiar el integrante ni borrar. No se modifica DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
+Las herramientas son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe; no borra eventos. No se modifica DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
 
 ### Nombres de integrantes en MCP (issue #81)
 
-El 20 de octubre de 2026 Pedro solicitó que el MCP permita resolver integrantes cuando el usuario los mencione por nombre. Se añade `list_members` bajo el scope de lectura existente; devuelve ID, nombre y estado activo de perfiles activos, sin fotos ni otros datos del perfil. No cambia el esquema DynamoDB, IAM ni la autenticación.
+El 20 de octubre de 2026 Pedro solicitó que el MCP permita resolver integrantes cuando el usuario los mencione por nombre y asignar correctamente sus eventos. Se añade `list_members` bajo el scope de lectura existente; devuelve ID, nombre y estado activo de perfiles activos, sin fotos ni otros datos del perfil. Al editar, `save_event` reasigna el evento si recibe un `member_id` activo; si se omite, mantiene la asignación. No cambia el esquema DynamoDB, IAM ni la autenticación.
 
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.

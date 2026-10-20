@@ -516,7 +516,11 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                                     "anyOf": [
                                         {"type": "string", "format": "uuid"},
                                         {"type": "null"},
-                                    ]
+                                    ],
+                                    "description": (
+                                        "Obligatorio al crear; al editar, si se indica, reasigna "
+                                        "el evento a ese integrante activo."
+                                    ),
                                 },
                                 "title": {"type": "string", "minLength": 1, "maxLength": 200},
                                 "starts_at": {"type": "string", "format": "date-time"},
@@ -652,8 +656,6 @@ async def _call_tool(
             data = SaveEventArguments.model_validate(arguments)
             if data.event_id is None and data.member_id is None:
                 raise ValueError("member_id es obligatorio al crear un evento.")
-            if data.event_id is not None and data.member_id is not None:
-                raise ValueError("member_id no se puede cambiar al editar un evento.")
             with storage.repositories(claims["sub"]) as repositories:
                 service = Calendar(repositories.calendar)
                 if data.event_id is None:
@@ -674,6 +676,7 @@ async def _call_tool(
                         data.category,
                         data.custom_icon_id,
                         "custom_icon_id" in arguments,
+                        data.member_id,
                     )
             return _tool_result(_event_value(event))
 

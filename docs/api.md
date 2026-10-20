@@ -40,7 +40,7 @@ Todas las operaciones de integrantes, eventos, avisos y tareas requieren un toke
 
 ## MCP del calendario
 
-El MCP de AWS requiere OAuth con PKCE y los scopes `calendar.read` o `calendar.write`. `list_members` requiere `calendar.read` y devuelve únicamente `{id, name, active}` para integrantes activos, de modo que el cliente pueda resolver referencias a personas por nombre. No devuelve fotos, colores ni perfiles archivados. `list_events` también requiere lectura; `save_event` requiere escritura.
+El MCP de AWS requiere OAuth con PKCE y los scopes `calendar.read` o `calendar.write`. `list_members` requiere `calendar.read` y devuelve únicamente `{id, name, active}` para integrantes activos, de modo que el cliente pueda resolver referencias a personas por nombre. No devuelve fotos, colores ni perfiles archivados. `list_events` también requiere lectura; `save_event` requiere escritura. Al editar, `save_event` conserva el integrante si se omite `member_id`; si se proporciona un ID válido de un perfil activo, reasigna el evento a ese integrante.
 
 Los errores usan `detail`: 401 para acceso ausente o inválido, 403 para cuenta sin rol, 404 para entidad inexistente, 422 para datos inválidos y 503 si un servicio necesario no está disponible. La respuesta de validación 422 puede contener una lista de errores de campos.
 

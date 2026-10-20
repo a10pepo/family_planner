@@ -1,7 +1,7 @@
 import logging
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from app.domain.calendar import Category, Member
@@ -32,15 +32,19 @@ class CalendarRepository:
     def __init__(self):
         self.member_id = uuid4()
         self.member_data = Member(self.member_id, "Sample Parent", "#abcdef", "synthetic-photo")
+        self.other_member = Member(uuid4(), "Sample Child", "#fedcba")
         self.archived_member = Member(uuid4(), "Archived Sample", "#123456", active=False)
         self.events_by_id = {}
 
     def members(self, include_archived=False):
-        members = [self.member_data, self.archived_member]
+        members = [self.member_data, self.other_member, self.archived_member]
         return members if include_archived else [member for member in members if member.active]
 
     def member(self, member_id, include_archived=False):
-        return self.member_data if member_id == self.member_id else None
+        return next(
+            (member for member in self.members(include_archived) if member.id == member_id),
+            None,
+        )
 
     def icon(self, icon_id):
         return object() if str(icon_id) == "11111111-1111-4111-8111-111111111111" else None
@@ -226,7 +230,12 @@ def test_list_members_uses_read_scope_and_returns_only_active_identity_fields(cl
             "id": str(client.storage.calendar.member_id),
             "name": "Sample Parent",
             "active": True,
-        }
+        },
+        {
+            "id": str(client.storage.calendar.other_member.id),
+            "name": "Sample Child",
+            "active": True,
+        },
     ]
     assert "synthetic-photo" not in response.text
     assert "color" not in response.text
@@ -371,7 +380,7 @@ def test_write_scope_is_required_for_save(client):
     assert "insufficient_scope" in response.headers["www-authenticate"]
 
 
-def test_save_event_rejects_member_change_and_invalid_interval(client):
+def test_save_event_can_reassign_member_and_rejects_invalid_interval(client):
     headers = {"Authorization": "Bearer valid"}
     bad = client.post(
         "/mcp",
@@ -392,8 +401,7 @@ def test_save_event_rejects_member_change_and_invalid_interval(client):
     assert bad.json()["result"]["isError"] is True
     assert "posterior" in bad.json()["result"]["content"][0]["text"]
 
-    event_id = uuid4()
-    moved = client.post(
+    created = client.post(
         "/mcp",
         headers=headers,
         json=rpc(
@@ -401,7 +409,6 @@ def test_save_event_rejects_member_change_and_invalid_interval(client):
             params={
                 "name": "save_event",
                 "arguments": {
-                    "event_id": str(event_id),
                     "member_id": str(client.storage.calendar.member_id),
                     "title": "Evento",
                     "starts_at": "2026-10-15T10:00:00Z",
@@ -410,5 +417,49 @@ def test_save_event_rejects_member_change_and_invalid_interval(client):
             },
         ),
     )
-    assert moved.json()["result"]["isError"] is True
-    assert "no se puede cambiar" in moved.json()["result"]["content"][0]["text"]
+    event_id = created.json()["result"]["structuredContent"]["id"]
+
+    moved = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "save_event",
+                "arguments": {
+                    "event_id": event_id,
+                    "member_id": str(client.storage.calendar.other_member.id),
+                    "title": "Evento",
+                    "starts_at": "2026-10-15T10:00:00Z",
+                    "ends_at": "2026-10-15T11:00:00Z",
+                },
+            },
+        ),
+    )
+    assert moved.json()["result"]["structuredContent"]["member_id"] == str(
+        client.storage.calendar.other_member.id
+    )
+
+    invalid_member = str(uuid4())
+    rejected = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "save_event",
+                "arguments": {
+                    "event_id": event_id,
+                    "member_id": invalid_member,
+                    "title": "Evento editado",
+                    "starts_at": "2026-10-15T10:00:00Z",
+                    "ends_at": "2026-10-15T11:00:00Z",
+                },
+            },
+        ),
+    )
+    assert rejected.json()["result"]["isError"] is True
+    assert (
+        client.storage.calendar.event(UUID(event_id)).member_id
+        == client.storage.calendar.other_member.id
+    )
