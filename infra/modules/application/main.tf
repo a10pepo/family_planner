@@ -186,6 +186,11 @@ resource "aws_lambda_function" "mcp" {
   image_uri     = var.lambda_image_uri
   memory_size   = 512
   timeout       = 15
+  logging_config {
+    log_format            = "JSON"
+    application_log_level = var.environment == "preview" ? "INFO" : "WARN"
+    system_log_level      = var.environment == "preview" ? "INFO" : "WARN"
+  }
   image_config {
     command = ["app.mcp_lambda_handler.handler"]
   }
