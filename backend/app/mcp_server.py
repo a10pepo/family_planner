@@ -15,12 +15,21 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.adapters.oauth import OAuthVerifier
 from app.adapters.storage import configured_storage
 from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
-from app.domain.recurrence import expand_series
+from app.domain.family import FamilyIcon, FamilyPlanner
+from app.domain.recurrence import (
+    EndMode,
+    EventException,
+    EventSeries,
+    Frequency,
+    expand_series,
+    is_occurrence,
+    validate_series,
+)
 
 PROTOCOL_VERSION = "2025-11-25"
 MCP_PATH = "/mcp"
@@ -30,7 +39,10 @@ logger = logging.getLogger("family_planner.mcp.diagnostics")
 def _argument_types(tool_name: str, arguments: Any) -> dict[str, str]:
     """Return argument names and JSON types without logging their values."""
     allowed = {
-        "list_events": {"start", "end", "member_id"},
+        "list_members": set(),
+        "list_events": {"start", "end", "member_id", "title", "category"},
+        "list_event_series": {"member_id"},
+        "list_family_events": {"start", "end"},
         "save_event": {
             "event_id",
             "member_id",
@@ -39,6 +51,43 @@ def _argument_types(tool_name: str, arguments: Any) -> dict[str, str]:
             "ends_at",
             "category",
             "custom_icon_id",
+        },
+        "save_family_event": {"event_id", "day", "title", "icon", "custom_icon_id"},
+        "delete_family_event": {"event_id"},
+        "save_event_series": {
+            "series_id",
+            "member_id",
+            "title",
+            "start_date",
+            "start_time",
+            "duration_minutes",
+            "timezone",
+            "frequency",
+            "interval",
+            "weekdays",
+            "end_mode",
+            "end_date",
+            "occurrence_count",
+            "category",
+            "custom_icon_id",
+        },
+        "save_occurrence_exception": {
+            "series_id",
+            "occurrence_date",
+            "occurrence_time",
+            "cancelled",
+            "override_start_time",
+            "override_duration_minutes",
+            "override_title",
+            "override_category",
+            "has_icon_override",
+            "override_custom_icon_id",
+        },
+        "delete_event_series": {"series_id"},
+        "delete_occurrence_exception": {
+            "series_id",
+            "occurrence_date",
+            "occurrence_time",
         },
     }.get(tool_name, set())
     if not isinstance(arguments, dict):
@@ -103,6 +152,28 @@ class ListEventsArguments(BaseModel):
     start: AwareDatetime
     end: AwareDatetime
     member_id: UUID | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    category: Category | None = None
+
+    @field_validator("title")
+    @classmethod
+    def normalize_title_filter(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("El filtro de título no puede estar vacío.")
+        return normalized
+
+
+class ListMembersArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ListFamilyEventsArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    start: date
+    end: date
 
 
 class SaveEventArguments(BaseModel):
@@ -114,6 +185,70 @@ class SaveEventArguments(BaseModel):
     ends_at: AwareDatetime
     category: Category | None = None
     custom_icon_id: UUID | None = None
+
+
+class SaveFamilyEventArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_id: UUID | None = None
+    day: date
+    title: str = Field(min_length=1, max_length=80)
+    icon: FamilyIcon
+    custom_icon_id: UUID | None = None
+
+
+class DeleteFamilyEventArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_id: UUID
+
+
+class ListEventSeriesArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    member_id: UUID | None = None
+
+
+class SaveEventSeriesArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    series_id: UUID | None = None
+    member_id: UUID
+    title: str = Field(min_length=1, max_length=200)
+    start_date: date
+    start_time: time
+    duration_minutes: int = Field(ge=1, le=10080)
+    timezone: str = Field(min_length=1, max_length=80)
+    frequency: Frequency
+    interval: int = Field(ge=1, le=365)
+    weekdays: list[int] = Field(default_factory=list, max_length=7)
+    end_mode: EndMode = EndMode.NEVER
+    end_date: date | None = None
+    occurrence_count: int | None = Field(default=None, ge=1, le=10000)
+    category: Category = Category.OTHER
+    custom_icon_id: UUID | None = None
+
+
+class SaveOccurrenceExceptionArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    series_id: UUID
+    occurrence_date: date
+    occurrence_time: time
+    cancelled: bool = False
+    override_start_time: time | None = None
+    override_duration_minutes: int | None = Field(default=None, ge=1, le=10080)
+    override_title: str | None = Field(default=None, min_length=1, max_length=200)
+    override_category: Category | None = None
+    has_icon_override: bool = False
+    override_custom_icon_id: UUID | None = None
+
+
+class DeleteEventSeriesArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    series_id: UUID
+
+
+class DeleteOccurrenceExceptionArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    series_id: UUID
+    occurrence_date: date
+    occurrence_time: time
 
 
 def _json_value(value: Any) -> Any:
@@ -135,6 +270,93 @@ def _event_value(event) -> dict[str, Any]:
 def _tool_result(value: Any) -> dict[str, Any]:
     payload = json.dumps(_json_value(value), ensure_ascii=False, separators=(",", ":"))
     return {"content": [{"type": "text", "text": payload}], "structuredContent": value}
+
+
+def _series_tool_schema() -> dict[str, Any]:
+    return {
+        "name": "save_event_series",
+        "description": (
+            "Crea o edita una serie recurrente. Omite series_id para crear y usa el ID de "
+            "list_event_series para editar. Para eliminar usa delete_event_series."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "series_id": {"type": "string", "format": "uuid"},
+                "member_id": {"type": "string", "format": "uuid"},
+                "title": {"type": "string", "minLength": 1, "maxLength": 200},
+                "start_date": {"type": "string", "format": "date"},
+                "start_time": {"type": "string", "format": "time"},
+                "duration_minutes": {"type": "integer", "minimum": 1, "maximum": 10080},
+                "timezone": {"type": "string", "minLength": 1, "maxLength": 80},
+                "frequency": {"type": "string", "enum": [item.value for item in Frequency]},
+                "interval": {"type": "integer", "minimum": 1, "maximum": 365},
+                "weekdays": {
+                    "type": "array",
+                    "items": {"type": "integer", "minimum": 0, "maximum": 6},
+                    "maxItems": 7,
+                },
+                "end_mode": {"type": "string", "enum": [item.value for item in EndMode]},
+                "end_date": {"type": ["string", "null"], "format": "date"},
+                "occurrence_count": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 10000,
+                },
+                "category": {"type": "string", "enum": [item.value for item in Category]},
+                "custom_icon_id": {"type": ["string", "null"], "format": "uuid"},
+            },
+            "required": [
+                "member_id",
+                "title",
+                "start_date",
+                "start_time",
+                "duration_minutes",
+                "timezone",
+                "frequency",
+                "interval",
+            ],
+            "additionalProperties": False,
+        },
+    }
+
+
+def _exception_tool_schema() -> dict[str, Any]:
+    return {
+        "name": "save_occurrence_exception",
+        "description": (
+            "Cancela una ocurrencia o guarda cambios solo para esa fecha. Usa "
+            "delete_occurrence_exception para restaurar la ocurrencia original."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "series_id": {"type": "string", "format": "uuid"},
+                "occurrence_date": {"type": "string", "format": "date"},
+                "occurrence_time": {"type": "string", "format": "time"},
+                "cancelled": {"type": "boolean"},
+                "override_start_time": {"type": ["string", "null"], "format": "time"},
+                "override_duration_minutes": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 10080,
+                },
+                "override_title": {
+                    "type": ["string", "null"],
+                    "minLength": 1,
+                    "maxLength": 200,
+                },
+                "override_category": {
+                    "type": ["string", "null"],
+                    "enum": [None, *[item.value for item in Category]],
+                },
+                "has_icon_override": {"type": "boolean"},
+                "override_custom_icon_id": {"type": ["string", "null"], "format": "uuid"},
+            },
+            "required": ["series_id", "occurrence_date", "occurrence_time"],
+            "additionalProperties": False,
+        },
+    }
 
 
 def _error_response(request_id: Any, code: int, message: str, data: Any = None):
@@ -390,7 +612,12 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
         required_scope = None
         if method == "tools/call":
             tool_name = params.get("name")
-            required_scope = scope_read if tool_name == "list_events" else scope_write
+            required_scope = (
+                scope_read
+                if tool_name
+                in {"list_members", "list_events", "list_family_events", "list_event_series"}
+                else scope_write
+            )
         safe_method = (
             method
             if method
@@ -401,7 +628,20 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
             tool_name
             if method == "tools/call"
             and isinstance(tool_name, str)
-            and tool_name in {"list_events", "save_event"}
+            and tool_name
+            in {
+                "list_members",
+                "list_events",
+                "list_family_events",
+                "list_event_series",
+                "save_event",
+                "save_family_event",
+                "delete_family_event",
+                "save_event_series",
+                "save_occurrence_exception",
+                "delete_event_series",
+                "delete_occurrence_exception",
+            }
             else None
         )
         _diagnostic_log(
@@ -449,8 +689,10 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "family-planner", "version": "1.0.0"},
                 "instructions": (
-                    "Consulta eventos por rango. Usa save_event para crear o editar; "
-                    "nunca borres eventos."
+                    "Consulta integrantes, eventos con horario, eventos familiares y series "
+                    "recurrentes. Usa save_* para crear o editar; delete_family_event solo elimina "
+                    "eventos familiares de todo el día. Las series y sus excepciones también se "
+                    "pueden eliminar; nunca borres eventos puntuales."
                 ),
             }
         elif method == "tools/list":
@@ -459,9 +701,56 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
             if scope_read in granted:
                 tools.append(
                     {
+                        "name": "list_members",
+                        "description": (
+                            "Lista los integrantes activos con su ID y nombre para identificarlos."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
+                        "name": "list_event_series",
+                        "description": (
+                            "Lista reglas de series recurrentes activas; usa list_members para "
+                            "resolver integrantes por nombre."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"member_id": {"type": "string", "format": "uuid"}},
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
+                        "name": "list_family_events",
+                        "description": (
+                            "Lee eventos familiares de todo el día en un rango de fechas locales; "
+                            "start se incluye y end se excluye."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "start": {"type": "string", "format": "date"},
+                                "end": {"type": "string", "format": "date"},
+                            },
+                            "required": ["start", "end"],
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
                         "name": "list_events",
                         "description": (
-                            "Lee eventos del calendario familiar dentro de un rango temporal."
+                            "Lee eventos dentro de un rango temporal, con filtros opcionales por "
+                            "integrante, texto del título (búsqueda parcial sin distinguir "
+                            "mayúsculas) y categoría."
                         ),
                         "inputSchema": {
                             "type": "object",
@@ -469,6 +758,19 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                                 "start": {"type": "string", "format": "date-time"},
                                 "end": {"type": "string", "format": "date-time"},
                                 "member_id": {"type": "string", "format": "uuid"},
+                                "title": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": (
+                                        "Texto parcial del título; búsqueda sin distinguir "
+                                        "mayúsculas y minúsculas."
+                                    ),
+                                },
+                                "category": {
+                                    "type": "string",
+                                    "enum": [category.value for category in Category],
+                                },
                             },
                             "required": ["start", "end"],
                             "additionalProperties": False,
@@ -479,7 +781,10 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 tools.append(
                     {
                         "name": "save_event",
-                        "description": "Crea un evento o edita uno existente. No elimina eventos.",
+                        "description": (
+                            "Crea o edita un evento; usa list_members para resolver el integrante. "
+                            "No elimina eventos."
+                        ),
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -493,7 +798,11 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                                     "anyOf": [
                                         {"type": "string", "format": "uuid"},
                                         {"type": "null"},
-                                    ]
+                                    ],
+                                    "description": (
+                                        "Obligatorio al crear; al editar, si se indica, reasigna "
+                                        "el evento a ese integrante activo."
+                                    ),
                                 },
                                 "title": {"type": "string", "minLength": 1, "maxLength": 200},
                                 "starts_at": {"type": "string", "format": "date-time"},
@@ -515,6 +824,94 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                                 },
                             },
                             "required": ["title", "starts_at", "ends_at"],
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
+                        "name": "save_family_event",
+                        "description": (
+                            "Crea o edita un evento familiar de todo el día, sin integrante ni "
+                            "repetición automática. Para editar, proporciona event_id."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "event_id": {
+                                    "anyOf": [
+                                        {"type": "string", "format": "uuid"},
+                                        {"type": "null"},
+                                    ]
+                                },
+                                "day": {"type": "string", "format": "date"},
+                                "title": {"type": "string", "minLength": 1, "maxLength": 80},
+                                "icon": {
+                                    "type": "string",
+                                    "enum": [icon.value for icon in FamilyIcon],
+                                },
+                                "custom_icon_id": {
+                                    "anyOf": [
+                                        {"type": "string", "format": "uuid"},
+                                        {"type": "null"},
+                                    ],
+                                    "description": (
+                                        "UUID del catálogo; si se omite al editar se conserva el "
+                                        "icono personalizado."
+                                    ),
+                                },
+                            },
+                            "required": ["day", "title", "icon"],
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
+                        "name": "delete_family_event",
+                        "description": (
+                            "Elimina un evento familiar de todo el día por event_id. No elimina "
+                            "eventos asignados a integrantes ni eventos recurrentes."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"event_id": {"type": "string", "format": "uuid"}},
+                            "required": ["event_id"],
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(_series_tool_schema())
+                tools.append(_exception_tool_schema())
+                tools.append(
+                    {
+                        "name": "delete_event_series",
+                        "description": (
+                            "Elimina una serie recurrente y sus excepciones; nunca afecta a "
+                            "eventos puntuales."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"series_id": {"type": "string", "format": "uuid"}},
+                            "required": ["series_id"],
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
+                        "name": "delete_occurrence_exception",
+                        "description": (
+                            "Quita la excepción indicada y restaura la ocurrencia según su serie."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "series_id": {"type": "string", "format": "uuid"},
+                                "occurrence_date": {"type": "string", "format": "date"},
+                                "occurrence_time": {"type": "string", "format": "time"},
+                            },
+                            "required": ["series_id", "occurrence_date", "occurrence_time"],
                             "additionalProperties": False,
                         },
                     }
@@ -569,7 +966,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 outcome="error" if tool_is_error else "success",
                 result_count=(
                     len(structured_result)
-                    if tool_name == "list_events" and isinstance(structured_result, list)
+                    if tool_name
+                    in {"list_members", "list_events", "list_family_events", "list_event_series"}
+                    and isinstance(structured_result, list)
                     else None
                 ),
             )
@@ -598,6 +997,17 @@ async def _call_tool(
     try:
         if not isinstance(arguments, dict):
             raise ValueError("Los argumentos deben ser un objeto JSON.")
+        if name == "list_members":
+            ListMembersArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                members = repositories.calendar.members()
+            return _tool_result(
+                [
+                    {"id": str(member.id), "name": member.name, "active": member.active}
+                    for member in members
+                ]
+            )
+
         if name == "list_events":
             data = ListEventsArguments.model_validate(arguments)
             with storage.repositories(claims["sub"]) as repositories:
@@ -608,17 +1018,32 @@ async def _call_tool(
                     punctual.extend(
                         expand_series(series, data.start, data.end, recurring.exceptions(series.id))
                     )
+            if data.title is not None:
+                title_query = data.title.casefold()
+                punctual = [event for event in punctual if title_query in event.title.casefold()]
+            if data.category is not None:
+                punctual = [event for event in punctual if event.category == data.category]
             events = [
                 _event_value(event) for event in sorted(punctual, key=lambda item: item.starts_at)
             ]
             return _tool_result(events)
 
+        if name == "list_event_series":
+            data = ListEventSeriesArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                series = repositories.recurrence.series(data.member_id)
+            return _tool_result([_json_value(asdict(item)) for item in series])
+
+        if name == "list_family_events":
+            data = ListFamilyEventsArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                events = FamilyPlanner(repositories.family).list_events(data.start, data.end)
+            return _tool_result([_json_value(asdict(event)) for event in events])
+
         if name == "save_event":
             data = SaveEventArguments.model_validate(arguments)
             if data.event_id is None and data.member_id is None:
                 raise ValueError("member_id es obligatorio al crear un evento.")
-            if data.event_id is not None and data.member_id is not None:
-                raise ValueError("member_id no se puede cambiar al editar un evento.")
             with storage.repositories(claims["sub"]) as repositories:
                 service = Calendar(repositories.calendar)
                 if data.event_id is None:
@@ -639,8 +1064,143 @@ async def _call_tool(
                         data.category,
                         data.custom_icon_id,
                         "custom_icon_id" in arguments,
+                        data.member_id,
                     )
             return _tool_result(_event_value(event))
+
+        if name == "save_event_series":
+            data = SaveEventSeriesArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                service = Calendar(repositories.calendar)
+                recurrence = repositories.recurrence
+                if service.repository.member(data.member_id) is None:
+                    raise MissingEntity("No existe el integrante activo.")
+                if (
+                    data.custom_icon_id is not None
+                    and service.repository.icon(data.custom_icon_id) is None
+                ):
+                    raise MissingEntity("No existe el icono.")
+                if data.series_id is not None and recurrence.get_series(data.series_id) is None:
+                    raise MissingEntity("No existe la serie recurrente activa.")
+                series = validate_series(
+                    EventSeries(
+                        data.series_id or uuid4(),
+                        data.member_id,
+                        data.title.strip(),
+                        data.start_date,
+                        data.start_time,
+                        data.duration_minutes,
+                        data.timezone,
+                        data.frequency,
+                        data.interval,
+                        tuple(data.weekdays),
+                        data.end_mode,
+                        data.end_date,
+                        data.occurrence_count,
+                        data.category,
+                        data.custom_icon_id,
+                    )
+                )
+                recurrence.save_series(series)
+            return _tool_result(_json_value(asdict(series)))
+
+        if name == "save_occurrence_exception":
+            data = SaveOccurrenceExceptionArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                service = Calendar(repositories.calendar)
+                recurrence = repositories.recurrence
+                series = recurrence.get_series(data.series_id)
+                if series is None:
+                    raise MissingEntity("No existe la serie recurrente activa.")
+                if data.occurrence_time.utcoffset() is not None or (
+                    data.override_start_time and data.override_start_time.utcoffset() is not None
+                ):
+                    raise InvalidInput("Las horas deben ser locales, sin desplazamiento UTC.")
+                if data.override_title is not None and not data.override_title.strip():
+                    raise InvalidInput("El título alternativo no puede estar vacío.")
+                if data.occurrence_time != series.start_time or not is_occurrence(
+                    series, data.occurrence_date
+                ):
+                    raise InvalidInput(
+                        "La fecha y hora no corresponden a una ocurrencia de esta serie."
+                    )
+                if (
+                    data.has_icon_override
+                    and data.override_custom_icon_id is not None
+                    and service.repository.icon(data.override_custom_icon_id) is None
+                ):
+                    raise MissingEntity("No existe el icono.")
+                exception = EventException(
+                    data.series_id,
+                    data.occurrence_date,
+                    data.occurrence_time,
+                    data.cancelled,
+                    data.override_start_time,
+                    data.override_duration_minutes,
+                    data.override_title.strip() if data.override_title else None,
+                    data.override_category,
+                    data.has_icon_override,
+                    data.override_custom_icon_id,
+                )
+                recurrence.save_exception(exception)
+            return _tool_result(_json_value(asdict(exception)))
+
+        if name == "delete_event_series":
+            data = DeleteEventSeriesArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                recurrence = repositories.recurrence
+                if recurrence.get_series(data.series_id) is None:
+                    raise MissingEntity("No existe la serie recurrente activa.")
+                recurrence.delete_series(data.series_id)
+            return _tool_result(_json_value({"deleted": True, "series_id": data.series_id}))
+
+        if name == "delete_occurrence_exception":
+            data = DeleteOccurrenceExceptionArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                recurrence = repositories.recurrence
+                series = recurrence.get_series(data.series_id)
+                if series is None:
+                    raise MissingEntity("No existe la serie recurrente activa.")
+                if (
+                    data.occurrence_time.utcoffset() is not None
+                    or data.occurrence_time != series.start_time
+                    or not is_occurrence(series, data.occurrence_date)
+                ):
+                    raise InvalidInput(
+                        "La fecha y hora no corresponden a una ocurrencia de esta serie."
+                    )
+                recurrence.delete_exception(
+                    data.series_id, data.occurrence_date, data.occurrence_time
+                )
+            return _tool_result(
+                _json_value(
+                    {
+                        "restored": True,
+                        "series_id": data.series_id,
+                        "occurrence_date": data.occurrence_date,
+                        "occurrence_time": data.occurrence_time,
+                    }
+                )
+            )
+
+        if name == "save_family_event":
+            data = SaveFamilyEventArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                event = FamilyPlanner(repositories.family).save(
+                    data.day,
+                    data.title,
+                    data.icon,
+                    data.custom_icon_id,
+                    data.event_id,
+                    "custom_icon_id" in arguments,
+                )
+            return _tool_result(_json_value(asdict(event)))
+
+        if name == "delete_family_event":
+            data = DeleteFamilyEventArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                FamilyPlanner(repositories.family).remove(data.event_id)
+            return _tool_result({"id": str(data.event_id), "deleted": True})
 
         if on_error:
             on_error("unknown_tool")

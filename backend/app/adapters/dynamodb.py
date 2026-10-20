@@ -527,8 +527,23 @@ class DynamoFamilyRepository:
         return event
 
     def remove(self, event_id: UUID) -> None:
-        self.access.table.delete_item(
-            Key={"pk": self.access.family_pk, "sk": f"FAMILY_EVENT#{event_id}"}
+        self.access.client.transact_write_items(
+            TransactItems=[
+                {
+                    "Delete": {
+                        "TableName": self.access.table.name,
+                        "Key": _serialize(
+                            {
+                                "pk": self.access.family_pk,
+                                "sk": f"FAMILY_EVENT#{event_id}",
+                            }
+                        ),
+                        "ConditionExpression": "attribute_exists(pk) AND #type = :type",
+                        "ExpressionAttributeNames": {"#type": "type"},
+                        "ExpressionAttributeValues": _serialize({":type": "family_event"}),
+                    }
+                }
+            ]
         )
 
 
@@ -639,10 +654,72 @@ class DynamoRecurrenceRepository:
         return series
 
     def delete_series(self, series_id: UUID) -> None:
-        for row in self.access.query(self.access.family_pk, f"EXCEPTION#{series_id}#"):
-            self.access.table.delete_item(Key={"pk": row["pk"], "sk": row["sk"]})
-        self.access.table.delete_item(
-            Key={"pk": self.access.family_pk, "sk": f"SERIES#{series_id}"}
+        series_key = {"pk": self.access.family_pk, "sk": f"SERIES#{series_id}"}
+        series_row = self.access.get(**series_key)
+        if series_row is None:
+            return
+        if series_row.get("type") != "series" or series_row.get("sk") != series_key["sk"]:
+            raise InvalidInput("La clave no identifica una serie recurrente.")
+        exception_rows = self.access.query(self.access.family_pk, f"EXCEPTION#{series_id}#")
+        exception_prefix = f"EXCEPTION#{series_id}#"
+        if any(
+            row.get("pk") != self.access.family_pk
+            or row.get("type") != "exception"
+            or not isinstance(row.get("sk"), str)
+            or not row["sk"].startswith(exception_prefix)
+            for row in exception_rows
+        ):
+            raise InvalidInput("La consulta devolvió una clave que no identifica una excepción.")
+        for offset in range(0, len(exception_rows), 99):
+            deletes = [
+                {
+                    "Delete": {
+                        "TableName": self.access.table.name,
+                        "Key": _serialize({"pk": row["pk"], "sk": row["sk"]}),
+                        "ConditionExpression": (
+                            "#type = :exception AND begins_with(sk, :exception_prefix)"
+                        ),
+                        "ExpressionAttributeNames": {"#type": "type"},
+                        "ExpressionAttributeValues": _serialize(
+                            {
+                                ":exception": "exception",
+                                ":exception_prefix": f"EXCEPTION#{series_id}#",
+                            }
+                        ),
+                    }
+                }
+                for row in exception_rows[offset : offset + 99]
+            ]
+            self.access.client.transact_write_items(
+                TransactItems=[
+                    {
+                        "ConditionCheck": {
+                            "TableName": self.access.table.name,
+                            "Key": _serialize(series_key),
+                            "ConditionExpression": "#type = :series AND sk = :series_key",
+                            "ExpressionAttributeNames": {"#type": "type"},
+                            "ExpressionAttributeValues": _serialize(
+                                {":series": "series", ":series_key": series_key["sk"]}
+                            ),
+                        }
+                    },
+                    *deletes,
+                ]
+            )
+        self.access.client.transact_write_items(
+            TransactItems=[
+                {
+                    "Delete": {
+                        "TableName": self.access.table.name,
+                        "Key": _serialize(series_key),
+                        "ConditionExpression": "#type = :series AND sk = :series_key",
+                        "ExpressionAttributeNames": {"#type": "type"},
+                        "ExpressionAttributeValues": _serialize(
+                            {":series": "series", ":series_key": series_key["sk"]}
+                        ),
+                    }
+                }
+            ]
         )
 
     def exceptions(self, series_id: UUID) -> list[EventException]:
@@ -718,4 +795,48 @@ class DynamoRecurrenceRepository:
         self, series_id: UUID, occurrence_date: date, occurrence_time: time
     ) -> None:
         sk = f"EXCEPTION#{series_id}#{_date(occurrence_date)}#{_time(occurrence_time)}"
-        self.access.table.delete_item(Key={"pk": self.access.family_pk, "sk": sk})
+        key = {"pk": self.access.family_pk, "sk": sk}
+        series_key = {"pk": self.access.family_pk, "sk": f"SERIES#{series_id}"}
+        series_row = self.access.get(**series_key)
+        if series_row is None:
+            return
+        if series_row.get("type") != "series" or series_row.get("sk") != series_key["sk"]:
+            raise InvalidInput("La clave no identifica una serie recurrente.")
+        exception_row = self.access.get(**key)
+        if exception_row is None:
+            return
+        if exception_row.get("type") != "exception" or exception_row.get("sk") != sk:
+            raise InvalidInput("La clave no identifica una excepción de ocurrencia.")
+        self.access.client.transact_write_items(
+            TransactItems=[
+                {
+                    "ConditionCheck": {
+                        "TableName": self.access.table.name,
+                        "Key": _serialize(series_key),
+                        "ConditionExpression": "#type = :series AND sk = :series_key",
+                        "ExpressionAttributeNames": {"#type": "type"},
+                        "ExpressionAttributeValues": _serialize(
+                            {":series": "series", ":series_key": series_key["sk"]}
+                        ),
+                    }
+                },
+                {
+                    "Delete": {
+                        "TableName": self.access.table.name,
+                        "Key": _serialize(key),
+                        "ConditionExpression": (
+                            "#type = :exception AND sk = :exception_key "
+                            "AND begins_with(sk, :exception_prefix)"
+                        ),
+                        "ExpressionAttributeNames": {"#type": "type"},
+                        "ExpressionAttributeValues": _serialize(
+                            {
+                                ":exception": "exception",
+                                ":exception_key": sk,
+                                ":exception_prefix": f"EXCEPTION#{series_id}#",
+                            }
+                        ),
+                    }
+                },
+            ]
+        )
