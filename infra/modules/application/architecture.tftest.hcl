@@ -99,6 +99,10 @@ run "preview" {
     error_message = "Las Lambdas deben usar una imagen inmutable y configuración propia por entorno."
   }
   assert {
+    condition     = aws_lambda_function.mcp.logging_config[0].log_format == "JSON" && aws_lambda_function.mcp.logging_config[0].application_log_level == "INFO" && aws_lambda_function.mcp.logging_config[0].system_log_level == "INFO"
+    error_message = "La Lambda MCP de preview debe enviar logs JSON de aplicación y sistema en nivel INFO."
+  }
+  assert {
     condition     = aws_cognito_resource_server.mcp.identifier == "https://mock.cloudfront.net/mcp" && toset([for scope in aws_cognito_resource_server.mcp.scope : scope.scope_name]) == toset(["calendar.read", "calendar.write"]) && aws_cognito_user_pool_client.mcp.generate_secret == false && aws_cognito_user_pool_client.mcp.callback_urls == toset([output.mcp_oauth_callback_url])
     error_message = "Cognito debe emitir scopes separados para el recurso MCP y callback loopback de Codex."
   }
@@ -124,6 +128,10 @@ run "production" {
   assert {
     condition     = aws_lambda_function.mcp.environment[0].variables["MCP_DIAGNOSTIC_LOGS"] == "false"
     error_message = "Los logs de diagnóstico MCP solo deben activarse en preview."
+  }
+  assert {
+    condition     = aws_lambda_function.mcp.logging_config[0].log_format == "JSON" && aws_lambda_function.mcp.logging_config[0].application_log_level == "WARN" && aws_lambda_function.mcp.logging_config[0].system_log_level == "WARN"
+    error_message = "Producción debe conservar niveles de logs WARN para aplicación y sistema."
   }
 }
 run "reject_cross_environment_image" {
