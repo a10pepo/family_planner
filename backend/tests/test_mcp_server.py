@@ -1,3 +1,4 @@
+import logging
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -137,6 +138,52 @@ def test_missing_token_returns_metadata_challenge(client):
         'resource_metadata="https://family-planner-preview.example/.well-known/oauth-protected-resource/mcp"'
         in response.headers["www-authenticate"]
     )
+
+
+def test_preview_diagnostics_log_argument_types_without_values(client, monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENVIRONMENT", "preview")
+    monkeypatch.setenv("MCP_DIAGNOSTIC_LOGS", "true")
+    app = create_mcp_app(storage=client.storage, verifier=TokenVerifier())
+    start = "2026-10-20T10:00:00+02:00"
+    end = "2026-10-20T11:00:00+02:00"
+    member_id = str(uuid4())
+
+    with caplog.at_level(logging.INFO, logger="family_planner.mcp.diagnostics"):
+        response = TestClient(app).post(
+            "/mcp",
+            headers={"Authorization": "Bearer valid"},
+            json=rpc(
+                "tools/call",
+                params={
+                    "name": "list_events",
+                    "arguments": {"start": start, "end": end, "member_id": member_id},
+                },
+            ),
+        )
+
+    assert response.status_code == 200
+    assert '"event":"mcp_http_received"' in caplog.text
+    assert '"event":"mcp_tool_completed"' in caplog.text
+    assert '"start":"string"' in caplog.text
+    assert '"end":"string"' in caplog.text
+    assert '"member_id":"string"' in caplog.text
+    assert start not in caplog.text
+    assert end not in caplog.text
+    assert member_id not in caplog.text
+
+
+def test_preview_diagnostics_are_disabled_outside_preview(client, monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENVIRONMENT", "production")
+    monkeypatch.setenv("MCP_DIAGNOSTIC_LOGS", "true")
+    app = create_mcp_app(storage=client.storage, verifier=TokenVerifier())
+
+    with caplog.at_level(logging.INFO, logger="family_planner.mcp.diagnostics"):
+        response = TestClient(app).post(
+            "/mcp", headers={"Authorization": "Bearer valid"}, json=rpc("ping")
+        )
+
+    assert response.status_code == 200
+    assert "mcp_http_received" not in caplog.text
 
 
 def test_initialize_and_tools_are_scoped(client):

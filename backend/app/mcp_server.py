@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import time as monotonic_time
 from dataclasses import asdict
 from datetime import date, datetime, time
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
@@ -21,6 +23,51 @@ from app.domain.recurrence import expand_series
 
 PROTOCOL_VERSION = "2025-11-25"
 MCP_PATH = "/mcp"
+logger = logging.getLogger("family_planner.mcp.diagnostics")
+
+
+def _argument_types(tool_name: str, arguments: Any) -> dict[str, str]:
+    """Return argument names and JSON types without logging their values."""
+    allowed = {
+        "list_events": {"start", "end", "member_id"},
+        "save_event": {
+            "event_id",
+            "member_id",
+            "title",
+            "starts_at",
+            "ends_at",
+            "category",
+            "custom_icon_id",
+        },
+    }.get(tool_name, set())
+    if not isinstance(arguments, dict):
+        return {"arguments": _json_type(arguments)}
+    types = {key: _json_type(value) for key, value in arguments.items() if key in allowed}
+    unknown_count = sum(key not in allowed for key in arguments)
+    if unknown_count:
+        types["unknown_fields"] = f"count:{unknown_count}"
+    return types
+
+
+def _json_type(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return "unknown"
+
+
+def _diagnostic_log(enabled: bool, event: str, **fields: Any) -> None:
+    if enabled:
+        logger.info("%s", json.dumps({"event": event, **fields}, separators=(",", ":")))
 
 
 class ListEventsArguments(BaseModel):
@@ -73,6 +120,12 @@ def _tool_error(message: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": message}], "isError": True}
 
 
+def _auth_error(status_code: int, reason: str, detail: str, headers: dict[str, str]):
+    error = HTTPException(status_code=status_code, detail=detail, headers=headers)
+    error.diagnostic_reason = reason
+    return error
+
+
 def create_mcp_app(storage=None, verifier=None) -> FastAPI:
     """Create the MCP app with injectable storage and token verifier for tests."""
     issuer = os.getenv("OAUTH_ISSUER", "")
@@ -97,6 +150,46 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
 
     app = FastAPI(title="Family Planner MCP", version="1.0.0", docs_url=None, redoc_url=None)
     app.state.storage = storage
+    diagnostic_logs = (
+        os.getenv("APP_ENVIRONMENT") == "preview"
+        and os.getenv("MCP_DIAGNOSTIC_LOGS", "false").lower() == "true"
+    )
+
+    @app.middleware("http")
+    async def log_mcp_http_request(request: Request, call_next):
+        if request.url.path != MCP_PATH:
+            return await call_next(request)
+        diagnostic_id = str(uuid4())
+        request.state.mcp_diagnostic_id = diagnostic_id
+        started = monotonic_time.perf_counter()
+        _diagnostic_log(
+            diagnostic_logs,
+            "mcp_http_received",
+            request_id=diagnostic_id,
+            http_method=request.method,
+            path=MCP_PATH,
+        )
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        except Exception as exc:
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_http_exception",
+                request_id=diagnostic_id,
+                exception_type=type(exc).__name__,
+            )
+            raise
+        finally:
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_http_completed",
+                request_id=diagnostic_id,
+                status_code=status_code,
+                duration_ms=round((monotonic_time.perf_counter() - started) * 1000, 2),
+            )
 
     root_url = resource_url.removesuffix(MCP_PATH)
     metadata_url = f"{root_url}/.well-known/oauth-protected-resource/mcp"
@@ -128,8 +221,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
 
     def authenticate(authorization: str | None, required_scope: str | None = None) -> dict:
         if not authorization or not authorization.lower().startswith("bearer "):
-            raise HTTPException(
+            raise _auth_error(
                 status_code=401,
+                reason="bearer_missing_or_malformed",
                 detail="Se requiere iniciar sesión para acceder al calendario.",
                 headers={
                     "WWW-Authenticate": (
@@ -142,9 +236,11 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
             claims = verifier.verify(token)
         except HTTPException as exc:
             if exc.status_code == 503:
+                exc.diagnostic_reason = "token_verifier_unavailable"
                 raise
-            raise HTTPException(
+            raise _auth_error(
                 status_code=401,
+                reason="token_verification_failed",
                 detail="El token no es válido para este calendario.",
                 headers={
                     "WWW-Authenticate": (
@@ -156,8 +252,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
 
         audience = claims.get("aud")
         if resource_url not in (audience if isinstance(audience, list) else [audience]):
-            raise HTTPException(
+            raise _auth_error(
                 status_code=401,
+                reason="resource_audience_mismatch",
                 detail="El token no fue emitido para este endpoint MCP.",
                 headers={
                     "WWW-Authenticate": (
@@ -169,8 +266,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
 
         granted = set(claims.get("scope", "").split())
         if required_scope and required_scope not in granted:
-            raise HTTPException(
+            raise _auth_error(
                 status_code=403,
+                reason="required_scope_missing",
                 detail="El token no tiene permiso para esta operación.",
                 headers={
                     "WWW-Authenticate": (
@@ -180,8 +278,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 },
             )
         if not any(scope in granted for scope in scopes):
-            raise HTTPException(
+            raise _auth_error(
                 status_code=403,
+                reason="calendar_scope_missing",
                 detail="El token no tiene permisos de calendario.",
                 headers={
                     "WWW-Authenticate": (
@@ -194,15 +293,40 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
 
     @app.post(MCP_PATH, include_in_schema=False)
     async def mcp_endpoint(request: Request, authorization: str | None = Header(default=None)):
+        diagnostic_id = request.state.mcp_diagnostic_id
         try:
             body = await request.json()
         except (json.JSONDecodeError, ValueError):
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_request_rejected",
+                request_id=diagnostic_id,
+                stage="json_parse",
+                reason="malformed_json",
+                status_code=400,
+            )
             return JSONResponse(_error_response(None, -32700, "Parse error"), status_code=400)
         if not isinstance(body, dict) or body.get("jsonrpc") != "2.0":
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_request_rejected",
+                request_id=diagnostic_id,
+                stage="json_rpc_validation",
+                reason="invalid_request",
+                status_code=400,
+            )
             return JSONResponse(_error_response(None, -32600, "Invalid Request"), status_code=400)
         request_id = body.get("id")
         method = body.get("method")
         if not isinstance(method, str):
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_request_rejected",
+                request_id=diagnostic_id,
+                stage="json_rpc_validation",
+                reason="method_missing_or_invalid",
+                status_code=400,
+            )
             return JSONResponse(
                 _error_response(request_id, -32600, "Invalid Request"), status_code=400
             )
@@ -210,6 +334,19 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
         if params is None:
             params = {}
         if not isinstance(params, dict):
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_request_rejected",
+                request_id=diagnostic_id,
+                stage="json_rpc_validation",
+                method=(
+                    method
+                    if method in {"initialize", "ping", "tools/list", "tools/call"}
+                    else "unknown"
+                ),
+                reason="params_not_object",
+                status_code=200,
+            )
             return JSONResponse(
                 _error_response(request_id, -32602, "Invalid params"), status_code=200
             )
@@ -218,9 +355,44 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
         if method == "tools/call":
             tool_name = params.get("name")
             required_scope = scope_read if tool_name == "list_events" else scope_write
+        safe_method = (
+            method
+            if method
+            in {"initialize", "ping", "tools/list", "tools/call", "notifications/initialized"}
+            else "unknown"
+        )
+        safe_tool_name = (
+            tool_name
+            if method == "tools/call"
+            and isinstance(tool_name, str)
+            and tool_name in {"list_events", "save_event"}
+            else None
+        )
+        _diagnostic_log(
+            diagnostic_logs,
+            "mcp_rpc_received",
+            request_id=diagnostic_id,
+            jsonrpc_method=safe_method,
+            tool=safe_tool_name,
+            argument_types=(
+                _argument_types(safe_tool_name, params.get("arguments", {}))
+                if safe_tool_name
+                else None
+            ),
+        )
         try:
             claims = authenticate(authorization, required_scope)
         except HTTPException as exc:
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_request_rejected",
+                request_id=diagnostic_id,
+                stage="authentication",
+                reason=getattr(exc, "diagnostic_reason", "authentication_failed"),
+                status_code=exc.status_code,
+                jsonrpc_method=safe_method,
+                tool=safe_tool_name,
+            )
             return JSONResponse(
                 {"detail": exc.detail},
                 status_code=exc.status_code,
@@ -313,11 +485,67 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
             result = {"tools": tools}
         elif method == "tools/call":
             if not isinstance(params.get("name"), str):
+                _diagnostic_log(
+                    diagnostic_logs,
+                    "mcp_request_rejected",
+                    request_id=diagnostic_id,
+                    stage="tool_validation",
+                    reason="tool_name_missing_or_invalid",
+                    status_code=200,
+                )
                 return JSONResponse(
                     _error_response(request_id, -32602, "Invalid params"), status_code=200
                 )
-            result = await _call_tool(params["name"], params.get("arguments", {}), claims, storage)
+            tool_name = safe_tool_name or "unknown"
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_tool_started",
+                request_id=diagnostic_id,
+                tool=tool_name,
+                argument_types=_argument_types(tool_name, params.get("arguments", {})),
+            )
+
+            def log_tool_error(reason: str, **details: Any) -> None:
+                _diagnostic_log(
+                    diagnostic_logs,
+                    "mcp_tool_rejected",
+                    request_id=diagnostic_id,
+                    tool=tool_name,
+                    reason=reason,
+                    **details,
+                )
+
+            result = await _call_tool(
+                params["name"],
+                params.get("arguments", {}),
+                claims,
+                storage,
+                on_error=log_tool_error,
+            )
+            tool_is_error = bool(result.get("isError"))
+            structured_result = result.get("structuredContent")
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_tool_completed",
+                request_id=diagnostic_id,
+                tool=tool_name,
+                outcome="error" if tool_is_error else "success",
+                result_count=(
+                    len(structured_result)
+                    if tool_name == "list_events" and isinstance(structured_result, list)
+                    else None
+                ),
+            )
         else:
+            _diagnostic_log(
+                diagnostic_logs,
+                "mcp_request_rejected",
+                request_id=diagnostic_id,
+                stage="method_dispatch",
+                reason="method_not_found",
+                status_code=200,
+                jsonrpc_method="unknown",
+            )
             return JSONResponse(_error_response(request_id, -32601, "Method not found"))
 
         if request_id is None:
@@ -327,7 +555,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
     return app
 
 
-async def _call_tool(name: str, arguments: Any, claims: dict, storage) -> dict[str, Any]:
+async def _call_tool(
+    name: str, arguments: Any, claims: dict, storage, on_error=None
+) -> dict[str, Any]:
     try:
         if not isinstance(arguments, dict):
             raise ValueError("Los argumentos deben ser un objeto JSON.")
@@ -375,10 +605,16 @@ async def _call_tool(name: str, arguments: Any, claims: dict, storage) -> dict[s
                     )
             return _tool_result(_event_value(event))
 
-        return _tool_error(f"Herramienta MCP desconocida: {name}")
+        if on_error:
+            on_error("unknown_tool")
+        return _tool_error("Herramienta MCP desconocida.")
     except ValidationError as exc:
+        if on_error:
+            on_error("argument_validation_failed", error_count=len(exc.errors()))
         return _tool_error(
             "Argumentos no válidos: " + "; ".join(error["msg"] for error in exc.errors())
         )
     except (InvalidInput, MissingEntity, ValueError) as exc:
+        if on_error:
+            on_error("domain_validation_failed", error_type=type(exc).__name__)
         return _tool_error(str(exc))

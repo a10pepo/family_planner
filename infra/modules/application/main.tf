@@ -192,6 +192,7 @@ resource "aws_lambda_function" "mcp" {
   environment {
     variables = {
       APP_ENVIRONMENT            = var.environment
+      MCP_DIAGNOSTIC_LOGS        = var.environment == "preview" ? "true" : "false"
       STORAGE_BACKEND            = "dynamodb"
       DYNAMODB_TABLE             = aws_dynamodb_table.calendar.name
       FAMILY_TIMEZONE            = var.family_timezone

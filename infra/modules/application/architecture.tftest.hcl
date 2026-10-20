@@ -95,7 +95,7 @@ run "preview" {
     error_message = "La Lambda MCP debe iniciar el handler MCP del artefacto compartido."
   }
   assert {
-    condition     = aws_lambda_function.api.package_type == "Image" && aws_lambda_function.api.image_uri == var.lambda_image_uri && aws_lambda_function.api.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.api.environment[0].variables["OAUTH_USER_POOL_ID"] == aws_cognito_user_pool.family.id && aws_lambda_function.mcp.image_uri == var.lambda_image_uri && aws_lambda_function.mcp.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.mcp.environment[0].variables["MCP_RESOURCE_URL"] == "https://mock.cloudfront.net/mcp"
+    condition     = aws_lambda_function.api.package_type == "Image" && aws_lambda_function.api.image_uri == var.lambda_image_uri && aws_lambda_function.api.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.api.environment[0].variables["OAUTH_USER_POOL_ID"] == aws_cognito_user_pool.family.id && aws_lambda_function.mcp.image_uri == var.lambda_image_uri && aws_lambda_function.mcp.environment[0].variables["DYNAMODB_TABLE"] == aws_dynamodb_table.calendar.name && aws_lambda_function.mcp.environment[0].variables["MCP_RESOURCE_URL"] == "https://mock.cloudfront.net/mcp" && aws_lambda_function.mcp.environment[0].variables["MCP_DIAGNOSTIC_LOGS"] == "true"
     error_message = "Las Lambdas deben usar una imagen inmutable y configuración propia por entorno."
   }
   assert {
@@ -120,6 +120,10 @@ run "production" {
   assert {
     condition     = aws_s3_bucket.frontend.bucket == "family-planner-production-111111111111-web" && aws_lambda_function.api.function_name != run.preview.lambda_function_name && aws_cognito_user_pool.family.name == "family-planner-production" && aws_cognito_user_pool.family.deletion_protection == "ACTIVE" && aws_cloudwatch_log_group.lambda.retention_in_days == 30
     error_message = "Recursos de producción deben tener identidad propia y protecciones."
+  }
+  assert {
+    condition     = aws_lambda_function.mcp.environment[0].variables["MCP_DIAGNOSTIC_LOGS"] == "false"
+    error_message = "Los logs de diagnóstico MCP solo deben activarse en preview."
   }
 }
 run "reject_cross_environment_image" {
