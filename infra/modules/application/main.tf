@@ -409,6 +409,20 @@ resource "aws_cognito_user_pool_client" "mcp" {
   depends_on = [aws_cognito_resource_server.mcp]
 }
 
+resource "aws_cognito_managed_login_branding" "web" {
+  count                       = var.managed_login_version == 2 ? 1 : 0
+  user_pool_id                = aws_cognito_user_pool.family.id
+  client_id                   = aws_cognito_user_pool_client.web.id
+  use_cognito_provided_values = true
+}
+
+resource "aws_cognito_managed_login_branding" "mcp" {
+  count                       = var.managed_login_version == 2 ? 1 : 0
+  user_pool_id                = aws_cognito_user_pool.family.id
+  client_id                   = aws_cognito_user_pool_client.mcp.id
+  use_cognito_provided_values = true
+}
+
 resource "aws_secretsmanager_secret" "preview_test_account" {
   count                   = local.production ? 0 : 1
   name                    = "${local.prefix}/test-account"

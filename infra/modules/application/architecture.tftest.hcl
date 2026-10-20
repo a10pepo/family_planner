@@ -81,6 +81,10 @@ run "preview" {
     error_message = "Preview debe usar Essentials y Managed Login para admitir resource binding de OAuth."
   }
   assert {
+    condition     = length(aws_cognito_managed_login_branding.web) == 1 && aws_cognito_managed_login_branding.web[0].use_cognito_provided_values && length(aws_cognito_managed_login_branding.mcp) == 1 && aws_cognito_managed_login_branding.mcp[0].use_cognito_provided_values
+    error_message = "Preview debe asignar estilos Cognito predeterminados a los clientes web y MCP para habilitar las páginas de login."
+  }
+  assert {
     condition     = aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].path_pattern == "/api/*" && aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].cache_policy_id == data.aws_cloudfront_cache_policy.disabled.id && aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].origin_request_policy_id == data.aws_cloudfront_origin_request_policy.api.id && length(aws_cloudfront_distribution.frontend.ordered_cache_behavior[0].function_association) == 0 && length(aws_cloudfront_distribution.frontend.custom_error_response) == 0
     error_message = "La API no se debe cachear ni convertir sus errores en HTML."
   }
@@ -144,6 +148,10 @@ run "production" {
   assert {
     condition     = aws_cognito_user_pool.family.user_pool_tier == "LITE" && aws_cognito_user_pool_domain.family.managed_login_version == 1
     error_message = "Producción debe conservar el plan LITE y Hosted UI clásico."
+  }
+  assert {
+    condition     = length(aws_cognito_managed_login_branding.web) == 0 && length(aws_cognito_managed_login_branding.mcp) == 0
+    error_message = "Producción no debe crear estilos Managed Login mientras conserva Hosted UI clásico."
   }
 }
 run "reject_cross_environment_image" {

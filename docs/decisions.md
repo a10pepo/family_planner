@@ -93,7 +93,7 @@ Las herramientas son `list_events` y `save_event`. Esta última crea cuando falt
 
 ### Resource binding de Cognito para Preview (issue #79)
 
-Pedro autorizó el 20 de octubre de 2026 actualizar exclusivamente Preview a Cognito Essentials y Managed Login v2. La decisión corrige los access tokens MCP que llegaban sin `aud` bajo el plan LITE/Hosted UI clásico. El cambio no altera el User Pool de producción, las credenciales ni los datos DynamoDB. Cognito Essentials comparte una cuota gratuita de 10.000 MAU directos por cuenta u organización; por encima se aplican las tarifas regionales vigentes. Se validará que un nuevo token incluya la audiencia MCP y que la Lambda acepte las llamadas antes de considerar corregida la conexión.
+Pedro autorizó el 20 de octubre de 2026 actualizar exclusivamente Preview a Cognito Essentials y Managed Login v2. La decisión corrige los access tokens MCP que llegaban sin `aud` bajo el plan LITE/Hosted UI clásico. Se asigna el estilo predeterminado de Cognito a los clientes web y MCP para que sus páginas de login estén disponibles. El cambio no altera el User Pool de producción, las credenciales ni los datos DynamoDB. Cognito Essentials comparte una cuota gratuita de 10.000 MAU directos por cuenta u organización; por encima se aplican las tarifas regionales vigentes. Se validará que un nuevo token incluya la audiencia MCP y que la Lambda acepte las llamadas antes de considerar corregida la conexión.
 
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
