@@ -6,7 +6,9 @@ El contrato versionado está en [openapi.json](openapi.json). Con Compose abiert
 
 El cliente inicia sesión en Keycloak con la cuenta familiar mediante OAuth 2.0 / OpenID Connect, Authorization Code y PKCE S256. El formulario de usuario y contraseña pertenece al proveedor de acceso. El cliente conserva los tokens solo en memoria y envía `Authorization: Bearer <access_token>` a la API. El flujo password grant está desactivado.
 
-El backend verifica firma RS256, caducidad, emisor, audiencia `family-api` y rol `family-app`. Las cuentas administrativas de Keycloak no reciben acceso a los datos familiares por ser administradoras. La sesión SSO dura hasta 30 días; los tokens de acceso duran 5 minutos y se renuevan antes de las peticiones. Al cerrar sesión se elimina la sesión SSO y se borran los tokens del cliente; un token ya emitido puede ser válido hasta su caducidad.
+En local, el backend verifica firma RS256, caducidad, emisor, audiencia `family-api` y rol `family-app`. Las cuentas administrativas de Keycloak no reciben acceso a los datos familiares por ser administradoras. La sesión SSO dura hasta 30 días; los tokens de acceso duran 5 minutos y se renuevan antes de las peticiones. Al cerrar sesión se elimina la sesión SSO y se borran los tokens del cliente; un token ya emitido puede ser válido hasta su caducidad.
+
+En AWS, el navegador conserva el token de acceso solo en memoria. El refresh token se guarda en una cookie `Secure`, `HttpOnly`, `SameSite=Strict`, limitada a `/api/v1/auth` y con duración de 24 horas, acorde al cliente Cognito. El backend intercambia el refresh token con Cognito al iniciar/restaurar la sesión, renueva el token de acceso y revoca el refresh token al cerrar sesión. Los endpoints de sesión exigen el origen exacto configurado para la aplicación; el refresh token no se escribe en almacenamiento Web ni se devuelve al navegador después del inicio de sesión.
 
 ## Operaciones
 
@@ -14,6 +16,9 @@ El backend verifica firma RS256, caducidad, emisor, audiencia `family-api` y rol
 | --- | --- | --- |
 | GET | `/api/health` | Disponibilidad de la base de datos y de la migración; público. |
 | GET | `/api/v1/config` | Zona familiar y configuración pública de OAuth; no devuelve secretos. |
+| POST | `/api/v1/auth/session` | AWS: valida un refresh token recién emitido por Cognito, lo establece como cookie protegida y devuelve el token de acceso. Solo admite el origen configurado. |
+| POST | `/api/v1/auth/refresh` | AWS: renueva el token de acceso con la cookie protegida; sesión inválida devuelve 401 y elimina la cookie. |
+| POST | `/api/v1/auth/logout` | AWS: revoca el refresh token y elimina la cookie protegida. |
 | GET | `/api/v1/members` | Lista de integrantes activos; `include_archived=true` añade los archivados. |
 | DELETE | `/api/v1/members/{id}` | Archivar integrante conservando historia (204), idempotente. |
 | POST | `/api/v1/members/{id}/restore` | Restaurar el mismo integrante e historia, idempotente. |

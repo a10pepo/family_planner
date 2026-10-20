@@ -67,8 +67,8 @@ run "preview" {
     error_message = "La Lambda MCP debe limitarse a lectura/escritura de eventos en su tabla, con rol propio y sin borrados."
   }
   assert {
-    condition     = aws_apigatewayv2_route.protected.authorization_type == "JWT" && aws_apigatewayv2_route.protected.authorization_scopes == null && toset(keys(aws_apigatewayv2_route.public)) == toset(["GET /api/health", "GET /api/v1/config"])
-    error_message = "La API debe exigir un JWT de cliente propio salvo salud/configuración públicas."
+    condition     = aws_apigatewayv2_route.protected.authorization_type == "JWT" && aws_apigatewayv2_route.protected.authorization_scopes == null && toset(keys(aws_apigatewayv2_route.public)) == toset(["GET /api/health", "GET /api/v1/config", "POST /api/v1/auth/session", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout"])
+    error_message = "La API debe exigir un JWT de cliente propio, salvo salud/configuración y endpoints de sesión Cognito protegidos por token/cookie y origen."
   }
   assert {
     condition     = !aws_cognito_user_pool_client.web.generate_secret && contains(aws_cognito_user_pool_client.web.explicit_auth_flows, "ALLOW_USER_PASSWORD_AUTH") && !aws_cognito_user_pool.family.admin_create_user_config[0].allow_admin_create_user_only && aws_cognito_user_pool.family.auto_verified_attributes == toset(["email"]) && aws_cognito_user_pool_client.web.callback_urls == toset(["https://mock.cloudfront.net/"])

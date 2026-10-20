@@ -37,6 +37,10 @@ Pedro aprobó expresamente añadir la categoría persistente. La migración `002
 
 El modo demo es explícito e idempotente; no sustituye bases con perfiles existentes. En el issue [#57](https://github.com/a10pepo/family_planner/issues/57), Pedro aprobó usar sus cuatro retratos ilustrados como avatares predeterminados locales para Laura, Pedro, Jaime y Lucía. Son fallback de presentación: las fotos personalizadas guardadas tienen prioridad y no se copian ni reemplazan fotos en perfiles persistidos. El resto de integrantes conserva caras genéricas. La renovación de esta demo local se limitó a los antiguos perfiles ficticios de las pruebas, tras guardar una copia en `.local`, excluida de Git. Una instalación normal sigue empezando vacía y permite más integrantes.
 
+## Sesión web de Cognito (issue #63)
+
+El 20 de octubre de 2026 Pedro aprobó conservar la sesión AWS con una cookie `Secure`, `HttpOnly` y `SameSite=Strict`, gestionada por el backend. El navegador mantiene el token de acceso en memoria; no almacena el refresh token en `localStorage` ni `sessionStorage`. La API valida el refresh token con Cognito al iniciar sesión y al restaurarla, renueva tokens de acceso y revoca el refresh token en el cierre de sesión. La cookie es host-only, se limita a `/api/v1/auth` y expira al día, acorde a Cognito. Los endpoints públicos de API Gateway exigen el origen exacto de `APP_ORIGIN`; el resto de rutas conserva el authorizer JWT. Keycloak local mantiene su flujo actual sin cambios.
+
 ## Configuración y rutinas (issue #6)
 
 Pedro aprobó expresamente: «Sí, implementar esta estructura», en respuesta a la propuesta de fotos opcionales de integrantes, avisos de día completo y tareas asignables para un día o todos los días con estado por persona y fecha. La propuesta indicaba validación y reducción de fotos en la API, conservación de integrantes y eventos, archivo de tareas sin perder marcas anteriores y ausencia de servicios AWS.

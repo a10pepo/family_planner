@@ -37,7 +37,10 @@ export class Api {
         ...init.headers,
       },
     });
-    if (response.status === 401) this.auth.clearToken();
+    if (response.status === 401) {
+      if (this.auth.clearRemoteSession) this.auth.clearRemoteSession();
+      else this.auth.clearToken();
+    }
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(

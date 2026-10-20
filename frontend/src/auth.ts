@@ -19,6 +19,7 @@ export interface AuthClient {
   authenticated?: boolean;
   token?: string;
   onAuthLogout?: (() => void) | undefined;
+  clearRemoteSession?(): void;
   updateToken(minValidity: number): Promise<boolean>;
   clearToken(): void;
   login(options?: { redirectUri?: string }): void | Promise<void>;
@@ -39,7 +40,6 @@ class CognitoAuth implements AuthClient {
   authenticated = false;
   token?: string;
   onAuthLogout?: () => void;
-  private refreshToken?: string;
   private readonly pendingUsernames = new Map<string, string>();
 
   constructor(private config: AppConfig) {}
@@ -47,27 +47,23 @@ class CognitoAuth implements AuthClient {
   async updateToken(minValidity: number) {
     if (this.token && this.expiresAt - Date.now() > minValidity * 1000)
       return false;
-    if (!this.refreshToken) {
-      this.clearToken();
-      return false;
-    }
     try {
-      const result = await this.call("InitiateAuth", {
-        AuthFlow: "REFRESH_TOKEN_AUTH",
-        ClientId: this.config.client_id,
-        AuthParameters: { REFRESH_TOKEN: this.refreshToken },
-      });
-      this.setTokens(result.AuthenticationResult);
+      const result = await this.sessionRequest("/api/v1/auth/refresh");
+      this.setAccessToken(result.access_token, result.expires_in);
       return true;
-    } catch {
+    } catch (error) {
       this.clearToken();
-      return false;
+      if (error instanceof Error && error.message === "SESSION_EXPIRED") {
+        throw new Error("La sesión ha caducado. Vuelve a iniciar sesión.", {
+          cause: error,
+        });
+      }
+      throw error;
     }
   }
 
   clearToken() {
     this.token = undefined;
-    this.refreshToken = undefined;
     this.authenticated = false;
     this.onAuthLogout?.();
   }
@@ -116,10 +112,16 @@ class CognitoAuth implements AuthClient {
       ClientId: this.config.client_id,
       AuthParameters: { USERNAME: email, PASSWORD: password },
     });
-    if (!result.AuthenticationResult) {
+    if (!result.AuthenticationResult?.AccessToken) {
       throw new Error("No se pudo completar el inicio de sesión.");
     }
-    this.setTokens(result.AuthenticationResult);
+    const refreshToken = result.AuthenticationResult.RefreshToken;
+    if (!refreshToken)
+      throw new Error("No se pudo establecer una sesión duradera.");
+    const session = await this.sessionRequest("/api/v1/auth/session", {
+      refresh_token: refreshToken,
+    });
+    this.setAccessToken(session.access_token, session.expires_in);
   }
 
   async forgotPassword(email: string) {
@@ -138,8 +140,17 @@ class CognitoAuth implements AuthClient {
     });
   }
 
-  logout() {
+  async logout() {
+    const response = await fetch("/api/v1/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw new Error("No se pudo cerrar la sesión.");
     this.clearToken();
+  }
+
+  clearRemoteSession() {
+    void this.logout().catch(() => this.clearToken());
   }
 
   private expiresAt = 0;
@@ -183,14 +194,33 @@ class CognitoAuth implements AuthClient {
     return result;
   }
 
-  private setTokens(tokens: {
-    AccessToken: string;
-    RefreshToken?: string;
-    ExpiresIn: number;
-  }) {
-    this.token = tokens.AccessToken;
-    this.refreshToken = tokens.RefreshToken ?? this.refreshToken;
-    this.expiresAt = Date.now() + tokens.ExpiresIn * 1000;
+  private async sessionRequest(
+    path: string,
+    body?: { refresh_token: string },
+  ): Promise<{ access_token: string; expires_in: number }> {
+    const response = await fetch(path, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (response.status === 401) throw new Error("SESSION_EXPIRED");
+    if (!response.ok) throw new Error("No se pudo recuperar la sesión.");
+    return response.json();
+  }
+
+  async restoreSession() {
+    try {
+      const result = await this.sessionRequest("/api/v1/auth/refresh");
+      this.setAccessToken(result.access_token, result.expires_in);
+    } catch {
+      this.clearToken();
+    }
+  }
+
+  private setAccessToken(accessToken: string, expiresIn: number) {
+    this.token = accessToken;
+    this.expiresAt = Date.now() + expiresIn * 1000;
     this.authenticated = true;
   }
 }
@@ -204,6 +234,7 @@ export async function initializeAuth(): Promise<{
   const config: AppConfig = await response.json();
   if (config.oauth_provider === "cognito") {
     const auth = new CognitoAuth(config);
+    await auth.restoreSession();
     return { auth, config };
   }
   const auth = new Keycloak({

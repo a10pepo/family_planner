@@ -257,7 +257,7 @@ resource "aws_apigatewayv2_route" "protected" {
 }
 
 resource "aws_apigatewayv2_route" "public" {
-  for_each           = toset(["GET /api/health", "GET /api/v1/config"])
+  for_each           = toset(["GET /api/health", "GET /api/v1/config", "POST /api/v1/auth/session", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout"])
   api_id             = aws_apigatewayv2_api.api.id
   route_key          = each.value
   target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
