@@ -311,7 +311,7 @@ resource "aws_lambda_permission" "mcp" {
 
 resource "aws_cognito_user_pool" "family" {
   name                     = local.prefix
-  user_pool_tier           = "LITE"
+  user_pool_tier           = var.user_pool_tier
   deletion_protection      = local.production ? "ACTIVE" : "INACTIVE"
   alias_attributes         = ["email"]
   auto_verified_attributes = ["email"]
@@ -335,7 +335,7 @@ resource "aws_cognito_user_pool" "family" {
 resource "aws_cognito_user_pool_domain" "family" {
   domain                = "${local.prefix}-${var.aws_account_id}"
   user_pool_id          = aws_cognito_user_pool.family.id
-  managed_login_version = 1
+  managed_login_version = var.managed_login_version
 }
 
 resource "aws_cognito_resource_server" "api" {

@@ -91,6 +91,10 @@ Cada entorno conserva su User Pool y tabla DynamoDB. El MCP usa un cliente Cogni
 
 Las herramientas son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe; no permite cambiar el integrante ni borrar. No se modifica DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
 
+### Resource binding de Cognito para Preview (issue #79)
+
+Pedro autorizó el 20 de octubre de 2026 actualizar exclusivamente Preview a Cognito Essentials y Managed Login v2. La decisión corrige los access tokens MCP que llegaban sin `aud` bajo el plan LITE/Hosted UI clásico. El cambio no altera el User Pool de producción, las credenciales ni los datos DynamoDB. Cognito Essentials comparte una cuota gratuita de 10.000 MAU directos por cuenta u organización; por encima se aplican las tarifas regionales vigentes. Se validará que un nuevo token incluya la audiencia MCP y que la Lambda acepte las llamadas antes de considerar corregida la conexión.
+
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
 
