@@ -1,10 +1,11 @@
 import logging
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from app.domain.calendar import Category, Member
+from app.domain.calendar import Category, Event, Member
+from app.domain.family import FamilyEvent, FamilyIcon
 from app.mcp_server import create_mcp_app
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -77,16 +78,48 @@ class RecurrenceRepository:
         return []
 
 
+class FamilyRepository:
+    def __init__(self, calendar):
+        self.calendar = calendar
+        self.events_by_id = {}
+
+    def icon(self, icon_id):
+        return self.calendar.icon(icon_id)
+
+    def events(self, start, end):
+        return sorted(
+            (event for event in self.events_by_id.values() if start <= event.day < end),
+            key=lambda event: (event.day, event.title, event.id),
+        )
+
+    def event(self, event_id):
+        return self.events_by_id.get(event_id)
+
+    def save(self, event):
+        self.events_by_id[event.id] = event
+        return event
+
+    def remove(self, event_id):
+        self.events_by_id.pop(event_id, None)
+
+
 class Storage:
     def __init__(self):
         self.calendar = CalendarRepository()
+        self.family = FamilyRepository(self.calendar)
         self.family_ids = []
 
     @contextmanager
     def repositories(self, family_id):
         self.family_ids.append(family_id)
         yield type(
-            "Repositories", (), {"calendar": self.calendar, "recurrence": RecurrenceRepository()}
+            "Repositories",
+            (),
+            {
+                "calendar": self.calendar,
+                "family": self.family,
+                "recurrence": RecurrenceRepository(),
+            },
         )()
 
 
@@ -201,7 +234,10 @@ def test_initialize_and_tools_are_scoped(client):
     assert {tool["name"] for tool in tools} == {
         "list_members",
         "list_events",
+        "list_family_events",
         "save_event",
+        "save_family_event",
+        "delete_family_event",
     }
 
 
@@ -215,7 +251,11 @@ def test_list_members_uses_read_scope_and_returns_only_active_identity_fields(cl
     tools = read_client.post("/mcp", headers=headers, json=rpc("tools/list")).json()["result"][
         "tools"
     ]
-    assert {tool["name"] for tool in tools} == {"list_members", "list_events"}
+    assert {tool["name"] for tool in tools} == {
+        "list_members",
+        "list_events",
+        "list_family_events",
+    }
 
     response = read_client.post(
         "/mcp",
@@ -550,3 +590,156 @@ def test_save_event_can_reassign_member_and_rejects_invalid_interval(client):
         client.storage.calendar.event(UUID(event_id)).member_id
         == client.storage.calendar.other_member.id
     )
+
+
+def test_family_event_tools_list_create_update_and_delete(client):
+    headers = {"Authorization": "Bearer valid"}
+    custom_icon_id = UUID("11111111-1111-4111-8111-111111111111")
+    before_range = FamilyEvent(uuid4(), date(2026, 10, 7), "Before", FamilyIcon.OTHER)
+    inside_range = FamilyEvent(
+        uuid4(), date(2026, 10, 8), "Birthday", FamilyIcon.BIRTHDAY, custom_icon_id
+    )
+    client.storage.family.save(before_range)
+    client.storage.family.save(inside_range)
+
+    listed = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "list_family_events",
+                "arguments": {"start": "2026-10-08", "end": "2026-10-09"},
+            },
+        ),
+    ).json()["result"]["structuredContent"]
+    assert listed == [
+        {
+            "id": str(inside_range.id),
+            "day": "2026-10-08",
+            "title": "Birthday",
+            "icon": "birthday",
+            "custom_icon_id": str(custom_icon_id),
+        }
+    ]
+
+    created = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "save_family_event",
+                "arguments": {
+                    "day": "2026-10-10",
+                    "title": "Celebration",
+                    "icon": "celebration",
+                },
+            },
+        ),
+    ).json()["result"]["structuredContent"]
+    created_id = UUID(created["id"])
+    assert created["day"] == "2026-10-10"
+    assert created["icon"] == "celebration"
+    assert created["custom_icon_id"] is None
+
+    updated = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "save_family_event",
+                "arguments": {
+                    "event_id": str(inside_range.id),
+                    "day": "2026-10-11",
+                    "title": "Updated birthday",
+                    "icon": "other",
+                },
+            },
+        ),
+    ).json()["result"]["structuredContent"]
+    assert updated["id"] == str(inside_range.id)
+    assert updated["day"] == "2026-10-11"
+    assert updated["custom_icon_id"] == str(custom_icon_id)
+
+    deleted = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={"name": "delete_family_event", "arguments": {"event_id": str(created_id)}},
+        ),
+    ).json()["result"]["structuredContent"]
+    assert deleted == {"id": str(created_id), "deleted": True}
+    assert client.storage.family.event(created_id) is None
+    assert client.storage.calendar.event(created_id) is None
+
+    punctual_id = uuid4()
+    client.storage.calendar.save_event(
+        Event(
+            punctual_id,
+            client.storage.calendar.member_id,
+            "Timed event",
+            datetime(2026, 10, 12, 10, tzinfo=UTC),
+            datetime(2026, 10, 12, 11, tzinfo=UTC),
+        )
+    )
+    wrong_kind_delete = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={"name": "delete_family_event", "arguments": {"event_id": str(punctual_id)}},
+        ),
+    ).json()["result"]
+    assert wrong_kind_delete["isError"] is True
+    assert client.storage.calendar.event(punctual_id) is not None
+
+
+def test_family_event_tools_enforce_scopes_and_strict_arguments(client):
+    read_only = TestClient(
+        create_mcp_app(
+            storage=client.storage,
+            verifier=TokenVerifier(
+                {"sub": "family-user-123", "aud": RESOURCE, "scope": READ_SCOPE}
+            ),
+        )
+    )
+    headers = {"Authorization": "Bearer valid"}
+    listed_tools = read_only.post("/mcp", headers=headers, json=rpc("tools/list")).json()["result"][
+        "tools"
+    ]
+    assert "list_family_events" in {tool["name"] for tool in listed_tools}
+    assert "save_family_event" not in {tool["name"] for tool in listed_tools}
+    assert "delete_family_event" not in {tool["name"] for tool in listed_tools}
+
+    denied = read_only.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={"name": "delete_family_event", "arguments": {"event_id": str(uuid4())}},
+        ),
+    )
+    assert denied.status_code == 403
+    assert "insufficient_scope" in denied.headers["www-authenticate"]
+
+    invalid = client.post(
+        "/mcp",
+        headers=headers,
+        json=rpc(
+            "tools/call",
+            params={
+                "name": "save_family_event",
+                "arguments": {
+                    "day": "2026-10-08T00:00:00",
+                    "title": "Invalid date",
+                    "icon": "birthday",
+                    "unexpected": True,
+                },
+            },
+        ),
+    ).json()["result"]
+    assert invalid["isError"] is True
+    assert client.storage.family.events_by_id == {}

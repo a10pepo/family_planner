@@ -87,6 +87,24 @@ def test_family_day_index_and_record_use_same_tenant_prefix():
     assert item["gsi1pk"] == f"FAMILY#family-beta#DAY#{day.isoformat()}"
 
 
+def test_family_event_delete_is_transactional_and_conditioned_on_family_event_type(monkeypatch):
+    monkeypatch.setattr(dynamodb, "_serialize", lambda item: item)
+    table = FakeTable()
+    access = DynamoAccess(table, "family-delete-test")
+    event_id = uuid4()
+
+    DynamoFamilyRepository(access).remove(event_id)
+
+    [delete] = table.meta.client.transactions[0]
+    operation = delete["Delete"]
+    assert operation["Key"] == {
+        "pk": "FAMILY#family-delete-test",
+        "sk": f"FAMILY_EVENT#{event_id}",
+    }
+    assert operation["ConditionExpression"] == "attribute_exists(pk) AND #type = :type"
+    assert operation["ExpressionAttributeValues"] == {":type": "family_event"}
+
+
 def test_event_transaction_uses_injected_low_level_client(monkeypatch):
     monkeypatch.setattr(dynamodb, "_serialize", lambda item: item)
     table = FakeTable()

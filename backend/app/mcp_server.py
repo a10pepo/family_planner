@@ -20,6 +20,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from app.adapters.oauth import OAuthVerifier
 from app.adapters.storage import configured_storage
 from app.domain.calendar import Calendar, Category, InvalidInput, MissingEntity
+from app.domain.family import FamilyIcon, FamilyPlanner
 from app.domain.recurrence import expand_series
 
 PROTOCOL_VERSION = "2025-11-25"
@@ -32,6 +33,7 @@ def _argument_types(tool_name: str, arguments: Any) -> dict[str, str]:
     allowed = {
         "list_members": set(),
         "list_events": {"start", "end", "member_id", "title", "category"},
+        "list_family_events": {"start", "end"},
         "save_event": {
             "event_id",
             "member_id",
@@ -41,6 +43,8 @@ def _argument_types(tool_name: str, arguments: Any) -> dict[str, str]:
             "category",
             "custom_icon_id",
         },
+        "save_family_event": {"event_id", "day", "title", "icon", "custom_icon_id"},
+        "delete_family_event": {"event_id"},
     }.get(tool_name, set())
     if not isinstance(arguments, dict):
         return {"arguments": _json_type(arguments)}
@@ -122,6 +126,12 @@ class ListMembersArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ListFamilyEventsArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    start: date
+    end: date
+
+
 class SaveEventArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
     event_id: UUID | None = None
@@ -131,6 +141,20 @@ class SaveEventArguments(BaseModel):
     ends_at: AwareDatetime
     category: Category | None = None
     custom_icon_id: UUID | None = None
+
+
+class SaveFamilyEventArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_id: UUID | None = None
+    day: date
+    title: str = Field(min_length=1, max_length=80)
+    icon: FamilyIcon
+    custom_icon_id: UUID | None = None
+
+
+class DeleteFamilyEventArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_id: UUID
 
 
 def _json_value(value: Any) -> Any:
@@ -408,7 +432,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
         if method == "tools/call":
             tool_name = params.get("name")
             required_scope = (
-                scope_read if tool_name in {"list_members", "list_events"} else scope_write
+                scope_read
+                if tool_name in {"list_members", "list_events", "list_family_events"}
+                else scope_write
             )
         safe_method = (
             method
@@ -420,7 +446,15 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
             tool_name
             if method == "tools/call"
             and isinstance(tool_name, str)
-            and tool_name in {"list_members", "list_events", "save_event"}
+            and tool_name
+            in {
+                "list_members",
+                "list_events",
+                "list_family_events",
+                "save_event",
+                "save_family_event",
+                "delete_family_event",
+            }
             else None
         )
         _diagnostic_log(
@@ -468,8 +502,9 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "family-planner", "version": "1.0.0"},
                 "instructions": (
-                    "Consulta integrantes y eventos por rango. Usa save_event para crear o editar; "
-                    "nunca borres eventos."
+                    "Consulta integrantes, eventos con horario y eventos familiares. "
+                    "Usa save_event y save_family_event para crear o editar. "
+                    "delete_family_event solo elimina eventos familiares de todo el día."
                 ),
             }
         elif method == "tools/list":
@@ -485,6 +520,24 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                         "inputSchema": {
                             "type": "object",
                             "properties": {},
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
+                        "name": "list_family_events",
+                        "description": (
+                            "Lee eventos familiares de todo el día en un rango de fechas locales; "
+                            "start se incluye y end se excluye."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "start": {"type": "string", "format": "date"},
+                                "end": {"type": "string", "format": "date"},
+                            },
+                            "required": ["start", "end"],
                             "additionalProperties": False,
                         },
                     }
@@ -573,6 +626,59 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                         },
                     }
                 )
+                tools.append(
+                    {
+                        "name": "save_family_event",
+                        "description": (
+                            "Crea o edita un evento familiar de todo el día, sin integrante ni "
+                            "repetición automática. Para editar, proporciona event_id."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "event_id": {
+                                    "anyOf": [
+                                        {"type": "string", "format": "uuid"},
+                                        {"type": "null"},
+                                    ]
+                                },
+                                "day": {"type": "string", "format": "date"},
+                                "title": {"type": "string", "minLength": 1, "maxLength": 80},
+                                "icon": {
+                                    "type": "string",
+                                    "enum": [icon.value for icon in FamilyIcon],
+                                },
+                                "custom_icon_id": {
+                                    "anyOf": [
+                                        {"type": "string", "format": "uuid"},
+                                        {"type": "null"},
+                                    ],
+                                    "description": (
+                                        "UUID del catálogo; si se omite al editar se conserva el "
+                                        "icono personalizado."
+                                    ),
+                                },
+                            },
+                            "required": ["day", "title", "icon"],
+                            "additionalProperties": False,
+                        },
+                    }
+                )
+                tools.append(
+                    {
+                        "name": "delete_family_event",
+                        "description": (
+                            "Elimina un evento familiar de todo el día por event_id. No elimina "
+                            "eventos asignados a integrantes ni eventos recurrentes."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"event_id": {"type": "string", "format": "uuid"}},
+                            "required": ["event_id"],
+                            "additionalProperties": False,
+                        },
+                    }
+                )
             result = {"tools": tools}
         elif method == "tools/call":
             if not isinstance(params.get("name"), str):
@@ -623,7 +729,7 @@ def create_mcp_app(storage=None, verifier=None) -> FastAPI:
                 outcome="error" if tool_is_error else "success",
                 result_count=(
                     len(structured_result)
-                    if tool_name in {"list_members", "list_events"}
+                    if tool_name in {"list_members", "list_events", "list_family_events"}
                     and isinstance(structured_result, list)
                     else None
                 ),
@@ -684,6 +790,12 @@ async def _call_tool(
             ]
             return _tool_result(events)
 
+        if name == "list_family_events":
+            data = ListFamilyEventsArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                events = FamilyPlanner(repositories.family).list_events(data.start, data.end)
+            return _tool_result([_json_value(asdict(event)) for event in events])
+
         if name == "save_event":
             data = SaveEventArguments.model_validate(arguments)
             if data.event_id is None and data.member_id is None:
@@ -711,6 +823,25 @@ async def _call_tool(
                         data.member_id,
                     )
             return _tool_result(_event_value(event))
+
+        if name == "save_family_event":
+            data = SaveFamilyEventArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                event = FamilyPlanner(repositories.family).save(
+                    data.day,
+                    data.title,
+                    data.icon,
+                    data.custom_icon_id,
+                    data.event_id,
+                    "custom_icon_id" in arguments,
+                )
+            return _tool_result(_json_value(asdict(event)))
+
+        if name == "delete_family_event":
+            data = DeleteFamilyEventArguments.model_validate(arguments)
+            with storage.repositories(claims["sub"]) as repositories:
+                FamilyPlanner(repositories.family).remove(data.event_id)
+            return _tool_result({"id": str(data.event_id), "deleted": True})
 
         if on_error:
             on_error("unknown_tool")

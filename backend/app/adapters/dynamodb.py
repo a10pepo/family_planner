@@ -527,8 +527,23 @@ class DynamoFamilyRepository:
         return event
 
     def remove(self, event_id: UUID) -> None:
-        self.access.table.delete_item(
-            Key={"pk": self.access.family_pk, "sk": f"FAMILY_EVENT#{event_id}"}
+        self.access.client.transact_write_items(
+            TransactItems=[
+                {
+                    "Delete": {
+                        "TableName": self.access.table.name,
+                        "Key": _serialize(
+                            {
+                                "pk": self.access.family_pk,
+                                "sk": f"FAMILY_EVENT#{event_id}",
+                            }
+                        ),
+                        "ConditionExpression": "attribute_exists(pk) AND #type = :type",
+                        "ExpressionAttributeNames": {"#type": "type"},
+                        "ExpressionAttributeValues": _serialize({":type": "family_event"}),
+                    }
+                }
+            ]
         )
 
 
