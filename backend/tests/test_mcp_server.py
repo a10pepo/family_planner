@@ -71,11 +71,39 @@ class CalendarRepository:
 
 
 class RecurrenceRepository:
+    def __init__(self):
+        self.series_by_id = {}
+        self.exceptions_by_key = {}
+
     def series(self, member_id=None):
-        return []
+        return [
+            item
+            for item in self.series_by_id.values()
+            if member_id is None or item.member_id == member_id
+        ]
+
+    def get_series(self, series_id):
+        return self.series_by_id.get(series_id)
+
+    def save_series(self, series):
+        self.series_by_id[series.id] = series
+        return series
+
+    def delete_series(self, series_id):
+        self.series_by_id.pop(series_id, None)
+        for key in [key for key in self.exceptions_by_key if key[0] == series_id]:
+            self.exceptions_by_key.pop(key)
 
     def exceptions(self, series_id):
-        return []
+        return [item for item in self.exceptions_by_key.values() if item.series_id == series_id]
+
+    def save_exception(self, exception):
+        key = (exception.series_id, exception.occurrence_date, exception.occurrence_time)
+        self.exceptions_by_key[key] = exception
+        return exception
+
+    def delete_exception(self, series_id, occurrence_date, occurrence_time):
+        self.exceptions_by_key.pop((series_id, occurrence_date, occurrence_time), None)
 
 
 class FamilyRepository:
@@ -107,6 +135,7 @@ class Storage:
     def __init__(self):
         self.calendar = CalendarRepository()
         self.family = FamilyRepository(self.calendar)
+        self.recurrence = RecurrenceRepository()
         self.family_ids = []
 
     @contextmanager
@@ -118,7 +147,7 @@ class Storage:
             {
                 "calendar": self.calendar,
                 "family": self.family,
-                "recurrence": RecurrenceRepository(),
+                "recurrence": self.recurrence,
             },
         )()
 
@@ -234,8 +263,13 @@ def test_initialize_and_tools_are_scoped(client):
     assert {tool["name"] for tool in tools} == {
         "list_members",
         "list_events",
+        "list_event_series",
         "list_family_events",
         "save_event",
+        "save_event_series",
+        "save_occurrence_exception",
+        "delete_event_series",
+        "delete_occurrence_exception",
         "save_family_event",
         "delete_family_event",
     }
@@ -254,6 +288,7 @@ def test_list_members_uses_read_scope_and_returns_only_active_identity_fields(cl
     assert {tool["name"] for tool in tools} == {
         "list_members",
         "list_events",
+        "list_event_series",
         "list_family_events",
     }
 
@@ -743,3 +778,119 @@ def test_family_event_tools_enforce_scopes_and_strict_arguments(client):
     ).json()["result"]
     assert invalid["isError"] is True
     assert client.storage.family.events_by_id == {}
+
+
+def test_mcp_manages_recurring_series_and_occurrence_exceptions_without_touching_punctual_events(
+    client,
+):
+    headers = {"Authorization": "Bearer valid"}
+    member_id = str(client.storage.calendar.member_id)
+    occurrence_date = "2026-10-20"
+    occurrence_time = "09:00:00"
+    punctual_event = client.storage.calendar.save_event(
+        Event(
+            uuid4(),
+            client.storage.calendar.member_id,
+            "Puntual",
+            datetime(2026, 10, 20, 7, tzinfo=UTC),
+            datetime(2026, 10, 20, 8, tzinfo=UTC),
+        )
+    )
+
+    def call(name, arguments):
+        return client.post(
+            "/mcp",
+            headers=headers,
+            json=rpc("tools/call", params={"name": name, "arguments": arguments}),
+        ).json()["result"]
+
+    created = call(
+        "save_event_series",
+        {
+            "member_id": member_id,
+            "title": "Natación",
+            "start_date": occurrence_date,
+            "start_time": occurrence_time,
+            "duration_minutes": 45,
+            "timezone": "Europe/Madrid",
+            "frequency": "weekly",
+            "interval": 1,
+            "weekdays": [1],
+            "category": "activities",
+        },
+    )
+    assert created["structuredContent"]["title"] == "Natación"
+    series_id = created["structuredContent"]["id"]
+
+    listed = call("list_event_series", {})
+    assert [item["id"] for item in listed["structuredContent"]] == [series_id]
+
+    updated = call(
+        "save_event_series",
+        {
+            "series_id": series_id,
+            "member_id": member_id,
+            "title": "Natación cambiada",
+            "start_date": occurrence_date,
+            "start_time": occurrence_time,
+            "duration_minutes": 50,
+            "timezone": "Europe/Madrid",
+            "frequency": "weekly",
+            "interval": 1,
+            "weekdays": [1],
+            "end_mode": "never",
+            "category": "activities",
+        },
+    )
+    assert updated["structuredContent"]["title"] == "Natación cambiada"
+
+    cancelled = call(
+        "save_occurrence_exception",
+        {
+            "series_id": series_id,
+            "occurrence_date": occurrence_date,
+            "occurrence_time": occurrence_time,
+            "cancelled": True,
+        },
+    )
+    assert cancelled["structuredContent"]["cancelled"] is True
+
+    invalid_occurrence = call(
+        "save_occurrence_exception",
+        {
+            "series_id": series_id,
+            "occurrence_date": "2026-10-21",
+            "occurrence_time": occurrence_time,
+            "cancelled": True,
+        },
+    )
+    assert invalid_occurrence["isError"] is True
+
+    restored = call(
+        "delete_occurrence_exception",
+        {
+            "series_id": series_id,
+            "occurrence_date": occurrence_date,
+            "occurrence_time": occurrence_time,
+        },
+    )
+    assert restored["structuredContent"]["restored"] is True
+    assert not client.storage.recurrence.exceptions(UUID(series_id))
+
+    deleted = call("delete_event_series", {"series_id": series_id})
+    assert deleted["structuredContent"]["deleted"] is True
+    assert client.storage.recurrence.get_series(UUID(series_id)) is None
+    assert client.storage.calendar.event(punctual_event.id) == punctual_event
+
+
+def test_mcp_recurring_mutations_require_write_scope(client):
+    read_only = create_mcp_app(
+        storage=client.storage,
+        verifier=TokenVerifier({"sub": "family-user-123", "aud": RESOURCE, "scope": READ_SCOPE}),
+    )
+    response = TestClient(read_only).post(
+        "/mcp",
+        headers={"Authorization": "Bearer valid"},
+        json=rpc("tools/call", params={"name": "delete_event_series", "arguments": {}}),
+    )
+    assert response.status_code == 403

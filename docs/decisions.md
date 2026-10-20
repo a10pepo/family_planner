@@ -89,7 +89,7 @@ Pedro aprobó expresamente el 15 de octubre de 2026 una Lambda MCP para Preview 
 
 Cada entorno conserva su User Pool y tabla DynamoDB. El MCP usa un cliente Cognito público dedicado, una audiencia de recurso distinta por entorno, y los scopes `calendar.read` y `calendar.write`. La Lambda publica metadata de Protected Resource y metadata de autorización para Codex, con PKCE S256 y endpoints de autorización/token delegados a Cognito. El token se valida en la Lambda por firma, emisor real de Cognito, tipo `access`, audiencia, scopes y `sub`. El `sub` validado sigue siendo la única clave de partición familiar. API Gateway enruta `/mcp` a una Lambda separada con rol IAM propio, limitado a la tabla del entorno y sus logs; CloudFront reenvía `Authorization` y desactiva caché para MCP y metadata OAuth.
 
-Las herramientas base son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe. El borrado de eventos con horario queda fuera de alcance. No se modifica el esquema DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
+Las herramientas base son `list_events` y `save_event`. Esta última crea cuando falta `event_id` y edita cuando existe. El borrado de eventos puntuales con horario queda fuera de alcance. No se modifica el esquema DynamoDB ni se migran datos. El endpoint MCP se expone bajo la URL CloudFront específica de cada entorno. Terraform calcula y registra el callback loopback de Codex con puerto 1455 y callback ID derivado de la URL MCP.
 
 ### Nombres de integrantes en MCP (issue #81)
 
@@ -97,7 +97,9 @@ El 20 de octubre de 2026 Pedro solicitó que el MCP permita resolver integrantes
 
 ### Eventos familiares en MCP (issue #81)
 
-Pedro autorizó el 20 de octubre de 2026 gestionar eventos familiares de todo el día mediante `list_family_events`, `save_family_event` y `delete_family_event`, usando los scopes existentes: lectura para consultar y escritura para crear, editar o eliminar. Los rangos usan fechas locales con inicio incluido y final excluido; las ediciones conservan el icono personalizado si se omite su referencia. El borrado solo acepta IDs de eventos familiares. En DynamoDB se ejecuta con `TransactWriteItems` y una condición `type = family_event`; no se concede `dynamodb:DeleteItem` al rol MCP. No se permite desde MCP borrar eventos con horario ni series recurrentes. El esquema de datos no cambia.
+Pedro autorizó el 20 de octubre de 2026 gestionar eventos familiares de todo el día mediante `list_family_events`, `save_family_event` y `delete_family_event`, usando los scopes existentes: lectura para consultar y escritura para crear, editar o eliminar. Los rangos usan fechas locales con inicio incluido y final excluido; las ediciones conservan el icono personalizado si se omite su referencia. El borrado solo acepta IDs de eventos familiares. En DynamoDB se ejecuta con `TransactWriteItems` y una condición `type = family_event`; no se concede `dynamodb:DeleteItem` al rol MCP. El esquema de datos no cambia.
+
+Pedro autorizó también gestionar series recurrentes y excepciones mediante MCP. `list_event_series` usa lectura; `save_event_series`, `save_occurrence_exception`, `delete_occurrence_exception` y `delete_event_series` usan escritura. El borrado de una excepción restaura la ocurrencia; el borrado de una serie elimina también sus excepciones. En DynamoDB se usa `TransactWriteItems` ya autorizado, con claves de la partición familiar y condiciones de tipo y clave exacta/prefijo; no se añade `dynamodb:DeleteItem` al rol. No se pueden borrar eventos puntuales. Sin cambios de esquema.
 
 - Protección de main con checks obligatorios, política de revisión y eventual merge automático.
 - Tablero de GitHub Projects si se desea; actualmente se usan los issues del repositorio.
